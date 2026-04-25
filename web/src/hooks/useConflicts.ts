@@ -89,3 +89,34 @@ export function useTrustWeights() {
     queryFn: getTrustWeights,
   })
 }
+
+// ── Pending Types Inbox (Autonome Ontologie-Evolution) ──────────────────────
+
+import { decidePendingType, listPendingTypes } from '@/lib/api'
+
+export function usePendingTypes(kind?: 'entity' | 'edge' | 'source_mapping') {
+  return useQuery({
+    queryKey: ['inbox', 'pending-types', kind ?? 'all'],
+    queryFn: () => listPendingTypes(kind),
+  })
+}
+
+export function useDecidePendingType() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      pendingId,
+      kind,
+      decision,
+      note,
+    }: {
+      pendingId: string
+      kind: 'entity' | 'edge' | 'source_mapping'
+      decision: 'approved' | 'rejected'
+      note?: string
+    }) => decidePendingType(pendingId, { kind, decision, note }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['inbox', 'pending-types'] })
+    },
+  })
+}
