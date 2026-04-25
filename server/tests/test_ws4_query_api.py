@@ -422,12 +422,16 @@ class TestVfsWithRealData:
 # ---------------------------------------------------------------------------
 
 class TestCypherProxy:
-    def test_cypher_503_without_neo4j(self, client):
+    def test_cypher_503_without_neo4j(self, client, monkeypatch):
+        monkeypatch.setattr("server.config.settings.neo4j_uri", "")
+        monkeypatch.setattr("server.config.settings.neo4j_password", "")
         r = client.post("/api/query/cypher", json={"query": "MATCH (n) RETURN n LIMIT 1"})
         assert r.status_code == 503
         assert r.json()["detail"]["day_2_feature"] is True
 
-    def test_named_queries_list(self, client):
+    def test_named_queries_list(self, client, monkeypatch):
+        monkeypatch.setattr("server.config.settings.neo4j_uri", "")
+        monkeypatch.setattr("server.config.settings.neo4j_password", "")
         r = client.get("/api/query/cypher/named")
         assert r.status_code == 200
         assert r.json()["neo4j_ready"] is False

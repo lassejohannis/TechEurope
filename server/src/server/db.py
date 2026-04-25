@@ -25,13 +25,15 @@ def get_db():
     global _supabase
     if _supabase is None:
         from supabase import create_client
+
         if not settings.supabase_url or not settings.supabase_secret_key:
-            raise RuntimeError("SUPABASE_URL / SUPABASE_SERVICE_KEY not set")
+            raise RuntimeError("SUPABASE_URL / SUPABASE_SECRET_KEY not set")
         _supabase = create_client(settings.supabase_url, settings.supabase_secret_key)
     return _supabase
 
 
-get_supabase = get_db  # backwards-compat alias used by connectors + cli
+# Alias used by ontology loader, connectors, and CLI scripts.
+get_supabase = get_db
 
 
 # ---------------------------------------------------------------------------
@@ -46,6 +48,7 @@ def get_gemini():
     global _gemini
     if _gemini is None:
         from google import genai
+
         if not settings.gemini_api_key:
             raise RuntimeError("GEMINI_API_KEY not set")
         _gemini = genai.Client(api_key=settings.gemini_api_key)
@@ -66,6 +69,7 @@ def embed_text(text: str, dimensions: int = 768) -> list[float]:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def row_to_dict(row: Any) -> dict:
     """Normalise a supabase-py result row to a plain dict."""
