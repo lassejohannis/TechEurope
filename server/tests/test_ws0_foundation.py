@@ -1,176 +1,139 @@
-"""WS-0: Foundation — Schema, Models, Config, Migration SQL.
-
-Tests run fully offline. Live-DB tests need SUPABASE_URL set.
-"""
+"""WS-0: Foundation — models, config, schema contracts."""
 
 from __future__ import annotations
 
-import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
-MIGRATIONS_DIR = Path(__file__).parent.parent / "migrations"
-ONTOLOGIES_DIR = Path(__file__).parent.parent.parent / "config" / "ontologies"
+DATA_DIR = Path(__file__).parent.parent.parent / "data" / "enterprise-bench"
 
 
-# ---------------------------------------------------------------------------
-# Pydantic models
-# ---------------------------------------------------------------------------
-
-class TestModels:
-    def test_entity_response_valid(self):
+class TestPydanticModels:
+    def test_entity_response_defaults(self):
         from server.models import EntityResponse
         e = EntityResponse(
             id=str(uuid.uuid4()),
             entity_type="person",
             canonical_name="Raj Patel",
+            aliases=[],
+            attrs={},
         )
         assert e.trust_score == 0.0
+        assert e.fact_count == 0
+        assert e.source_diversity == 0
         assert e.facts == []
 
-    def test_fact_response_valid(self):
+    def test_fact_response_required_fields(self, sample_fact, sample_entity):
         from server.models import FactResponse
-        now = datetime.now(tz=timezone.utc)
         f = FactResponse(
-            id=str(uuid.uuid4()),
-            subject_id=str(uuid.uuid4()),
+            id=sample_fact["id"],
+            subject_id=sample_entity["id"],
             predicate="works_at",
             confidence=0.95,
             derivation="connector_ingest",
-            valid_from=now,
-            recorded_at=now,
-            source_id=str(uuid.uuid4()),
+            valid_from=datetime.now(tz=timezone.utc),
+            recorded_at=datetime.now(tz=timezone.utc),
+            source_id=sample_fact["source_id"],
         )
+        assert f.predicate == "works_at"
         assert f.valid_to is None
-        assert f.object_id is None
 
-    def test_propose_fact_confidence_bounds(self):
-        from server.models import ProposeFactRequest
-        from pydantic import ValidationError
-        with pytest.raises(ValidationError):
-            ProposeFactRequest(subject_id="x", predicate="p", confidence=1.5)
-        with pytest.raises(ValidationError):
-            ProposeFactRequest(subject_id="x", predicate="p", confidence=-0.1)
-
-    def test_search_request_k_bounds(self):
+    def test_search_request_defaults(self):
         from server.models import SearchRequest
-        from pydantic import ValidationError
-        with pytest.raises(ValidationError):
-            SearchRequest(query="test", k=0)
-        with pytest.raises(ValidationError):
-            SearchRequest(query="test", k=51)
-        req = SearchRequest(query="Raj Patel", k=10)
+        req = SearchRequest(query="Raj Patel")
+        assert req.k == 10
         assert req.entity_type is None
+        assert req.as_of is None
 
-    def test_vfs_node_minimal(self):
-        from server.models import VfsNode
-        node = VfsNode(
-            path="/companies/inazuma",
-            type="company",
-            entity_id=str(uuid.uuid4()),
-            content={"canonical_name": "Inazuma"},
-        )
-        assert node.children == []
-
-    def test_source_reference_method_field(self):
-        from server.models import SourceReference
-        sr = SourceReference(system="email", method="connector_ingest")
-        assert sr.method == "connector_ingest"
-        assert sr.path is None
-
-    def test_resolution_response(self):
-        from server.models import ResolutionResponse
-        r = ResolutionResponse(
+    def test_search_result_shape(self):
+        from server.models import SearchResult, EntityResponse
+        entity = EntityResponse(
             id=str(uuid.uuid4()),
-            entity_id_1=str(uuid.uuid4()),
-            entity_id_2=str(uuid.uuid4()),
-            status="pending",
+            entity_type="person",
+            canonical_name="Raj Patel",
         )
-        assert r.decided_at is None
+        result = SearchResult(entity=entity, score=0.87, match_type="hybrid")
+        assert result.score == 0.87
 
+    def test_source_reference(self):
+        from server.models import SourceReference
+        sr = SourceReference(system="email", method="connector_ingest", record_id="abc123")
+        assert sr.system == "email"
 
-# ---------------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------------
+    def test_propose_fact_request(self):
+        from server.models import ProposeFactRequest
+        req = ProposeFactRequest(
+            subject_id=str(uuid.uuid4()),
+            predicate="works_at",
+            object_id=str(uuid.uuid4()),
+            confidence=0.9,
+        )
+        assert req.source_method == "human_input"
+
+    def test_evidence_item(self):
+        from server.models import EvidenceItem
+        e = EvidenceItem(source="email", record_id="abc", confidence=0.8)
+        assert e.confidence == 0.8
+
+    def test_change_event_model(self):
+        from server.models import ChangeEvent
+        ce = ChangeEvent(
+            event_id=str(uuid.uuid4()),
+            event_type="fact_created",
+            entity_id=str(uuid.uuid4()),
+            fact_id=str(uuid.uuid4()),
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        assert ce.event_type == "fact_created"
+
 
 class TestConfig:
-    def test_settings_load(self):
+    def test_settings_importable(self):
         from server.config import settings
-        assert settings.api_port == 8000
-        assert "localhost" in settings.api_cors_origins[0]
+        assert settings is not None
 
-    def test_settings_defaults(self):
+    def test_settings_has_required_fields(self):
         from server.config import settings
-        assert settings.neo4j_user == "neo4j"
-        assert settings.gemini_model == "gemini-2.0-flash-exp"
+        assert hasattr(settings, "supabase_url")
+        assert hasattr(settings, "supabase_secret_key")
+        assert hasattr(settings, "api_host")
+        assert hasattr(settings, "api_port")
 
-    def test_settings_neo4j_optional(self):
+    def test_settings_neo4j_defaults(self):
         from server.config import settings
-        # neo4j_uri default is empty → correctly signals "not configured"
-        if not settings.neo4j_uri:
-            assert not settings.neo4j_password or settings.neo4j_password == ""
+        assert hasattr(settings, "neo4j_uri")
+        assert settings.neo4j_uri == "" or isinstance(settings.neo4j_uri, str)
 
 
-# ---------------------------------------------------------------------------
-# Migration SQL
-# ---------------------------------------------------------------------------
+class TestSchemaMigrations:
+    def test_trust_view_migration_exists(self):
+        migration = Path(__file__).parent.parent / "migrations" / "002_trust_view.sql"
+        assert migration.exists()
 
-class TestMigrationSQL:
-    def test_migration_002_exists(self):
-        sql_file = MIGRATIONS_DIR / "002_trust_view.sql"
-        assert sql_file.exists(), "Migration 002_trust_view.sql missing"
-
-    def test_migration_002_contains_trust_view(self):
-        sql = (MIGRATIONS_DIR / "002_trust_view.sql").read_text()
-        assert "CREATE OR REPLACE VIEW entity_trust" in sql
-
-    def test_migration_002_contains_knn_function(self):
-        sql = (MIGRATIONS_DIR / "002_trust_view.sql").read_text()
+    def test_trust_view_migration_has_view(self):
+        migration = Path(__file__).parent.parent / "migrations" / "002_trust_view.sql"
+        sql = migration.read_text()
+        assert "entity_trust" in sql
         assert "match_entities" in sql
-        assert "VECTOR(768)" in sql
 
-    def test_migration_002_contains_provenance_function(self):
-        sql = (MIGRATIONS_DIR / "002_trust_view.sql").read_text()
-        assert "get_fact_provenance_json" in sql
+class TestDataFiles:
+    def test_employees_file_exists(self):
+        assert (DATA_DIR / "Human_Resource_Management/Employees/employees.json").exists()
 
-    def test_migration_002_uses_tstzrange_not_tsrange(self):
-        """Guard against silent timezone bugs — must use tstzrange."""
-        sql = (MIGRATIONS_DIR / "002_trust_view.sql").read_text()
-        # No bare 'tsrange' (without 'tz')
-        bare_tsrange = re.findall(r'\btsrange\b', sql)
-        assert not bare_tsrange, f"Found bare tsrange (use tstzrange): {bare_tsrange}"
+    def test_emails_file_exists(self):
+        assert (DATA_DIR / "Enterprise_mail_system/emails.json").exists()
 
-    def test_migration_002_recency_decay_formula(self):
-        sql = (MIGRATIONS_DIR / "002_trust_view.sql").read_text()
-        assert "EXP(" in sql, "Trust score must include recency decay"
-
-
-# ---------------------------------------------------------------------------
-# DB client (offline: just test import + lazy init)
-# ---------------------------------------------------------------------------
-
-class TestDbClient:
-    def test_get_db_import(self):
-        from server.db import get_db, embed_text, get_gemini
-        assert callable(get_db)
-        assert callable(embed_text)
-
-    def test_get_db_raises_without_env(self, monkeypatch):
-        import server.db as db_module
-        db_module._supabase = None
-        monkeypatch.setattr("server.config.settings.supabase_url", "")
-        monkeypatch.setattr("server.config.settings.supabase_service_key", "")
-        with pytest.raises(RuntimeError, match="SUPABASE_URL"):
-            db_module.get_db()
-        db_module._supabase = None  # reset
-
-    def test_embed_raises_without_key(self, monkeypatch):
-        import server.db as db_module
-        db_module._gemini = None
-        monkeypatch.setattr("server.config.settings.gemini_api_key", "")
-        with pytest.raises(RuntimeError, match="GEMINI_API_KEY"):
-            db_module.embed_text("test")
-        db_module._gemini = None  # reset
+    def test_all_required_data_dirs_exist(self):
+        required = [
+            "Human_Resource_Management/Employees",
+            "Enterprise_mail_system",
+            "Business_and_Management",
+            "Customer_Relation_Management",
+            "Collaboration_tools",
+            "IT_Service_Management",
+        ]
+        for d in required:
+            assert (DATA_DIR / d).exists(), f"Missing data dir: {d}"

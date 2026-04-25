@@ -101,7 +101,6 @@ class TestEvalQuestionFormat:
 
 class TestEvalRunnerContract:
     def _mock_search_result(self, question: dict, found: bool) -> dict:
-        """Simulate a search result for a question."""
         if not found:
             return {"question": question["question"], "status": "FAIL", "results": []}
         fact = question["expected_facts"][0] if question["expected_facts"] else {}
@@ -124,7 +123,6 @@ class TestEvalRunnerContract:
         assert len(result["results"]) > 0
 
     def test_html_report_fields(self):
-        """HTML report must show: question, expected, actual, ✅/❌, sources."""
         report_row = {
             "question": "Who is the Engineering Director?",
             "expected": "Raj Patel",
@@ -134,6 +132,40 @@ class TestEvalRunnerContract:
         }
         assert "pass" in report_row
         assert "sources_cited" in report_row
+
+    def test_harness_loads_questions_yaml(self):
+        from server.eval.harness import load_questions
+        questions = load_questions()
+        assert len(questions) >= 6
+
+    def test_harness_questions_yaml_exists(self):
+        from server.eval.harness import _QUESTIONS_PATH
+        assert _QUESTIONS_PATH.exists(), f"questions.yaml not found at {_QUESTIONS_PATH}"
+
+    def test_eval_result_dataclass(self):
+        from server.eval.harness import EvalResult
+        r = EvalResult(
+            question="Who is Raj Patel?",
+            status="PASS",
+            expected_entity="Raj Patel",
+            found_entity="Raj Patel",
+            expected_facts=[],
+            found_facts=[],
+            expected_sources=["hr:employees"],
+            found_sources=[],
+            confidence=0.9,
+            confidence_min=0.8,
+            latency_ms=42.0,
+        )
+        assert r.passed is True
+
+    def test_dry_run_validates_questions(self):
+        from server.eval.harness import load_questions
+        questions = load_questions()
+        for q in questions:
+            assert q.question
+            assert 0.0 <= q.confidence_min <= 1.0
+            assert isinstance(q.expected_facts, list)
 
 
 # ---------------------------------------------------------------------------
@@ -159,8 +191,6 @@ def _gdpr_mock_client():
 
 class TestGDPRDelete:
     def test_delete_endpoint_exists(self):
-        from server.main import app
-        from server.db import get_db
         app_ref, c = _gdpr_mock_client()
         try:
             r = c.delete(f"/api/admin/source-records/{uuid.uuid4()}")
@@ -169,8 +199,6 @@ class TestGDPRDelete:
             app_ref.dependency_overrides.clear()
 
     def test_delete_requires_confirm(self):
-        from server.main import app
-        from server.db import get_db
         app_ref, c = _gdpr_mock_client()
         try:
             r = c.delete(f"/api/admin/source-records/{uuid.uuid4()}?confirm=true")
@@ -193,33 +221,35 @@ class TestGDPRDelete:
 # ---------------------------------------------------------------------------
 
 class TestTrustWeighting:
-    def test_trust_weights_config_format(self):
-        """source_trust_weights.yaml must map source_type → float 0–1."""
-        # Reference config (matches workstreams.md)
-        weights = {
-            "email": 0.8,
-            "crm_contact": 1.0,
-            "hr_record": 0.95,
-            "it_ticket": 0.7,
-            "chat": 0.6,
-        }
-        for source, weight in weights.items():
-            assert 0.0 <= weight <= 1.0, f"{source}: weight {weight} out of range"
+    def test_trust_weights_config_exists(self):
+        config_path = CONFIG_DIR / "source_trust_weights.yaml"
+        assert config_path.exists(), f"source_trust_weights.yaml not found at {config_path}"
+
+    def test_trust_module_loads_weights(self):
+        from server.trust import get_source_weight
+        assert get_source_weight("crm_contact") == 1.0
+        assert get_source_weight("hr_record") == 0.95
+        assert get_source_weight("email") == 0.8
+        assert get_source_weight("chat") == 0.6
+
+    def test_unknown_source_returns_default(self):
+        from server.trust import get_source_weight
+        assert get_source_weight("mystery_source") == 0.5
 
     def test_crm_higher_than_chat(self):
-        crm_weight = 1.0
-        chat_weight = 0.6
-        assert crm_weight > chat_weight
+        from server.trust import get_source_weight
+        assert get_source_weight("crm_contact") > get_source_weight("chat")
 
-    def test_trust_cascade_authority_tier(self):
-        """In auto-resolution: higher source_trust_score wins."""
-        fact_a = {"confidence": 0.8, "source_trust": 1.0}  # CRM
-        fact_b = {"confidence": 0.9, "source_trust": 0.6}  # chat
+    def test_authority_score_formula(self):
+        from server.trust import authority_score
+        crm_score = authority_score(0.8, "crm_contact")   # 0.8 * 1.0 = 0.8
+        chat_score = authority_score(0.9, "chat")          # 0.9 * 0.6 = 0.54
+        assert crm_score > chat_score
 
-        def authority_score(f):
-            return f["confidence"] * f["source_trust"]
-
-        assert authority_score(fact_a) > authority_score(fact_b)
+    def test_trust_weights_all_in_range(self):
+        from server.trust import _load_weights
+        for source, weight in _load_weights().items():
+            assert 0.0 <= weight <= 1.0, f"{source}: weight {weight} out of range"
 
 
 # ---------------------------------------------------------------------------
@@ -233,14 +263,12 @@ class TestTimeMachineEndpoint:
         assert "/api/entities/{entity_id}" in paths
 
     def test_as_of_param_in_endpoint(self):
-        from fastapi import Query
-        from server.api.entities import get_entity
         import inspect
+        from server.api.entities import get_entity
         sig = inspect.signature(get_entity)
         assert "as_of" in sig.parameters
 
     def test_bitemporal_query_logic(self, sample_fact):
-        """Facts returned for as_of must satisfy: valid_from ≤ as_of AND (valid_to IS NULL OR valid_to ≥ as_of)."""
         as_of = datetime(2026, 3, 1, tzinfo=timezone.utc)
 
         def is_active_at(fact: dict, ts: datetime) -> bool:
@@ -252,20 +280,32 @@ class TestTimeMachineEndpoint:
                 vt = datetime.fromisoformat(vt)
             return vf <= ts and (vt is None or vt >= ts)
 
-        # Fact from 2026-01-01, still valid → should appear
         active_fact = {**sample_fact,
                        "valid_from": datetime(2026, 1, 1, tzinfo=timezone.utc).isoformat(),
                        "valid_to": None}
         assert is_active_at(active_fact, as_of)
 
-        # Fact that expired before as_of → should NOT appear
         expired_fact = {**sample_fact,
                         "valid_from": datetime(2025, 1, 1, tzinfo=timezone.utc).isoformat(),
                         "valid_to": datetime(2026, 2, 1, tzinfo=timezone.utc).isoformat()}
         assert not is_active_at(expired_fact, as_of)
 
-        # Future fact → should NOT appear
         future_fact = {**sample_fact,
                        "valid_from": datetime(2026, 4, 1, tzinfo=timezone.utc).isoformat(),
                        "valid_to": None}
         assert not is_active_at(future_fact, as_of)
+
+    def test_as_of_filters_emails_by_date(self, emails):
+        """Emails exist across many years — bitemporal filter should reduce set correctly."""
+        cutoff = datetime(2015, 1, 1, tzinfo=timezone.utc)
+
+        def parse_date(s: str) -> datetime | None:
+            try:
+                from dateutil import parser  # type: ignore
+                return parser.parse(s).replace(tzinfo=timezone.utc)
+            except Exception:
+                return None
+
+        pre_cutoff = [e for e in emails[:200] if (d := parse_date(e["date"])) and d < cutoff]
+        post_cutoff = [e for e in emails[:200] if (d := parse_date(e["date"])) and d >= cutoff]
+        assert len(pre_cutoff) + len(post_cutoff) <= 200

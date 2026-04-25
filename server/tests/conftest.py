@@ -1,21 +1,15 @@
-"""Shared pytest config and fixtures for all WS tests.
+"""Shared fixtures for all WS tests.
 
-Two flavours of test live here side by side:
-
-- **Offline fixtures** (WS-2/WS-4) — load JSON from `data/enterprise-bench/`,
-  no live DB required. Plus `mock_db` for unit tests of API/MCP code.
-- **Live tests** — opt-in. WS-5's Neo4j tests skip unless `NEO4J_URI` and
-  `NEO4J_PASSWORD` are present (`neo4j_creds_or_skip`). Live-DB tests are
-  marked `@pytest.mark.live_db`.
-
-`server/.env` is loaded automatically so live tests pick up creds without
-extra wiring.
+All fixtures load from local data/enterprise-bench/ — no live DB required.
+Set SUPABASE_URL + SUPABASE_SERVICE_KEY in .env to enable live-DB tests
+(marked with @pytest.mark.live_db).
 """
 
 from __future__ import annotations
 
 import json
 import os
+import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,12 +18,8 @@ from unittest.mock import MagicMock
 import pytest
 
 
-# ---------------------------------------------------------------------------
-# .env auto-load — keeps live tests usable via plain `pytest`
-# ---------------------------------------------------------------------------
-
-
 def _load_dotenv() -> None:
+    """Pick up server/.env so live tests work via plain `pytest`."""
     try:
         from dotenv import load_dotenv
     except ModuleNotFoundError:
@@ -39,11 +29,6 @@ def _load_dotenv() -> None:
 
 
 _load_dotenv()
-
-
-# ---------------------------------------------------------------------------
-# Live-test gating
-# ---------------------------------------------------------------------------
 
 
 def neo4j_creds_or_skip() -> tuple[str, str, str]:
@@ -56,14 +41,13 @@ def neo4j_creds_or_skip() -> tuple[str, str, str]:
     return uri, user, password
 
 
-# ---------------------------------------------------------------------------
-# Data fixtures (offline — from JSON files in data/enterprise-bench/)
-# ---------------------------------------------------------------------------
-
 # tests/ → server/ → TechEurope/
 REPO_ROOT = Path(__file__).parent.parent.parent
 DATA_DIR = REPO_ROOT / "data" / "enterprise-bench"
 
+# ---------------------------------------------------------------------------
+# Data fixtures (offline — from JSON files)
+# ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="session")
 def employees():
@@ -128,7 +112,6 @@ def tasks():
 # ---------------------------------------------------------------------------
 # In-memory entity/fact fixtures (no DB needed)
 # ---------------------------------------------------------------------------
-
 
 @pytest.fixture
 def sample_entity():
@@ -203,16 +186,13 @@ def sample_fact(sample_entity, sample_source_record):
 # Mock DB — returns fixture data, no Supabase connection needed
 # ---------------------------------------------------------------------------
 
-
 def make_mock_db(entity=None, facts=None, trust=None, source_record=None):
     """Build a MagicMock Supabase client that returns specified fixture data."""
     db = MagicMock()
 
     def chain_returning(data):
         mock = MagicMock()
-        mock.execute.return_value = MagicMock(
-            data=data, count=len(data) if isinstance(data, list) else None
-        )
+        mock.execute.return_value = MagicMock(data=data, count=len(data) if isinstance(data, list) else None)
         mock.eq.return_value = mock
         mock.is_.return_value = mock
         mock.lte.return_value = mock
@@ -224,9 +204,7 @@ def make_mock_db(entity=None, facts=None, trust=None, source_record=None):
         mock.gte.return_value = mock
         mock.select.return_value = mock
         mock.single.return_value = MagicMock(
-            execute=MagicMock(
-                return_value=MagicMock(data=data[0] if isinstance(data, list) and data else data)
-            )
+            execute=MagicMock(return_value=MagicMock(data=data[0] if isinstance(data, list) and data else data))
         )
         return mock
 
@@ -238,3 +216,5 @@ def make_mock_db(entity=None, facts=None, trust=None, source_record=None):
 @pytest.fixture
 def mock_db(sample_entity, sample_fact, sample_source_record):
     return make_mock_db(entity=sample_entity, facts=[sample_fact], source_record=sample_source_record)
+
+
