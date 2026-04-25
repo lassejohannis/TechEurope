@@ -26,5 +26,14 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash-exp"
 
+    # Neo4j (WS-5 — optional, cypher proxy returns 503 when not set)
+    neo4j_uri: str = ""
+    neo4j_user: str = "neo4j"
+    neo4j_password: str = ""
+
+    # Pioneer (WS-3 — optional, cascade falls back to Gemini when not set)
+    pioneer_api_key: str = ""
+    pioneer_model_id: str = ""
+
 
 settings = Settings()
