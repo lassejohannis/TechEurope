@@ -324,7 +324,7 @@ def vfs_patch(path: str, req: VfsPatchRequest, db=Depends(get_db)):
     """
     segments = _path_segments(path)
     if len(segments) < 2:
-        raise HTTPException(status_code=400, detail="Provide a specific entity path, e.g. /companies/acme")
+        raise HTTPException(status_code=400, detail="Provide a specific entity path, e.g. /{collection}/{slug}")
 
     type_key = segments[0]
     entity_type = _COLLECTION_ALIASES.get(type_key, type_from_segment(type_key))

@@ -251,15 +251,17 @@ def _persist_entity(
 
 
 def _build_tier_a_embedding(candidate) -> list[float] | None:
-    """Use the per-type build_search_text helper + embed_text to mint Tier A."""
-    from server.db import embed_text
-    from server.resolver.cascade import _get_type_module
+    """Build Tier-A embedding text via the cascade's config-or-module driver.
 
-    type_mod = _get_type_module(candidate.entity_type)
-    if type_mod is not None and hasattr(type_mod, "build_search_text"):
-        text = type_mod.build_search_text(candidate.canonical_name, candidate.attrs)
-    else:
-        text = candidate.canonical_name
+    Generic for unknown entity_types (reads `entity_type_config.config.search_attrs`
+    when no Python module exists), bespoke for the legacy 5 types.
+    """
+    from server.db import embed_text
+    from server.resolver.cascade import _build_search_text
+
+    text = _build_search_text(
+        candidate.entity_type, candidate.canonical_name, candidate.attrs or {}
+    )
     return embed_text(text)
 
 
@@ -504,8 +506,8 @@ def cmd_reprocess(
     on them, and inserts fresh facts. Idempotent: deterministic entity IDs
     mean repeated runs are safe.
     """
+    from server.ontology.engine import apply_mapping
     from server.resolver.cascade import resolve as cascade_resolve
-    from server.resolver.extract import extract_candidates
 
     db = get_supabase()
 
@@ -540,10 +542,33 @@ def cmd_reprocess(
             "status", "needs_refresh"
         ).execute()
 
-    stats = {"records": 0, "facts": 0}
+    # Cache mapping configs once per source_type — re-derivation runs over many
+    # records of (typically) a small set of source_types.
+    mapping_cache: dict[str, dict | None] = {}
+
+    def _mapping_for(stype: str) -> dict | None:
+        if stype not in mapping_cache:
+            r = (
+                db.table("source_type_mapping")
+                .select("config, status")
+                .eq("source_type", stype)
+                .limit(1)
+                .execute()
+            )
+            row = (r.data or [None])[0]
+            mapping_cache[stype] = (
+                row.get("config") if row and row.get("status") == "approved" else None
+            )
+        return mapping_cache[stype]
+
+    stats = {"records": 0, "facts": 0, "skipped_no_mapping": 0}
     for rec in records:
         stats["records"] += 1
-        candidates, pending_facts = extract_candidates(rec)
+        cfg = _mapping_for(rec.get("source_type") or "")
+        if cfg is None:
+            stats["skipped_no_mapping"] += 1
+            continue
+        candidates, pending_facts = apply_mapping(rec, cfg)
         name_to_id: dict[tuple[str, str], str] = {}
         for cand in candidates:
             result = cascade_resolve(cand, db)
@@ -576,7 +601,7 @@ def cmd_backfill_embeddings(
     """
     from server.db import embed_text
     from server.gemini_budget import get_budget
-    from server.resolver.cascade import _get_type_module
+    from server.resolver.cascade import _build_search_text
 
     if tier not in ("A", "B"):
         raise typer.BadParameter("tier must be 'A' or 'B'")
@@ -600,11 +625,9 @@ def cmd_backfill_embeddings(
             typer.echo("gemini cooldown active — stopping early")
             break
         if tier == "A":
-            type_mod = _get_type_module(row["entity_type"])
-            if type_mod is not None and hasattr(type_mod, "build_search_text"):
-                text = type_mod.build_search_text(row["canonical_name"], row.get("attrs") or {})
-            else:
-                text = row["canonical_name"]
+            text = _build_search_text(
+                row["entity_type"], row["canonical_name"], row.get("attrs") or {}
+            )
         else:
             from server.resolver.embed import build_inference_text
             text = build_inference_text(row["id"], db)
@@ -639,7 +662,7 @@ def cmd_reembed(
     """
     from server.db import embed_text
     from server.gemini_budget import get_budget
-    from server.resolver.cascade import _get_type_module
+    from server.resolver.cascade import _build_search_text
     from server.resolver.embed import build_inference_text
 
     if tier not in ("A", "B"):
@@ -688,11 +711,9 @@ def cmd_reembed(
         if tier == "B":
             text = build_inference_text(row["id"], db)
         else:
-            type_mod = _get_type_module(row["entity_type"])
-            if type_mod is not None and hasattr(type_mod, "build_search_text"):
-                text = type_mod.build_search_text(row["canonical_name"], row.get("attrs") or {})
-            else:
-                text = row["canonical_name"]
+            text = _build_search_text(
+                row["entity_type"], row["canonical_name"], row.get("attrs") or {}
+            )
 
         vec = embed_text(text)
         if vec is None:
@@ -856,11 +877,33 @@ def cmd_infer_source_mappings(
         # `facts[].predicate` without declaring it. Walk the config instead
         # so the resolver can never hit a "type X not approved" trigger.
         if auto_approve:
+            # Walk the mapping: collect every referenced type/predicate plus
+            # the cascade-relevant hints (hard_id_fields, search_attrs) so the
+            # resolver's per-type Tier 1 + Tier-A logic stays type-agnostic.
             referenced_entity_types: set[str] = set()
             referenced_edges: set[str] = set()
+            type_hints: dict[str, dict[str, list[str]]] = {}
+
+            def _add_type_hints(etype: str, *,
+                                hard_ids: list[str] | None = None,
+                                search_attrs: list[str] | None = None) -> None:
+                cur = type_hints.setdefault(etype, {"hard_id_fields": [], "search_attrs": []})
+                for f in hard_ids or []:
+                    if f and f not in cur["hard_id_fields"]:
+                        cur["hard_id_fields"].append(f)
+                for f in search_attrs or []:
+                    if f and f not in cur["search_attrs"]:
+                        cur["search_attrs"].append(f)
+
             for spec in proposal.entities or []:
-                if spec.type:
-                    referenced_entity_types.add(spec.type)
+                if not spec.type:
+                    continue
+                referenced_entity_types.add(spec.type)
+                _add_type_hints(
+                    spec.type,
+                    hard_ids=list((spec.hard_ids or {}).keys()),
+                    search_attrs=list((spec.extra_attrs or {}).keys()),
+                )
             for spec in proposal.facts or []:
                 if spec.subject_type:
                     referenced_entity_types.add(spec.subject_type)
@@ -875,13 +918,59 @@ def cmd_infer_source_mappings(
                 if self_declared:
                     referenced_edges.add(self_declared)
 
-            def _approve(table: str, ids: set[str]) -> None:
+            def _approve_entity_types(ids: set[str]) -> None:
                 if not ids:
                     return
-                # Don't override explicitly rejected rows — only flip pending /
-                # missing into approved.
                 existing = (
-                    db.table(table)
+                    db.table("entity_type_config")
+                    .select("id, approval_status, config")
+                    .in_("id", list(ids))
+                    .execute()
+                )
+                existing_map = {r["id"]: r for r in (existing.data or [])}
+                for tid in ids:
+                    row = existing_map.get(tid) or {}
+                    if row.get("approval_status") == "rejected":
+                        continue
+                    # Merge new hints into any existing config so re-running the
+                    # CLI doesn't blow away earlier search_attrs.
+                    base_cfg = row.get("config") if isinstance(row.get("config"), dict) else {}
+                    hints = type_hints.get(tid, {})
+                    merged_hard = list(dict.fromkeys(
+                        list(base_cfg.get("hard_id_fields") or [])
+                        + list(hints.get("hard_id_fields") or [])
+                    ))
+                    merged_search = list(dict.fromkeys(
+                        list(base_cfg.get("search_attrs") or [])
+                        + list(hints.get("search_attrs") or [])
+                    ))
+                    new_cfg = {
+                        **base_cfg,
+                        "description": base_cfg.get(
+                            "description",
+                            f"Auto-approved by infer-source-mappings for {stype}",
+                        ),
+                        "auto_proposed": True,
+                    }
+                    if merged_hard:
+                        new_cfg["hard_id_fields"] = merged_hard
+                    if merged_search:
+                        new_cfg["search_attrs"] = merged_search
+                    db.table("entity_type_config").upsert(
+                        {
+                            "id": tid,
+                            "config": new_cfg,
+                            "approval_status": "approved",
+                            "auto_proposed": True,
+                        },
+                        on_conflict="id",
+                    ).execute()
+
+            def _approve_edges(ids: set[str]) -> None:
+                if not ids:
+                    return
+                existing = (
+                    db.table("edge_type_config")
                     .select("id, approval_status")
                     .in_("id", list(ids))
                     .execute()
@@ -894,7 +983,7 @@ def cmd_infer_source_mappings(
                 for tid in ids:
                     if tid in rejected:
                         continue
-                    db.table(table).upsert(
+                    db.table("edge_type_config").upsert(
                         {
                             "id": tid,
                             "config": {
@@ -907,8 +996,17 @@ def cmd_infer_source_mappings(
                         on_conflict="id",
                     ).execute()
 
-            _approve("entity_type_config", referenced_entity_types)
-            _approve("edge_type_config", referenced_edges)
+            _approve_entity_types(referenced_entity_types)
+            _approve_edges(referenced_edges)
+
+            # Bust the cascade's lru_cache so newly-written hints take effect
+            # on the next resolve in this same process.
+            try:
+                from server.resolver.cascade import _load_entity_type_config
+
+                _load_entity_type_config.cache_clear()
+            except Exception:
+                pass
 
         status = persist_proposal(
             proposal,

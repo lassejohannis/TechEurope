@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any
 
 from server.resolver.normalize import normalize_name
@@ -54,10 +55,25 @@ class ResolutionResult:
 
 
 # ---------------------------------------------------------------------------
-# Type module registry
+# Type adapter — Python module if it exists, else config from entity_type_config
 # ---------------------------------------------------------------------------
 
+# Default fields treated as hard IDs when nothing else declares them.
+# Domain-agnostic IDs that show up across many enterprise data sources.
+_GENERIC_HARD_ID_HINTS = (
+    "email", "emp_id", "tax_id", "domain", "product_id",
+    "isbn", "doi", "account_number", "iban", "bic", "device_id",
+    "external_id", "uuid",
+)
+
+
 def _get_type_module(entity_type: str):
+    """Return a per-type Python module if it exists, else None.
+
+    Five legacy modules ship with the codebase (`person`, `company`,
+    `product`, `document`, `communication`). For any other entity_type,
+    the cascade falls back on the config-driven `_config_type_adapter`.
+    """
     from server.resolver.types import communication, company, document, person, product
     return {
         "person": person,
@@ -68,16 +84,97 @@ def _get_type_module(entity_type: str):
     }.get(entity_type)
 
 
+@lru_cache(maxsize=128)
+def _load_entity_type_config(entity_type: str) -> dict[str, Any]:
+    """Read entity_type_config.config from DB, cached.
+
+    Expected shape (set by `cmd_infer_source_mappings` when a new type is
+    auto-approved):
+        {
+          "hard_id_fields": ["email", "external_id"],
+          "search_attrs": ["title", "department"],
+          ...
+        }
+    Missing keys default to empty / generic.
+    """
+    try:
+        from server.db import get_supabase
+        db = get_supabase()
+        res = (
+            db.table("entity_type_config")
+            .select("config")
+            .eq("id", entity_type)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            cfg = res.data[0].get("config") or {}
+            if isinstance(cfg, dict):
+                return cfg
+    except Exception:
+        # Cascade must never break on config-read errors.
+        pass
+    return {}
+
+
+def _hard_id_fields_for(entity_type: str, attrs: dict[str, Any]) -> list[str]:
+    """Determine which attr keys to treat as hard IDs for this entity_type.
+
+    Resolution order:
+    1. Python module's `HARD_ID_FIELDS` (legacy 5 types)
+    2. `entity_type_config.config.hard_id_fields` (config-driven, set by
+       `infer-source-mappings` when the AI proposes a new type)
+    3. Generic fallback: any attr key in `_GENERIC_HARD_ID_HINTS` that exists
+       on this candidate's attrs (lets us still extract obvious hard IDs even
+       for types nobody has configured yet).
+    """
+    mod = _get_type_module(entity_type)
+    if mod is not None and hasattr(mod, "HARD_ID_FIELDS"):
+        return list(getattr(mod, "HARD_ID_FIELDS"))
+    cfg = _load_entity_type_config(entity_type)
+    declared = cfg.get("hard_id_fields")
+    if isinstance(declared, list) and declared:
+        return [str(f) for f in declared if isinstance(f, str)]
+    return [k for k in _GENERIC_HARD_ID_HINTS if k in (attrs or {})]
+
+
+def _extract_hard_ids(entity_type: str, attrs: dict[str, Any]) -> dict[str, str]:
+    """Module-or-config-driven hard-ID extraction.
+
+    Returns a dict[field_name → normalized_value] that the cascade's Tier 1
+    can search for in entity rows.
+    """
+    if not attrs:
+        return {}
+    mod = _get_type_module(entity_type)
+    if mod is not None and hasattr(mod, "extract_hard_ids"):
+        return mod.extract_hard_ids(attrs)
+    fields = _hard_id_fields_for(entity_type, attrs)
+    return {k: str(attrs[k]).lower() for k in fields if attrs.get(k)}
+
+
+def _build_search_text(entity_type: str, canonical_name: str, attrs: dict[str, Any]) -> str:
+    """Module-or-config-driven Tier-A search-text builder."""
+    mod = _get_type_module(entity_type)
+    if mod is not None and hasattr(mod, "build_search_text"):
+        return mod.build_search_text(canonical_name, attrs or {})
+    cfg = _load_entity_type_config(entity_type)
+    extra_keys = cfg.get("search_attrs") or []
+    if not isinstance(extra_keys, list):
+        extra_keys = []
+    parts: list[str] = [canonical_name]
+    for k in extra_keys:
+        if isinstance(k, str) and (v := (attrs or {}).get(k)):
+            parts.append(str(v))
+    return " | ".join(parts)
+
+
 # ---------------------------------------------------------------------------
 # Tier implementations
 # ---------------------------------------------------------------------------
 
 def _tier1_hard_id(candidate: CandidateEntity, db: Any) -> ResolutionResult | None:
-    type_mod = _get_type_module(candidate.entity_type)
-    if type_mod is None:
-        return None
-
-    hard_ids = type_mod.extract_hard_ids(candidate.attrs)
+    hard_ids = _extract_hard_ids(candidate.entity_type, candidate.attrs)
     if not hard_ids:
         return None
 
@@ -152,11 +249,8 @@ def _tier2_alias(candidate: CandidateEntity, db: Any) -> ResolutionResult | None
 
 
 def _tier3_embedding(candidate: CandidateEntity, db: Any) -> ResolutionResult | None:
-    type_mod = _get_type_module(candidate.entity_type)
-    search_text = (
-        type_mod.build_search_text(candidate.canonical_name, candidate.attrs)
-        if type_mod
-        else candidate.canonical_name
+    search_text = _build_search_text(
+        candidate.entity_type, candidate.canonical_name, candidate.attrs
     )
 
     embedding = get_name_embedding(search_text)
