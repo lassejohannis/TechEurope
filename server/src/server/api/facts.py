@@ -1,13 +1,39 @@
-"""GET /facts/{id}/provenance — Evidence chain for a single fact."""
+"""Facts router: provenance + validate / flag / edit (write paths).
+
+Edit follows the bi-temporal supersede pattern from vfs.propose_fact: never
+mutate an existing live fact in place — instead insert a new fact, and let
+the Postgres supersede-trigger close the prior one.
+"""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+import uuid
+from datetime import datetime, timezone
+from typing import Any
 
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+
+from server.auth import Principal, require_scope
 from server.db import get_db
 from server.models import FactResponse, ProvenanceResponse, SourceReference, EvidenceItem
 
 router = APIRouter(prefix="/facts", tags=["facts"])
+
+
+class FactValidateRequest(BaseModel):
+    note: str | None = None
+
+
+class FactFlagRequest(BaseModel):
+    reason: str = Field(..., min_length=3)
+
+
+class FactEditRequest(BaseModel):
+    object_id: str | None = None
+    object_literal: Any | None = None
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    note: str | None = None
 
 
 def _source_ref_from_record(sr: dict) -> SourceReference:
@@ -80,4 +106,121 @@ def get_provenance(fact_id: str, db=Depends(get_db)):
         fact=fact_resp,
         source_reference=source_ref,
         superseded_by=superseded_by,
+    )
+
+
+def _load_fact_or_404(db, fact_id: str) -> dict[str, Any]:
+    res = db.table("facts").select("*").eq("id", fact_id).single().execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Fact not found")
+    return res.data
+
+
+@router.post("/{fact_id}/validate", status_code=200)
+def validate_fact(
+    fact_id: str,
+    req: FactValidateRequest | None = None,
+    db=Depends(get_db),
+    principal: Principal = Depends(require_scope("write")),
+):
+    """Mark a fact as human-validated. Writes a fact_changes audit row but does
+    NOT supersede — validation is a confidence boost, not a new version."""
+    fact = _load_fact_or_404(db, fact_id)
+    now = datetime.now(tz=timezone.utc).isoformat()
+    db.table("fact_changes").insert({
+        "kind": "validate",
+        "fact_id": fact_id,
+        "old_value": None,
+        "new_value": {"validated": True, "note": (req.note if req else None)},
+        "triggered_by": principal.subject,
+        "at": now,
+    }).execute()
+    return {"fact_id": fact_id, "validated_by": principal.subject, "at": now, "previous_status": fact.get("status")}
+
+
+@router.post("/{fact_id}/flag", status_code=200)
+def flag_fact(
+    fact_id: str,
+    req: FactFlagRequest,
+    db=Depends(get_db),
+    principal: Principal = Depends(require_scope("write")),
+):
+    """Mark a fact as suspect. Sets status='disputed' and writes audit row."""
+    fact = _load_fact_or_404(db, fact_id)
+    now = datetime.now(tz=timezone.utc).isoformat()
+    db.table("facts").update({"status": "disputed"}).eq("id", fact_id).execute()
+    db.table("fact_changes").insert({
+        "kind": "flag",
+        "fact_id": fact_id,
+        "old_value": {"status": fact.get("status")},
+        "new_value": {"status": "disputed", "reason": req.reason},
+        "triggered_by": principal.subject,
+        "at": now,
+    }).execute()
+    return {"fact_id": fact_id, "status": "disputed", "flagged_by": principal.subject}
+
+
+@router.post("/{fact_id}/edit", response_model=FactResponse, status_code=201)
+def edit_fact(
+    fact_id: str,
+    req: FactEditRequest,
+    db=Depends(get_db),
+    principal: Principal = Depends(require_scope("write")),
+):
+    """Write a NEW fact superseding the original. Bi-temporal: original gets
+    superseded_at via Postgres trigger; new one is the live row."""
+    if req.object_id is None and req.object_literal is None:
+        raise HTTPException(status_code=400, detail="Provide object_id or object_literal")
+
+    original = _load_fact_or_404(db, fact_id)
+    now = datetime.now(tz=timezone.utc).isoformat()
+
+    # 1. SourceRecord for audit
+    sr_id = str(uuid.uuid4())
+    db.table("source_records").insert({
+        "id": sr_id,
+        "source_type": "human_edit",
+        "source_id": f"human_edit:{sr_id}",
+        "event_type": "fact_edit",
+        "raw_content": req.note or f"Edit of fact {fact_id}",
+        "timestamp": now,
+        "metadata": {"method": "human_input", "edited_by": principal.subject, "supersedes": fact_id},
+    }).execute()
+
+    # 2. Insert new fact (Postgres exclude-constraint + trigger handle the supersede)
+    new_id = str(uuid.uuid4())
+    db.table("facts").insert({
+        "id": new_id,
+        "subject_id": original["subject_id"],
+        "predicate": original["predicate"],
+        "object_id": req.object_id,
+        "object_literal": req.object_literal,
+        "confidence": req.confidence,
+        "source_id": sr_id,
+        "derivation": "human_edit",
+        "valid_from": now,
+        "status": "active",
+    }).execute()
+
+    # 3. Mark original as superseded_by the new fact
+    db.table("facts").update({
+        "superseded_by": new_id,
+        "valid_to": now,
+        "status": "superseded",
+    }).eq("id", fact_id).execute()
+
+    new_row = db.table("facts").select("*").eq("id", new_id).single().execute().data
+    return FactResponse(
+        id=new_row["id"],
+        subject_id=new_row["subject_id"],
+        predicate=new_row["predicate"],
+        object_id=new_row.get("object_id"),
+        object_literal=new_row.get("object_literal"),
+        confidence=float(new_row.get("confidence", 0)),
+        derivation=new_row.get("derivation", "human_edit"),
+        valid_from=new_row["valid_from"],
+        valid_to=new_row.get("valid_to"),
+        recorded_at=new_row["recorded_at"],
+        source_id=str(new_row["source_id"]),
+        status=new_row.get("status", "active"),
     )
