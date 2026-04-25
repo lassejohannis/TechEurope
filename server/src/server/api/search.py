@@ -23,6 +23,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["search"])
 
 
+def _is_single_row_not_found(exc: Exception) -> bool:
+    text = str(exc)
+    return "PGRST116" in text or "multiple (or no) rows returned" in text
+
+
 # ---------------------------------------------------------------------------
 # Entity mention extraction (Pioneer stub → naive regex fallback)
 # ---------------------------------------------------------------------------
@@ -76,8 +81,14 @@ def _build_entity_response(entity_row: dict, trust_row: dict | None, facts: list
 
 
 def _fetch_entity_with_trust(db, entity_id: str, as_of: datetime | None = None) -> EntityResponse | None:
-    e_res = db.table("entities").select("*").eq("id", entity_id).single().execute()
-    if not e_res.data:
+    try:
+        e_res = db.table("entities").select("*").eq("id", entity_id).single().execute()
+        entity_row = e_res.data
+    except Exception as exc:
+        if _is_single_row_not_found(exc):
+            return None
+        raise
+    if not entity_row:
         return None
 
     facts_q = db.table("facts").select("*").eq("subject_id", entity_id)
@@ -89,8 +100,15 @@ def _fetch_entity_with_trust(db, entity_id: str, as_of: datetime | None = None) 
         facts_q = facts_q.is_("valid_to", "null")
     facts = facts_q.execute().data or []
 
-    trust_res = db.table("entity_trust").select("*").eq("id", entity_id).single().execute()
-    return _build_entity_response(e_res.data, trust_res.data, facts)
+    try:
+        trust_res = db.table("entity_trust").select("*").eq("id", entity_id).single().execute()
+        trust_row = trust_res.data
+    except Exception as exc:
+        if _is_single_row_not_found(exc):
+            trust_row = None
+        else:
+            raise
+    return _build_entity_response(entity_row, trust_row, facts)
 
 
 # ---------------------------------------------------------------------------

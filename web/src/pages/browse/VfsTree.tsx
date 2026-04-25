@@ -1,54 +1,77 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronRight, ChevronDown, User, Building2, Package, FileText, FolderOpen, CheckSquare, MessageSquare } from 'lucide-react'
+import {
+  ChevronRight,
+  ChevronDown,
+  User,
+  Building2,
+  Package,
+  FileText,
+  FolderOpen,
+  CheckSquare,
+  MessageSquare,
+  Loader2,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUiStore } from '@/store/ui'
 import type { LucideIcon } from 'lucide-react'
 
-interface VfsItem {
+interface VfsNode {
+  entity_id: string
   path: string
-  entityId: string
-  label: string
-  Icon: LucideIcon
   type: string
+  content: { canonical_name?: string; [key: string]: unknown }
+}
+
+interface VfsListResponse {
+  children: VfsNode[]
+  total: number
 }
 
 interface VfsSection {
   path: string
   label: string
-  items: VfsItem[]
+  types: string[]
+  items: Array<{ entityId: string; label: string; Icon: LucideIcon; type: string }>
 }
 
-// Static mock VFS structure — replaced by real API when backend is live
-const VFS_SECTIONS: VfsSection[] = [
-  {
-    path: '/static',
-    label: 'Static',
-    items: [
-      { path: '/static/people', entityId: 'person:alice-schmidt', label: 'Alice Schmidt', Icon: User, type: 'person' },
-      { path: '/static/people', entityId: 'person:bob-mueller', label: 'Bob Müller', Icon: User, type: 'person' },
-      { path: '/static/customers', entityId: 'customer:acme-gmbh', label: 'Acme GmbH', Icon: Building2, type: 'customer' },
-      { path: '/static/customers', entityId: 'customer:techcorp-ag', label: 'TechCorp AG', Icon: Building2, type: 'customer' },
-      { path: '/static/products', entityId: 'product:core-platform', label: 'Core Platform', Icon: Package, type: 'product' },
-    ],
-  },
-  {
-    path: '/procedural',
-    label: 'Procedural',
-    items: [
-      { path: '/procedural/policies', entityId: 'policy:data-protection', label: 'Data Protection Policy', Icon: FileText, type: 'policy' },
-      { path: '/procedural/policies', entityId: 'policy:information-security', label: 'Information Security Policy', Icon: FileText, type: 'policy' },
-    ],
-  },
-  {
-    path: '/trajectory',
-    label: 'Trajectory',
-    items: [
-      { path: '/trajectory/projects', entityId: 'project:q3-expansion', label: 'Q3 Expansion', Icon: FolderOpen, type: 'project' },
-      { path: '/trajectory/tasks', entityId: 'task:onboarding-flow', label: 'Onboarding Flow', Icon: CheckSquare, type: 'task' },
-      { path: '/trajectory/communications', entityId: 'communication:acme-thread-apr', label: 'Acme Apr Thread', Icon: MessageSquare, type: 'communication' },
-    ],
-  },
+const TYPE_ICON: Record<string, LucideIcon> = {
+  person: User,
+  organization: Building2,
+  company: Building2,
+  customer: Building2,
+  product: Package,
+  document: FileText,
+  policy: FileText,
+  project: FolderOpen,
+  task: CheckSquare,
+  communication: MessageSquare,
+}
+
+const SECTION_DEFS: Array<{ path: string; label: string; types: string[] }> = [
+  { path: '/people', label: 'People', types: ['person'] },
+  { path: '/companies', label: 'Companies', types: ['organization', 'company', 'customer'] },
+  { path: '/content', label: 'Content', types: ['communication', 'document', 'policy'] },
+  { path: '/work', label: 'Work', types: ['project', 'task', 'product'] },
 ]
+
+function pluralSegment(type: string): string {
+  if (type.endsWith('y') && !/[aeiou]y$/.test(type)) return `${type.slice(0, -1)}ies`
+  if (type.endsWith('s') || type.endsWith('x') || type.endsWith('z')) return `${type}es`
+  return `${type}s`
+}
+
+async function fetchType(type: string): Promise<VfsNode[]> {
+  const seg = pluralSegment(type)
+  try {
+    const res = await fetch(`/api/vfs/${seg}`)
+    if (!res.ok) return []
+    const data: VfsListResponse = await res.json()
+    return data.children ?? []
+  } catch {
+    return []
+  }
+}
 
 interface Props {
   selectedEntityId: string | null
@@ -57,6 +80,40 @@ interface Props {
 export default function VfsTree({ selectedEntityId }: Props) {
   const navigate = useNavigate()
   const { expandedPaths, togglePath } = useUiStore()
+  const [sections, setSections] = useState<VfsSection[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function load() {
+      setLoading(true)
+      const allTypes = SECTION_DEFS.flatMap((s) => s.types)
+      const results = await Promise.all(allTypes.map((t) => fetchType(t).then((nodes) => ({ type: t, nodes }))))
+
+      if (cancelled) return
+
+      const nodesByType = new Map(results.map((r) => [r.type, r.nodes]))
+
+      const built: VfsSection[] = SECTION_DEFS.map((def) => ({
+        ...def,
+        items: def.types.flatMap((type) =>
+          (nodesByType.get(type) ?? []).map((node) => ({
+            entityId: node.entity_id,
+            label: node.content?.canonical_name ?? node.entity_id,
+            Icon: TYPE_ICON[type] ?? FileText,
+            type,
+          })),
+        ),
+      }))
+
+      setSections(built)
+      setLoading(false)
+    }
+
+    void load()
+    return () => { cancelled = true }
+  }, [])
 
   return (
     <div className="flex flex-col">
@@ -66,16 +123,22 @@ export default function VfsTree({ selectedEntityId }: Props) {
         </p>
       </div>
 
-      {VFS_SECTIONS.length === 0 && (
-        <div className="flex flex-col items-center gap-2 p-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            Your context base is organized here. Select a path to explore entities and facts.
-          </p>
+      {loading && (
+        <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+          <Loader2 className="size-3.5 animate-spin" />
+          Loading…
+        </div>
+      )}
+
+      {!loading && sections.every((s) => s.items.length === 0) && (
+        <div className="p-6 text-center text-sm text-muted-foreground">
+          No entities found. Ingest some data first.
         </div>
       )}
 
       <ul className="flex flex-col py-1">
-        {VFS_SECTIONS.map((section) => {
+        {sections.map((section) => {
+          if (section.items.length === 0) return null
           const isExpanded = expandedPaths.has(section.path)
           return (
             <li key={section.path}>
@@ -89,6 +152,7 @@ export default function VfsTree({ selectedEntityId }: Props) {
                   <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
                 )}
                 <span className="text-muted-foreground">{section.label}</span>
+                <span className="ml-auto text-xs text-muted-foreground/60">{section.items.length}</span>
               </button>
 
               {isExpanded && (
