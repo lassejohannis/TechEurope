@@ -26,5 +26,14 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
 
+    # Neo4j Aura (WS-5 graph projection)
+    neo4j_uri: str = ""
+    neo4j_username: str = ""
+    neo4j_password: str = ""
+    neo4j_database: str = "neo4j"
+
+    # Pioneer API (WS-4)
+    pioneer_api_key: str = ""
+
 
 settings = Settings()
