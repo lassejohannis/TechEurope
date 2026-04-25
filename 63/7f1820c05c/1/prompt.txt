@@ -61,3 +61,7 @@ Wir nehmen die neuen keys, es gibt publishable und secret key
 ---
 
 Es sind die richtigen in env drinnen
+
+---
+
+Lass uns einmal pushen auf der Lasse branch und dann das von main ziehen und schauen ob wir sauber mergen können
