@@ -313,3 +313,7 @@ FInde die UUID nirgends, hole sie dir selber
 ---
 
 Kannst du nur nochmal v1 und v3 testen
+
+---
+
+Vielleicht musst du nochmal wesentlich bessere Prompts schreiben, wie das LLM trainiert werden soll und einen besseren Test dazu schreiben
