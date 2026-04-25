@@ -3,11 +3,44 @@
   "checkpoint_id": "c83308764171",
   "strategy": "manual-commit",
   "branch": "Lasse",
-  "checkpoints_count": 2,
+  "checkpoints_count": 3,
   "files_touched": [
+    "dev.sh",
+    "docs/todo.md",
+    "server/migrations/008_vfs_unique_path_index.sql",
+    "server/migrations/009_graph_construction_paul.sql",
+    "server/migrations/010_entity_soft_delete.sql",
+    "server/pyproject.toml",
+    "server/src/server/api/admin.py",
+    "server/src/server/api/cypher_proxy.py",
+    "server/src/server/api/traverse.py",
+    "server/src/server/api/vfs.py",
+    "server/src/server/api/webhooks.py",
+    "server/src/server/api/webhooks_outbound.py",
     "server/src/server/cli.py",
     "server/src/server/config.py",
-    "server/src/server/extractors/gemini.py"
+    "server/src/server/connectors/crm_mock.py",
+    "server/src/server/connectors/document 2.py",
+    "server/src/server/connectors/email_mock.py",
+    "server/src/server/connectors/hr_mock.py",
+    "server/src/server/connectors/itsm_mock.py",
+    "server/src/server/extractors/gemini.py",
+    "server/src/server/main.py",
+    "server/src/server/models.py",
+    "server/src/server/resolver/extract.py",
+    "server/src/server/sync/neo4j_projection.py",
+    "server/src/server/vfs_paths.py",
+    "server/tests/test_graph_construction_paul.py",
+    "server/tests/test_ws4_query_api.py",
+    "server/tests/test_ws5_neo4j.py",
+    "server/uv.lock",
+    "web/package-lock.json",
+    "web/package.json",
+    "web/src/App.tsx",
+    "web/src/components/layout/TopNav.tsx",
+    "web/src/lib/api.ts",
+    "web/src/pages/workflow/WorkflowPage.tsx",
+    "web/vite.config.ts"
   ],
   "sessions": [
     {
@@ -21,13 +54,19 @@
       "transcript": "/c8/3308764171/1/full.jsonl",
       "content_hash": "/c8/3308764171/1/content_hash.txt",
       "prompt": "/c8/3308764171/1/prompt.txt"
+    },
+    {
+      "metadata": "/c8/3308764171/2/metadata.json",
+      "transcript": "/c8/3308764171/2/full.jsonl",
+      "content_hash": "/c8/3308764171/2/content_hash.txt",
+      "prompt": "/c8/3308764171/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 1058,
-    "cache_creation_tokens": 954697,
-    "cache_read_tokens": 107731515,
-    "output_tokens": 324332,
-    "api_call_count": 541
+    "input_tokens": 1100,
+    "cache_creation_tokens": 1037647,
+    "cache_read_tokens": 111730204,
+    "output_tokens": 333634,
+    "api_call_count": 568
   }
 }

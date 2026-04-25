@@ -1,0 +1,187 @@
+Welche branches gibt es jetzt noch, die ich einmal mit meinem mergen sollte? Nur Kathi oder?
+
+---
+
+Yes los gehts
+
+---
+
+Kannst du einmal von vorne bis hinten durchchecken, was jetzt schon funktioniert und was nicht vom FLow
+
+---
+
+Dann plane alle changes, du kannst das alles umändern.
+
+---
+
+Also wir challenegen jetzt einmal von vorne bis hinten das Produkt durch und schreiben überall hin was jetzt noch gebaut werden mus und was davon schon steht damit wir gleich neu Aufgaben verteilen können
+
+---
+
+Lass uns mal ganz vorne anfangen und das nach und nach in die Team briefing technical reinschreiben: Man muss jegliche Art von Dokument einspeisen können oder Konnektoren zu Apps haben, die Daten einspeisen, was existiert davon schon und was nicht?
+
+---
+
+Kannst du nochmal in die Anforderungen schauen, wenn sich Dateien ändern oder neue Informationen hinzukommen, dann muss sich das ja updaten, ist das schon drinnen? Beziehungsweise checkst du was ich meine, ich verstehe das selber noch nicht so ganz
+
+---
+
+ALles reinschreiben
+
+---
+
+OK dann haben wir jetzt den injection part besprochen, was passiert als nächstes im Flow
+
+---
+
+Erkläre das nochmal einfacher: Wir haben hardcoded entitiy und fact typen und edges die theoretisch per hand anpassbar sind oder?
+
+---
+
+Muss es nicht eigentlich am besten einen Agent geben, der jede information die reinkommt in eine passende entity mit facts baut und custom edges gibt im ersten schritt damit es perfekt ist?
+
+---
+
+Muss es nicht eigentlich am besten einen Agent geben, der jede information die reinkommt in eine passende entity mit facts baut und custom edges gibt im ersten schritt damit es perfekt ist?
+
+---
+
+Muss es nicht eigentlich am besten einen Agent geben, der jede information die reinkommt in eine passende entity mit facts baut und custom edges gibt im ersten schritt damit es perfekt ist? Bzw einen deterministischen Ansatz, der immer passende Entitys und facts baut?
+
+---
+
+Macht es nicht Sinn deterministisch einen passenden entity typen zu finden und wenn das nicht existiert erstellt ein LLM einen neuen Typen?
+
+---
+
+Gleiches für facts und edges
+
+---
+
+Vollversion reinschreiben als to do
+
+---
+
+So was ist der nächste Schritt im Flow? Gleiches combinen und indifferenzen versuchen zu fixen?
+
+---
+
+Also es sollten gleiche entities gemerged werden und konflikte versucht behoben zu werden, wenn nötig human in the loop. ist das richtig?
+
+---
+
+Schreibe das full in die to dos
+
+---
+
+Ok dann wollen wir ein Surface, dass alle Nodes und Edges darstellt richtig?
+
+---
+
+Schreibe plan a full auf to do
+
+---
+
+Und dann als letztes noch die Schnittstelle für Software und AI um auf unser Kontextsystem zuzugreifen? Was fehlt da noch?
+
+---
+
+Ergänze das alles komplett als todo
+
+---
+
+Los gehts überlege für alle genaue fixes und wie das anzugehen ist. Schreibe es dann dazu
+
+---
+
+ja
+
+---
+
+Ja
+
+---
+
+Können wir einmal immer aufschreiben einfach nur was noch wo gemacht werden muss von vorne bis hinten ganz sauber,die datei ist viel zu lang. Ich will keine Dauern, keine Wichtigkeiten. Stumpfe Aufzählung von vorne bis hinten vom Workflow so kompakt und klar wie möglich ohne schnickschnack
+
+---
+
+jo
+
+---
+
+3. Entity Resolution (Lasse)
+
+T3 Embedding-API-Fix (embed_text() 404 auf text-embedding-004 → korrekter Endpoint)
+T4 Logic-Fix in cascade.py (relationship_hint statt match)
+Pre-Normalize in embed_text() (lowercase, Suffix-Strip, Whitespace-Collapse)
+Resolver schreibt Tier-A-Embedding beim Entity-Insert
+Backfill-Script für die 306 entities ohne Embedding
+build_inference_text(entity_id) für Tier B
+Tier-B-Backfill für entities mit ≥5 Facts
+inference_needs_refresh boolean + Trigger
+Lazy Re-Embed-Loop CLI
+communication-Entity-Typ + Resolver-Modul für Email-Threads
+document-Entity-Typ + Resolver-Modul für Policy-PDFs
+Volllauf des Resolvers mit Bulk-Insert (28k records)
+Pioneer-Tier-3.5 scharf schalten sobald Modell ready
+LLM-Fact-Extraction aus Email-Body (gemini_structured.extract_email_facts) Wir kümmern uns hier rum, lass planen
+
+---
+
+Cross-Source Merge & Conflict Resolution (Lasse)
+
+Migration 009: GIST-EXCLUDE durch partial-unique-index ersetzen + detect_fact_conflict-Trigger
+auto_resolve.py mit 4-Tier-Cascade (Recency / Authority / Confidence / Cross-Confirm)
+CLI uv run server resolve-conflicts
+cross_confirmation_count View
+Endpoints: GET /api/resolutions, POST /api/resolutions/{id}/decide
+Endpoints: GET /api/fact-resolutions, POST /api/fact-resolutions/{id}/decide
+Frontend ConflictInbox auf echte API umstellen
+Trust-Weight-Editor im Frontend (read-only)
+1-2 echte Demo-Konflikte vor-präparieren dann planen wir jetzt 5 komplett das demo präparieren brauchen wir noch nicht
+
+---
+
+Aber das heißt jetzt sind alle Entity, Facts und Edge Typen noch hardcoded?
+
+---
+
+4. Autonome Ontologie-Evolution (Paul)
+
+Migration 008: type_config-Tabellen erweitern (auto_proposed, approval_status, proposed_by_source_id, similarity_to_nearest, from_type, to_type)
+propose.classify_or_propose_type(payload, kind) Funktion
+Embedding-Similarity-Reject (Distanz < 0.4 = zu ähnlich)
+Auto-Approve-Threshold (confidence ≥ 0.95 + similarity < 0.3 + ≥3 records)
+Integration in extract.py (Tier 2 + 3 Cascade)
+Endpoints /api/admin/pending-types + decide
+Frontend Inbox um 2 Tabs erweitern (entity-types, edge-types)
+Synonym-Detection-Pass (async)
+FK-Constraints entities.entity_type → entity_type_config + facts.predicate → edge_type_config
+Trigger der nur approved-Types akzeptiert
+
+Wir gehen jetzt hier ran, lass aber davor durchsprechen wie das sein muss, damit es skalierbar ist und wir wirklich für jeden typ von datenset gute ergebnisse bekommen und nicht hardcoded auf unser Beispiel sind. Mein Vorschlag: Es wird immer versucht jeweils Entity, Facts und Edges passend auszuwählen, wenn nicht möglich wird jeweils neuer Typ von AI erstellt + deterministische Anleitung zum mappen wie wir das gerade für unsere haben. Macht das Sinn, lass das erstmal nur besprechen
+
+---
+
+Kannst du mir die Fragen in diesem Antwort format stellen die du hast?
+
+---
+
+ja ok
+
+---
+
+Probiere Phase G, ich glaube, dass das model down ist. Dann musst du ein anderes nutzen. Versuche es kurz
+
+---
+
+Ich will, dass du dich genau damit befasst, wie wir gemini möglichst effizient und schonend benutzen und dich nochmal damit außeinandersetzen, ob wir nicht auch pioneer verwenden können
+
+---
+
+Lass mal nur die Änderungen planen, die gemeini möglichst effiziennt machen und gemini cappen, sodass es dann pausiert zur not, dass es nicht außversehen zu viele anfragen stellt
+
+---
+
+Ja lets go
