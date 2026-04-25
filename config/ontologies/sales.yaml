@@ -1,0 +1,20 @@
+entity_types:
+  customer:
+    id_field: "name"
+    attributes: ["domain", "segment"]
+  product:
+    id_field: "sku"
+    attributes: ["name", "category"]
+  order:
+    id_field: "order_id"
+    attributes: ["date", "total"]
+  deal:
+    id_field: "deal_id"
+    attributes: ["stage", "amount_eur"]
+
+edge_types:
+  purchases: { from: customer, to: product }
+  ordered: { from: customer, to: order }
+  sells: { from: organization, to: product }
+  account_manager_of: { from: person, to: customer }
+
