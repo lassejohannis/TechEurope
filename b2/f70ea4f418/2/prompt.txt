@@ -126,3 +126,17 @@ document-Entity-Typ + Resolver-Modul für Policy-PDFs
 Volllauf des Resolvers mit Bulk-Insert (28k records)
 Pioneer-Tier-3.5 scharf schalten sobald Modell ready
 LLM-Fact-Extraction aus Email-Body (gemini_structured.extract_email_facts) Wir kümmern uns hier rum, lass planen
+
+---
+
+Cross-Source Merge & Conflict Resolution (Lasse)
+
+Migration 009: GIST-EXCLUDE durch partial-unique-index ersetzen + detect_fact_conflict-Trigger
+auto_resolve.py mit 4-Tier-Cascade (Recency / Authority / Confidence / Cross-Confirm)
+CLI uv run server resolve-conflicts
+cross_confirmation_count View
+Endpoints: GET /api/resolutions, POST /api/resolutions/{id}/decide
+Endpoints: GET /api/fact-resolutions, POST /api/fact-resolutions/{id}/decide
+Frontend ConflictInbox auf echte API umstellen
+Trust-Weight-Editor im Frontend (read-only)
+1-2 echte Demo-Konflikte vor-präparieren dann planen wir jetzt 5 komplett das demo präparieren brauchen wir noch nicht
