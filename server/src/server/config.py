@@ -38,5 +38,9 @@ class Settings(BaseSettings):
     def neo4j_enabled(self) -> bool:
         return bool(self.neo4j_uri and self.neo4j_password)
 
+    # Pioneer (WS-3 — optional, cascade falls back to Gemini when not set)
+    pioneer_api_key: str = ""
+    pioneer_model_id: str = ""
+
 
 settings = Settings()
