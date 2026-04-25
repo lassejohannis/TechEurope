@@ -1,76 +1,90 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  ChevronRight,
-  ChevronDown,
-  User,
-  Building2,
-  Package,
-  FileText,
-  FolderOpen,
-  CheckSquare,
-  MessageSquare,
-  Loader2,
-} from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useUiStore } from '@/store/ui'
-import type { LucideIcon } from 'lucide-react'
+import Icon from '@/components/qontext/icon'
+import { INAZUMA, type MockTreeItem, type MockTreeFolder, type MockTreeEntity } from '@/lib/inazuma-mock'
 
-interface VfsNode {
-  entity_id: string
-  path: string
-  type: string
-  content: { canonical_name?: string; [key: string]: unknown }
+const CONF_COLORS: Record<string, string> = {
+  high:     'var(--conf-high)',
+  med:      'var(--conf-med)',
+  low:      'var(--conf-low)',
+  conflict: 'var(--conf-conflict)',
 }
 
-interface VfsListResponse {
-  children: VfsNode[]
-  total: number
+function entityIcon(type: string) {
+  if (type === 'person')   return 'user'
+  if (type === 'customer') return 'briefcase'
+  if (type === 'product')  return 'box'
+  if (type === 'policy')   return 'shield'
+  if (type === 'project')  return 'target'
+  return 'file'
 }
 
-interface VfsSection {
-  path: string
-  label: string
-  types: string[]
-  items: Array<{ entityId: string; label: string; Icon: LucideIcon; type: string }>
-}
-
-const TYPE_ICON: Record<string, LucideIcon> = {
-  person: User,
-  organization: Building2,
-  company: Building2,
-  customer: Building2,
-  product: Package,
-  document: FileText,
-  policy: FileText,
-  project: FolderOpen,
-  task: CheckSquare,
-  communication: MessageSquare,
-}
-
-const SECTION_DEFS: Array<{ path: string; label: string; types: string[] }> = [
-  { path: '/people', label: 'People', types: ['person'] },
-  { path: '/companies', label: 'Companies', types: ['organization', 'company', 'customer'] },
-  { path: '/content', label: 'Content', types: ['communication', 'document', 'policy'] },
-  { path: '/work', label: 'Work', types: ['project', 'task', 'product'] },
-]
-
-function pluralSegment(type: string): string {
-  if (type.endsWith('y') && !/[aeiou]y$/.test(type)) return `${type.slice(0, -1)}ies`
-  if (type.endsWith('s') || type.endsWith('x') || type.endsWith('z')) return `${type}es`
-  return `${type}s`
-}
-
-async function fetchType(type: string): Promise<VfsNode[]> {
-  const seg = pluralSegment(type)
-  try {
-    const res = await fetch(`/api/vfs/${seg}`)
-    if (!res.ok) return []
-    const data: VfsListResponse = await res.json()
-    return data.children ?? []
-  } catch {
-    return []
+function TreeRow({
+  node, depth = 0, openSet, onToggle, activeId, onSelect,
+}: {
+  node: MockTreeItem
+  depth?: number
+  openSet: Set<string>
+  onToggle: (id: string) => void
+  activeId: string | null
+  onSelect: (id: string) => void
+}) {
+  if (node.kind === 'section') {
+    return <div className="tree-section">{node.label}</div>
   }
+
+  const folder = node as MockTreeFolder
+  const entity = node as MockTreeEntity
+  const isOpen   = node.kind === 'folder' && openSet.has(folder.id)
+  const isActive = node.kind === 'entity' && activeId === entity.id
+  const hasChildren = node.kind === 'folder' && (folder.children?.length ?? 0) > 0
+
+  const handleClick = () => {
+    if (node.kind === 'folder') onToggle(folder.id)
+    else onSelect(entity.id)
+  }
+
+  return (
+    <>
+      <div
+        className={`tree-row${isActive ? ' active' : ''}`}
+        style={{ paddingLeft: 8 + depth * 14 }}
+        onClick={handleClick}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => e.key === 'Enter' && handleClick()}
+      >
+        <span className="tree-caret">
+          {hasChildren
+            ? <Icon name={isOpen ? 'chevron-down' : 'chevron-right'} size={11} />
+            : null}
+        </span>
+        <span className="tree-icon">
+          {node.kind === 'folder'
+            ? <Icon name={folder.icon ?? 'folder'} size={14} />
+            : <Icon name={entityIcon(entity.type)} size={14} />}
+        </span>
+        <span className="tree-label">{node.kind === 'folder' ? folder.label : entity.label}</span>
+        {node.kind === 'entity' && entity.confidence && (
+          <span className="conf-dot" style={{ background: CONF_COLORS[entity.confidence] }} />
+        )}
+        {node.kind === 'folder' && folder.count != null && (
+          <span className="tree-count">{folder.count}</span>
+        )}
+      </div>
+      {hasChildren && isOpen && folder.children!.map((child) => (
+        <TreeRow
+          key={'id' in child ? child.id : child.label}
+          node={child}
+          depth={depth + 1}
+          openSet={openSet}
+          onToggle={onToggle}
+          activeId={activeId}
+          onSelect={onSelect}
+        />
+      ))}
+    </>
+  )
 }
 
 interface Props {
@@ -79,107 +93,56 @@ interface Props {
 
 export default function VfsTree({ selectedEntityId }: Props) {
   const navigate = useNavigate()
-  const { expandedPaths, togglePath } = useUiStore()
-  const [sections, setSections] = useState<VfsSection[]>([])
-  const [loading, setLoading] = useState(true)
+  const [openSet, setOpenSet] = useState(() => new Set(['fold:cust', 'fold:people', 'fold:policies', 'fold:projects']))
+  const [q, setQ] = useState('')
 
-  useEffect(() => {
-    let cancelled = false
+  const handleToggle = (id: string) => {
+    setOpenSet((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
 
-    async function load() {
-      setLoading(true)
-      const allTypes = SECTION_DEFS.flatMap((s) => s.types)
-      const results = await Promise.all(allTypes.map((t) => fetchType(t).then((nodes) => ({ type: t, nodes }))))
-
-      if (cancelled) return
-
-      const nodesByType = new Map(results.map((r) => [r.type, r.nodes]))
-
-      const built: VfsSection[] = SECTION_DEFS.map((def) => ({
-        ...def,
-        items: def.types.flatMap((type) =>
-          (nodesByType.get(type) ?? []).map((node) => ({
-            entityId: node.entity_id,
-            label: node.content?.canonical_name ?? node.entity_id,
-            Icon: TYPE_ICON[type] ?? FileText,
-            type,
-          })),
-        ),
-      }))
-
-      setSections(built)
-      setLoading(false)
-    }
-
-    void load()
-    return () => { cancelled = true }
-  }, [])
+  const handleSelect = (id: string) => {
+    navigate(`/browse/${encodeURIComponent(id)}`)
+  }
 
   return (
-    <div className="flex flex-col">
-      <div className="border-b px-3 py-2">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Context Base
-        </p>
+    <div className="col">
+      <div className="panel-header sticky">
+        <Icon name="folder" size={14} className="muted" />
+        <span className="panel-title">Virtual File System</span>
+        <span className="spacer" />
+        <button className="action-btn" style={{ width: 'auto', padding: '4px 6px', background: 'transparent', border: 'none' }} title="New entity">
+          <Icon name="plus" size={14} />
+        </button>
       </div>
 
-      {loading && (
-        <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
-          <Loader2 className="size-3.5 animate-spin" />
-          Loading…
+      <div className="tree-search">
+        <Icon name="search" size={13} className="muted" />
+        <input
+          placeholder="Search files…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+        <span className="kbd-chip">/</span>
+      </div>
+
+      <div className="panel-body">
+        <div className="tree">
+          {INAZUMA.tree.map((node) => (
+            <TreeRow
+              key={'id' in node ? node.id : node.label}
+              node={node}
+              openSet={openSet}
+              onToggle={handleToggle}
+              activeId={selectedEntityId}
+              onSelect={handleSelect}
+            />
+          ))}
         </div>
-      )}
-
-      {!loading && sections.every((s) => s.items.length === 0) && (
-        <div className="p-6 text-center text-sm text-muted-foreground">
-          No entities found. Ingest some data first.
-        </div>
-      )}
-
-      <ul className="flex flex-col py-1">
-        {sections.map((section) => {
-          if (section.items.length === 0) return null
-          const isExpanded = expandedPaths.has(section.path)
-          return (
-            <li key={section.path}>
-              <button
-                onClick={() => togglePath(section.path)}
-                className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-sm font-medium hover:bg-muted/50 transition-colors"
-              >
-                {isExpanded ? (
-                  <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
-                ) : (
-                  <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
-                )}
-                <span className="text-muted-foreground">{section.label}</span>
-                <span className="ml-auto text-xs text-muted-foreground/60">{section.items.length}</span>
-              </button>
-
-              {isExpanded && (
-                <ul className="flex flex-col">
-                  {section.items.map((item) => {
-                    const isActive = selectedEntityId === item.entityId
-                    return (
-                      <li key={item.entityId}>
-                        <button
-                          onClick={() => navigate(`/browse/${encodeURIComponent(item.entityId)}`)}
-                          className={cn(
-                            'flex w-full items-center gap-2 py-1.5 pl-8 pr-3 text-left text-sm transition-colors hover:bg-muted/50',
-                            isActive && 'bg-muted font-medium text-foreground',
-                          )}
-                        >
-                          <item.Icon className="size-3.5 shrink-0 text-muted-foreground" />
-                          <span className="truncate">{item.label}</span>
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </li>
-          )
-        })}
-      </ul>
+      </div>
     </div>
   )
 }

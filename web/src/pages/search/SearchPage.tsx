@@ -1,153 +1,134 @@
 import { useState } from 'react'
-import { Search } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { EntityTypeBadge } from '@/components/entity/EntityTypeBadge'
-import { ConfidencePill } from '@/components/entity/ConfidencePill'
-import { useSearch } from '@/hooks/useSearch'
-import { useNavigate } from 'react-router-dom'
-import type { SearchParams } from '@/types'
+import Icon from '@/components/qontext/icon'
+import { ConfBadge, SourceBadge, EntityPill } from '@/components/qontext/badges'
+import { INAZUMA } from '@/lib/inazuma-mock'
+
+const FILTERS = [
+  { id: 'type',    label: 'Type: any',        active: false },
+  { id: 'since',   label: 'Since: 30d',       active: true  },
+  { id: 'minconf', label: 'Confidence ≥ 0.7', active: true  },
+  { id: 'src',     label: 'Sources: all',     active: false },
+] as const
+
+const REFERENCED_ENTITIES = [
+  { id: 'ent:acme',       name: 'ACME GmbH',         type: 'customer', initials: 'AC' },
+  { id: 'ent:alice',      name: 'Alice Schmidt',      type: 'person',   initials: 'AS' },
+  { id: 'ent:jose',       name: 'José Barros',        type: 'person',   initials: 'JB' },
+  { id: 'ent:p:flow',     name: 'Inazuma Flow',       type: 'product',  initials: 'IF' },
+  { id: 'ent:p:atlas',    name: 'Inazuma Atlas',      type: 'product',  initials: 'IA' },
+  { id: 'ent:prj:renewal',name: 'ACME Renewal 2026',  type: 'project',  initials: 'AR' },
+  { id: 'ent:tkt:8821',   name: 'INZ-8821',           type: 'ticket',   initials: 'TK' },
+]
 
 export default function SearchPage() {
-  const navigate = useNavigate()
-  const [inputValue, setInputValue] = useState('')
-  const [submittedParams, setSubmittedParams] = useState<SearchParams | null>(null)
+  const [q, setQ] = useState(INAZUMA.search.query)
+  const a = INAZUMA.search.answer
 
-  const { data, isLoading, isError } = useSearch(submittedParams)
-
-  function handleSubmit(e: React.FormEvent) {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!inputValue.trim()) return
-    setSubmittedParams({ query: inputValue.trim() })
   }
 
-  const hasResults =
-    data &&
-    (data.entities.length > 0 || data.facts.length > 0 || data.files.length > 0)
-
   return (
-    <div className="flex flex-col items-center gap-6 p-8">
-      <div className="w-full max-w-2xl">
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Ask anything about your organization…"
-              className="pl-9"
-            />
+    <div className="workspace search" style={{ overflowY: 'auto' }}>
+      <div className="col-center" style={{ flex: 1 }}>
+        <div className="search-shell">
+          <div className="panel-eyebrow" style={{ marginBottom: 10 }}>
+            <Icon name="sparkles" size={11} style={{ verticalAlign: '-2px', marginRight: 4 }} />
+            Ask the context base
           </div>
-          <Button type="submit" disabled={isLoading || !inputValue.trim()}>
-            {isLoading ? 'Searching…' : 'Search'}
-          </Button>
-        </form>
 
-        {!submittedParams && (
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            Try: "Who manages Acme GmbH?" or "What are the open renewal dates?"
-          </p>
-        )}
-      </div>
+          <form onSubmit={handleSubmit}>
+            <div className="search-bar-wrap">
+              <div className="search-bar">
+                <Icon name="search" size={20} className="search-icon" />
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Ask anything about Inazuma…"
+                />
+                <button type="submit" className="ask-btn">
+                  Ask <span className="kbd">↵</span>
+                </button>
+              </div>
+              <div className="search-filters">
+                {FILTERS.map((f) => (
+                  <span key={f.id} className={`search-filter${f.active ? ' active' : ''}`}>
+                    {f.label}
+                    {f.active && <Icon name="x" size={10} className="x" />}
+                  </span>
+                ))}
+                <span className="search-filter">
+                  <Icon name="plus" size={11} /> Add filter
+                </span>
+              </div>
+            </div>
+          </form>
 
-      {submittedParams && (
-        <div className="w-full max-w-2xl flex flex-col gap-4">
-          {isLoading && (
-            <p className="text-sm text-muted-foreground">Searching context base…</p>
-          )}
+          {/* Answer card */}
+          <div className="answer-card">
+            <div className="answer-head">
+              <span className="ai-mark">Q</span>
+              <span className="answer-q">{q}</span>
+              <span className="chip" style={{ background: 'var(--conf-high-soft)', color: 'var(--conf-high)', fontWeight: 600 }}>
+                <Icon name="check" size={11} /> 5 sources · 0.9s
+              </span>
+            </div>
+            <div className="answer-body">
+              {a.paragraphs.map((p, i) => {
+                const html = p.replace(/<span data-cite="(\d+)"><\/span>/g, '<span class="cite">$1</span>')
+                return <p key={i} dangerouslySetInnerHTML={{ __html: html }} />
+              })}
+            </div>
+            <div className="answer-foot">
+              <button><Icon name="thumbs-up" size={13} /> Helpful</button>
+              <button><Icon name="thumbs-down" size={13} /> Not quite</button>
+              <button><Icon name="copy" size={13} /> Copy</button>
+              <span className="spacer" />
+              <span>Generated from 5 source records · provenance preserved at fact-level</span>
+            </div>
+          </div>
 
-          {isError && (
-            <Card>
-              <CardContent className="pt-4">
-                <p className="text-sm text-muted-foreground">
-                  Backend not yet available. Search will work once the API is live.
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-          {data && !hasResults && (
-            <p className="text-sm text-muted-foreground text-center">
-              No entities or facts matched. Try different terms or relax your confidence filter.
-            </p>
-          )}
-
-          {data?.query_interpretation && (
-            <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-              <span>Interpreted as:</span>
-              <Badge variant="outline">{data.query_interpretation.intent}</Badge>
-              {data.query_interpretation.entities_mentioned.map((e) => (
-                <Badge key={e} variant="secondary">{e}</Badge>
+          {/* Evidence */}
+          <div style={{ marginTop: 24 }}>
+            <div className="panel-eyebrow" style={{ marginBottom: 10 }}>Evidence</div>
+            <div className="evidence-grid">
+              {a.evidence.map((ev) => (
+                <div className="evidence-card" key={ev.n}>
+                  <span className="src-num">{ev.n}</span>
+                  <div className="evidence-body">
+                    <div className="evidence-title">
+                      <SourceBadge
+                        src={{ id: `src:${ev.srcType}:${ev.n}`, type: ev.srcType, name: ev.title, uri: '', date: '' }}
+                      />
+                      {ev.title}
+                    </div>
+                    <blockquote className="evidence-quote" dangerouslySetInnerHTML={{ __html: ev.quote }} />
+                    <div className="evidence-meta">
+                      {ev.meta.map((m, j) => <span key={j}>{m}{j < ev.meta.length - 1 ? ' · ' : ''}</span>)}
+                    </div>
+                  </div>
+                  <div className="evidence-actions">
+                    <ConfBadge level={ev.conf} />
+                    <button className="action-btn" style={{ padding: '4px 8px', fontSize: 11, width: 'auto', background: 'transparent', border: 'none', color: 'var(--text-secondary)' }}>
+                      <Icon name="eye" size={12} /> Open
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
-          )}
+          </div>
 
-          {data && data.entities.length > 0 && (
-            <section className="flex flex-col gap-2">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Entities
-              </h2>
-              {data.entities.map((entity) => (
-                <Card
-                  key={entity.id}
-                  className="cursor-pointer hover:border-primary/50 transition-all"
-                  onClick={() => navigate(`/browse/${encodeURIComponent(entity.id)}`)}
-                >
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center gap-2">
-                      <EntityTypeBadge type={entity.type} />
-                      <CardTitle className="text-base">{entity.canonical_name}</CardTitle>
-                    </div>
-                  </CardHeader>
-                </Card>
+          {/* Referenced entities */}
+          <div style={{ marginTop: 28 }}>
+            <div className="panel-eyebrow" style={{ marginBottom: 10 }}>Entities referenced</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {REFERENCED_ENTITIES.map((e) => (
+                <EntityPill key={e.id} entity={e} />
               ))}
-            </section>
-          )}
-
-          {data && data.facts.length > 0 && (
-            <section className="flex flex-col gap-2">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Facts
-              </h2>
-              {data.facts.map((fact) => (
-                <Card key={fact.id}>
-                  <CardContent className="flex items-start justify-between gap-2 pt-4">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs text-muted-foreground capitalize">
-                        {fact.predicate.replace(/_/g, ' ')}
-                      </span>
-                      <span className="text-sm">{fact.object === null ? '—' : String(fact.object)}</span>
-                    </div>
-                    <ConfidencePill confidence={fact.confidence} />
-                  </CardContent>
-                </Card>
-              ))}
-            </section>
-          )}
-
-          {data && data.files.length > 0 && (
-            <section className="flex flex-col gap-2">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Documents
-              </h2>
-              {data.files.map((file) => (
-                <Card
-                  key={file.path}
-                  className="cursor-pointer hover:border-primary/50 transition-all"
-                  onClick={() => navigate(`/browse/${encodeURIComponent(file.entity_id)}`)}
-                >
-                  <CardContent className="pt-4">
-                    <p className="font-mono text-xs text-muted-foreground">{file.path}</p>
-                    <p className="mt-1 text-sm">{file.snippet}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </section>
-          )}
+            </div>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }
