@@ -25,26 +25,28 @@ export function ConflictCard({ label, fact, isSelected, onSelect }: Props) {
             <span className="text-xs text-muted-foreground capitalize">
               {fact.predicate.replace(/_/g, ' ')}
             </span>
-            <span className="font-medium">{fact.object === null ? '—' : String(fact.object)}</span>
+            <span className="font-medium">
+              {fact.object_literal != null ? String(fact.object_literal) : fact.object_id ?? '—'}
+            </span>
           </div>
           <ConfidencePill confidence={fact.confidence} />
         </div>
 
         <div className="flex flex-wrap gap-1">
-          {fact.derived_from.slice(0, 2).map((src) => (
-            <Badge key={src} variant="outline" className="text-xs font-mono">
-              {src.split(':')[0]}
+          {fact.evidence.slice(0, 2).map((ev) => (
+            <Badge key={ev.record_id ?? ev.source} variant="outline" className="text-xs font-mono">
+              {ev.source.split(':')[0]}
             </Badge>
           ))}
-          {fact.derived_from.length > 2 && (
+          {fact.evidence.length > 2 && (
             <Badge variant="outline" className="text-xs">
-              +{fact.derived_from.length - 2}
+              +{fact.evidence.length - 2}
             </Badge>
           )}
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Updated {new Date(fact.updated_at).toLocaleDateString()}
+          Recorded {new Date(fact.recorded_at).toLocaleDateString()}
         </p>
       </CardContent>
     </Card>

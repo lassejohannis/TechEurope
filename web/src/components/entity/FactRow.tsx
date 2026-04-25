@@ -10,14 +10,17 @@ interface Props {
 
 const STATUS_CLASSES: Record<Fact['status'], string> = {
   live: '',
+  active: '',
   draft: 'opacity-60',
   superseded: 'opacity-40 line-through',
   disputed: 'border-l-2 border-destructive pl-2',
+  invalidated: 'opacity-30 line-through',
+  needs_refresh: 'opacity-60 italic',
 }
 
 export function FactRow({ fact, onFlag }: Props) {
   const valueStr =
-    fact.object === null ? '—' : String(fact.object)
+    fact.object_literal != null ? String(fact.object_literal) : fact.object_id ?? '—'
 
   return (
     <div
