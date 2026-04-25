@@ -50,7 +50,9 @@ def _company_from_business_name(name: str | None) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-def _extract_email(payload: dict[str, Any]) -> tuple[list[CandidateEntity], list[PendingFact]]:
+def _extract_email(
+    payload: dict[str, Any], llm_extract: bool = False
+) -> tuple[list[CandidateEntity], list[PendingFact]]:
     sender_name = (payload.get("sender_name") or "").strip()
     sender_email = (payload.get("sender_email") or "").strip().lower()
     sender_emp_id = payload.get("sender_emp_id")
@@ -92,7 +94,7 @@ def _extract_email(payload: dict[str, Any]) -> tuple[list[CandidateEntity], list
             )
         )
 
-    # Facts: works_at(person → company by domain), participated_in(person → thread)
+    # Facts: works_at(person → company by domain)
     for name, email in ((sender_name, sender_email), (recipient_name, recipient_email)):
         if not name or not email:
             continue
@@ -107,6 +109,184 @@ def _extract_email(payload: dict[str, Any]) -> tuple[list[CandidateEntity], list
                     confidence=0.85,
                 )
             )
+
+    # Communication entity: one per email thread (or per email if no thread_id).
+    # This is what makes the Graph dense — sender + recipient both attach via
+    # participant_in / authored edges.
+    thread_id = payload.get("thread_id") or payload.get("email_id")
+    subject = (payload.get("subject") or "").strip() or "(no subject)"
+    if thread_id and (sender_name or recipient_name):
+        comm_attrs: dict[str, Any] = {
+            "channel": "email",
+            "thread_id": str(thread_id),
+            "subject": subject,
+        }
+        if email_id := payload.get("email_id"):
+            comm_attrs["email_id"] = str(email_id)
+        if date := payload.get("date"):
+            comm_attrs["date"] = str(date)
+        if importance := payload.get("importance"):
+            comm_attrs["importance"] = str(importance)
+        if category := payload.get("category"):
+            comm_attrs["category"] = str(category)
+
+        entities.append(
+            CandidateEntity(
+                entity_type="communication",
+                canonical_name=subject[:120],
+                attrs=comm_attrs,
+            )
+        )
+        if sender_name:
+            facts.append(
+                PendingFact(
+                    subject_key=("person", sender_name),
+                    predicate="authored",
+                    object_key=("communication", subject[:120]),
+                    confidence=0.99,
+                )
+            )
+            facts.append(
+                PendingFact(
+                    subject_key=("person", sender_name),
+                    predicate="participant_in",
+                    object_key=("communication", subject[:120]),
+                    confidence=0.99,
+                )
+            )
+        if recipient_name and recipient_name != sender_name:
+            facts.append(
+                PendingFact(
+                    subject_key=("person", recipient_name),
+                    predicate="participant_in",
+                    object_key=("communication", subject[:120]),
+                    confidence=0.99,
+                )
+            )
+
+    # Optional LLM-mined facts from the email body (constrained predicate set).
+    if llm_extract and (body := payload.get("body")):
+        try:
+            from server.extractors.gemini_structured import extract_email_facts
+
+            llm_facts = extract_email_facts(body, sender_name or "", recipient_name or "")
+            for ef in llm_facts:
+                # Subject must be one of the people we already have on the
+                # candidate list — otherwise we'd silently spawn ghost entities.
+                subject_match = ef.subject_name.strip()
+                if not subject_match:
+                    continue
+                object_key = None
+                object_literal = None
+                if ef.object_name:
+                    object_key = ("person", ef.object_name.strip())
+                else:
+                    object_literal = {"quote": ef.quote}
+                facts.append(
+                    PendingFact(
+                        subject_key=("person", subject_match),
+                        predicate=ef.predicate,
+                        object_key=object_key,
+                        object_literal=object_literal,
+                        confidence=float(ef.confidence),
+                        extraction_method="gemini",
+                    )
+                )
+        except Exception:
+            # Never let LLM extraction errors break ingestion.
+            pass
+
+    return entities, facts
+
+
+def _extract_doc(payload: dict[str, Any]) -> tuple[list[CandidateEntity], list[PendingFact]]:
+    """Generic Document/Policy/Contract — anything that came through DocumentConnector."""
+    title = (payload.get("title") or payload.get("filename") or "").strip()
+    source_uri = payload.get("source_uri") or payload.get("path") or payload.get("file")
+    doc_type = payload.get("doc_type") or payload.get("type")
+
+    if not title:
+        return [], []
+
+    attrs: dict[str, Any] = {"title": title}
+    if source_uri:
+        attrs["source_uri"] = str(source_uri)
+    if doc_type:
+        attrs["doc_type"] = str(doc_type)
+    if scope := payload.get("scope"):
+        attrs["scope"] = str(scope)
+    if issued_by := payload.get("issued_by"):
+        attrs["issued_by"] = str(issued_by)
+    if effective_date := payload.get("effective_date"):
+        attrs["effective_date"] = str(effective_date)
+
+    entities = [CandidateEntity(entity_type="document", canonical_name=title[:120], attrs=attrs)]
+    facts: list[PendingFact] = []
+    # Optional applies_to(document, company) when issuer is named.
+    if issuer := payload.get("issued_by"):
+        facts.append(
+            PendingFact(
+                subject_key=("document", title[:120]),
+                predicate="applies_to",
+                object_key=("company", str(issuer)),
+                confidence=0.9,
+            )
+        )
+    return entities, facts
+
+
+def _extract_it_ticket(payload: dict[str, Any]) -> tuple[list[CandidateEntity], list[PendingFact]]:
+    ticket_id = payload.get("ticket_id") or payload.get("id")
+    subject = (payload.get("subject") or payload.get("title") or "").strip()
+    status = payload.get("status")
+    priority = payload.get("priority")
+    assignee_name = (payload.get("assignee_name") or payload.get("assigned_to_name") or "").strip()
+    creator_name = (payload.get("created_by_name") or payload.get("reporter_name") or "").strip()
+
+    if not ticket_id or not subject:
+        return [], []
+
+    attrs: dict[str, Any] = {
+        "channel": "ticket",
+        "ticket_id": str(ticket_id),
+        "subject": subject,
+    }
+    if status:
+        attrs["status"] = str(status)
+    if priority:
+        attrs["priority"] = str(priority)
+    if category := payload.get("category"):
+        attrs["category"] = str(category)
+
+    entities: list[CandidateEntity] = [
+        CandidateEntity(entity_type="communication", canonical_name=subject[:120], attrs=attrs)
+    ]
+    facts: list[PendingFact] = []
+
+    if assignee_name:
+        entities.append(
+            CandidateEntity(entity_type="person", canonical_name=assignee_name, attrs={})
+        )
+        facts.append(
+            PendingFact(
+                subject_key=("person", assignee_name),
+                predicate="assigned_to",
+                object_key=("communication", subject[:120]),
+                confidence=0.99,
+            )
+        )
+    if creator_name:
+        entities.append(
+            CandidateEntity(entity_type="person", canonical_name=creator_name, attrs={})
+        )
+        facts.append(
+            PendingFact(
+                subject_key=("person", creator_name),
+                predicate="created",
+                object_key=("communication", subject[:120]),
+                confidence=0.99,
+            )
+        )
 
     return entities, facts
 
@@ -269,26 +449,37 @@ def _extract_sale(payload: dict[str, Any]) -> tuple[list[CandidateEntity], list[
 # ---------------------------------------------------------------------------
 
 
-_EXTRACTORS = {
-    "email": lambda p: _extract_email(p),
-    "client": lambda p: _extract_client_or_customer(p, "client"),
-    "customer": lambda p: _extract_client_or_customer(p, "customer"),
-    "hr_record": lambda p: _extract_hr_record(p),
-    "product": lambda p: _extract_product(p),
-    "sale": lambda p: _extract_sale(p),
-}
-
-
 def extract_candidates(
     source_record: dict[str, Any],
+    *,
+    llm_extract: bool = False,
 ) -> tuple[list[CandidateEntity], list[PendingFact]]:
-    """Return (entities, pending_facts) extracted from a source_records row."""
+    """Return (entities, pending_facts) extracted from a source_records row.
+
+    `llm_extract=True` opts in to per-record LLM mining (currently used in the
+    email path to surface in-body relationship facts).
+    """
     payload = source_record.get("payload") or {}
-    source_type = source_record.get("source_type", "")
-    fn = _EXTRACTORS.get(source_type)
-    if not fn:
+    source_type = source_record.get("source_type", "") or ""
+
+    if source_type == "email":
+        result = _extract_email(payload, llm_extract=llm_extract)
+    elif source_type in ("client", "customer"):
+        result = _extract_client_or_customer(payload, source_type)
+    elif source_type == "hr_record":
+        result = _extract_hr_record(payload)
+    elif source_type == "product":
+        result = _extract_product(payload)
+    elif source_type == "sale":
+        result = _extract_sale(payload)
+    elif source_type == "it_ticket":
+        result = _extract_it_ticket(payload)
+    elif source_type.startswith("doc_"):
+        result = _extract_doc(payload)
+    else:
         return [], []
-    entities, facts = fn(payload)
+
+    entities, facts = result
     # Stamp source_id on every candidate so downstream persisters know provenance.
     sid = source_record.get("id", "")
     for e in entities:

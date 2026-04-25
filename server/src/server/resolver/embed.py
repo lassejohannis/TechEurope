@@ -47,6 +47,37 @@ def refresh_inference_embedding(entity_id: str, text: str, db: Any) -> None:
     if vec is None:
         return
     try:
-        db.table("entities").update({"inference_embedding": vec}).eq("id", entity_id).execute()
+        db.table("entities").update(
+            {"inference_embedding": vec, "inference_needs_refresh": False}
+        ).eq("id", entity_id).execute()
     except Exception as e:
         logger.warning("Failed to update inference embedding for %s: %s", entity_id, e)
+
+
+def build_inference_text(entity_id: str, db: Any, max_facts: int = 30) -> str:
+    """Build a context-rich text from an entity's facts for Tier-B embedding.
+
+    Format: "<canonical_name> (<entity_type>). predicate1: target1. predicate2: target2."
+    Capped to keep token budget under control.
+    """
+    e_res = db.table("entities").select(
+        "id, entity_type, canonical_name"
+    ).eq("id", entity_id).single().execute()
+    e = e_res.data or {}
+    parts = [f"{e.get('canonical_name', '')} ({e.get('entity_type', '')})."]
+
+    facts_res = (
+        db.table("facts")
+        .select("predicate, object_id, object_literal")
+        .eq("subject_id", entity_id)
+        .is_("valid_to", "null")
+        .limit(max_facts)
+        .execute()
+    )
+    for f in facts_res.data or []:
+        target = f.get("object_id") or f.get("object_literal")
+        if isinstance(target, dict):
+            target = target.get("name") or target.get("quote") or str(target)
+        if target:
+            parts.append(f"{f['predicate']}: {target}")
+    return " ".join(parts)

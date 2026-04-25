@@ -55,15 +55,55 @@ def get_gemini():
     return _gemini
 
 
-def embed_text(text: str, dimensions: int = 768) -> list[float]:
-    """Embed text using Gemini text-embedding-004 (Matryoshka, Tier A)."""
+_EMBEDDING_MODELS = ("gemini-embedding-001", "text-embedding-004")
+_COMPANY_SUFFIXES = (
+    " inc", " ltd", " limited", " gmbh", " bv", " corp", " corporation",
+    " ag", " sa", " s.a.", " llc", " l.l.c.", " co", " co.",
+)
+
+
+def normalize_for_embedding(text: str) -> str:
+    """Cheap normalization that gives more lift than picking a fancier model.
+
+    lowercase, strip common company-suffixes, collapse whitespace.
+    """
+    if not text:
+        return ""
+    text = text.lower().rstrip(" .,;:!?")
+    for suffix in _COMPANY_SUFFIXES:
+        if text.endswith(suffix):
+            text = text[: -len(suffix)].rstrip(" .,")
+            break
+    return " ".join(text.split())
+
+
+def embed_text(text: str, dimensions: int = 768) -> list[float] | None:
+    """Embed text using Gemini. Tries newer model first, falls back to legacy.
+
+    Returns None if both models fail (caller should treat as "skip Tier 3").
+    """
+    if not text:
+        return None
     client = get_gemini()
-    response = client.models.embed_content(
-        model="models/text-embedding-004",
-        contents=text,
-        config={"output_dimensionality": dimensions},
-    )
-    return list(response.embeddings[0].values)
+    normalized = normalize_for_embedding(text)
+    last_err: Exception | None = None
+    for model_id in _EMBEDDING_MODELS:
+        for prefix in ("", "models/"):
+            try:
+                response = client.models.embed_content(
+                    model=f"{prefix}{model_id}",
+                    contents=normalized,
+                    config={"output_dimensionality": dimensions},
+                )
+                emb = response.embeddings[0]
+                vec = list(getattr(emb, "values", None) or emb)
+                if len(vec) == dimensions:
+                    return vec
+            except Exception as exc:
+                last_err = exc
+                continue
+    logger.warning("embed_text exhausted all models for %r: %s", text[:40], last_err)
+    return None
 
 
 # ---------------------------------------------------------------------------
