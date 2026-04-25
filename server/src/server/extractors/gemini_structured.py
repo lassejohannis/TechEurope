@@ -66,6 +66,8 @@ def extract_email_facts(
         from google import genai  # type: ignore
     except Exception:
         return []
+    from server.gemini_budget import gemini_call
+
     try:
         client = genai.Client(api_key=settings.gemini_api_key)
         schema = EmailFactsSchema.model_json_schema()
@@ -82,14 +84,19 @@ def extract_email_facts(
             "- quote is the literal verbatim sentence from the body.\n"
             "- confidence in [0,1] reflecting how unambiguous the statement is."
         )
-        resp = client.models.generate_content(
-            model=settings.gemini_model,
-            contents=prompt,
-            config={
-                "response_mime_type": "application/json",
-                "response_schema": schema,
-            },
+        resp = gemini_call(
+            settings.gemini_model,
+            lambda: client.models.generate_content(
+                model=settings.gemini_model,
+                contents=prompt,
+                config={
+                    "response_mime_type": "application/json",
+                    "response_schema": schema,
+                },
+            ),
         )
+        if resp is None:
+            return []
         raw = getattr(resp, "text", None) or getattr(resp, "output_text", None) or "{}"
         data = json.loads(raw)
         return EmailFactsSchema.model_validate(data).facts
@@ -109,21 +116,25 @@ def gemini_extract_invoice(text: str) -> InvoiceSchema:
         from google import genai  # type: ignore
     except Exception:
         return InvoiceSchema()
+    from server.gemini_budget import gemini_call
+
     try:
         client = genai.Client(api_key=settings.gemini_api_key)
         schema = InvoiceSchema.model_json_schema()
-        resp = client.models.generate_content(
-            model=settings.gemini_model,
-            contents=text,
-            config={
-                "response_mime_type": "application/json",
-                "response_schema": schema,
-            },
+        resp = gemini_call(
+            settings.gemini_model,
+            lambda: client.models.generate_content(
+                model=settings.gemini_model,
+                contents=text,
+                config={
+                    "response_mime_type": "application/json",
+                    "response_schema": schema,
+                },
+            ),
         )
-        # google-genai responses typically expose .text or .output_text
+        if resp is None:
+            return InvoiceSchema()
         raw = getattr(resp, "text", None) or getattr(resp, "output_text", None) or "{}"
-        import json
-
         data = json.loads(raw)
         return InvoiceSchema.model_validate(data)
     except Exception:

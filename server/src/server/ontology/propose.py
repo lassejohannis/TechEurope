@@ -30,8 +30,12 @@ from server.db import embed_text
 
 logger = logging.getLogger(__name__)
 
-GEMINI_INFERENCE_MODEL_PRIMARY = "gemini-2.5-pro"
-GEMINI_INFERENCE_MODEL_FALLBACK = "gemini-2.5-flash"
+GEMINI_INFERENCE_MODELS = (
+    "gemini-2.5-flash-lite",
+    "gemini-flash-lite-latest",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+)
 SIMILARITY_REUSE = 0.85  # cosine ≥ this ⇒ same type as existing
 SIMILARITY_REJECT_NEW = 0.4  # if new proposal is < this distance from existing ⇒ reuse instead
 AUTO_APPROVE_CONFIDENCE = 0.95
@@ -219,18 +223,26 @@ def infer_source_mapping(
     prompt = _build_inference_prompt(source_type, sample_records, approved_e, approved_p)
     schema = _gemini_safe_schema(MappingProposal.model_json_schema())
 
+    from server.gemini_budget import gemini_call
+
     client = genai.Client(api_key=settings.gemini_api_key)
     last_err = None
-    for model_id in (GEMINI_INFERENCE_MODEL_PRIMARY, GEMINI_INFERENCE_MODEL_FALLBACK):
+    for model_id in GEMINI_INFERENCE_MODELS:
         try:
-            resp = client.models.generate_content(
-                model=model_id,
-                contents=prompt,
-                config={
-                    "response_mime_type": "application/json",
-                    "response_schema": schema,
-                },
+            resp = gemini_call(
+                model_id,
+                lambda m=model_id: client.models.generate_content(
+                    model=m,
+                    contents=prompt,
+                    config={
+                        "response_mime_type": "application/json",
+                        "response_schema": schema,
+                    },
+                ),
             )
+            if resp is None:
+                # cap or cooldown — bail out, don't burn through more models
+                return None
             raw = getattr(resp, "text", None) or "{}"
             proposal = MappingProposal.model_validate_json(raw)
             logger.info("inferred mapping for %s via %s (conf=%.2f)",
@@ -240,7 +252,9 @@ def infer_source_mapping(
             last_err = exc
             logger.warning("inference via %s failed: %s", model_id, exc)
             continue
-    logger.warning("infer_source_mapping for %s exhausted both models: %s", source_type, last_err)
+    logger.warning(
+        "infer_source_mapping for %s exhausted all models: %s", source_type, last_err
+    )
     return None
 
 
