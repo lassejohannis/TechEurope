@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     def neo4j_enabled(self) -> bool:
         return bool(self.neo4j_uri and self.neo4j_password)
 
+    @property
+    def neo4j_username(self) -> str:
+        """Backward-compatible alias for code still expecting neo4j_username."""
+        return self.neo4j_user
+
     # Pioneer (WS-3 — optional, cascade falls back to Gemini when not set)
     pioneer_api_key: str = ""
     pioneer_model_id: str = ""

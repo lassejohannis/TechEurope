@@ -6,6 +6,7 @@ const MODES = [
   { to: '/browse', label: 'Browse' },
   { to: '/search', label: 'Search' },
   { to: '/review', label: 'Review' },
+  { to: '/workflow', label: 'Workflow' },
 ] as const
 
 export default function TopNav() {
