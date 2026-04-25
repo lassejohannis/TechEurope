@@ -18,8 +18,12 @@ from datetime import datetime, timezone
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 
 from server.api.search import run_hybrid_search
+from server.auth.tokens import verify_agent_token
+from server.config import settings
 from server.db import get_db
 from server.models import ProposeFactRequest
 
@@ -33,6 +37,25 @@ mcp = FastMCP(
         "propose_fact to write new facts into the layer."
     ),
 )
+
+
+class MCPTokenMiddleware(BaseHTTPMiddleware):
+    """Bearer token gate for the SSE-transport ASGI app.
+
+    Bypassed when API_AUTH_DISABLED=true. In strict mode requires a valid
+    `qx_<id>_<secret>` agent token from the agent_tokens table.
+    """
+
+    async def dispatch(self, request, call_next):
+        if settings.api_auth_disabled:
+            return await call_next(request)
+        auth = request.headers.get("authorization", "")
+        if not auth.lower().startswith("bearer "):
+            return JSONResponse({"detail": "Missing bearer token"}, status_code=401)
+        token = auth[7:].strip()
+        if not verify_agent_token(token):
+            return JSONResponse({"detail": "Invalid agent token"}, status_code=401)
+        return await call_next(request)
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +158,7 @@ def list_recent_changes(since: str | None = None, limit: int = 20) -> list[dict[
 
     res = db.table("facts").select(
         "id, subject_id, predicate, object_id, object_literal, confidence, "
-        "derivation, valid_from, valid_to, recorded_at, superseded_by, status"
+        "extraction_method, valid_from, valid_to, recorded_at, superseded_by, status"
     ).gte("recorded_at", since_ts).order("recorded_at", desc=True).limit(min(limit, 100)).execute()
 
     return res.data or []
@@ -184,3 +207,10 @@ def propose_fact(
     )
     result = _propose(req, db=get_db())
     return result.model_dump()
+
+
+def build_sse_app():
+    """Return the SSE ASGI app with token-auth middleware applied."""
+    app = mcp.sse_app()
+    app.add_middleware(MCPTokenMiddleware)
+    return app

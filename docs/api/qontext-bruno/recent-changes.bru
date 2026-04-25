@@ -1,0 +1,13 @@
+meta {
+  name: Recent changes (paginated)
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/changes/recent?limit=10
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}
