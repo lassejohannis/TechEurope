@@ -205,3 +205,7 @@ Ok jetzt sind alle todos abgeschlossen, ich möchte dass du alles von vorne bis 
 ---
 
 frontend nicht fixen, das wird gerade umgebaut, mache 1b und du kannst die datenkonsistenz lösen in dem du erstmal alles zurücksetzt an daten. Zu 3: warum schlägt es fehl?
+
+---
+
+kannst du einmal das zeug aus dem neuen main commit holen
