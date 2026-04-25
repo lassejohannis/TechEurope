@@ -1,0 +1,9 @@
+Dann ziehe nochmal von Main und schaue was neu ist
+
+---
+
+Dann einmal diese Version auf main ablegen und wir arbeiten auf Lasse weiter
+
+---
+
+Kannst du einmal durchtesten was schon steht und sagen was die next steps sind, (ich weiß das ws-3 noch auf das finetuned model wartet)
