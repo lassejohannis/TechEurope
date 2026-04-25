@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "5acbd381f79b",
+  "strategy": "manual-commit",
+  "branch": "Lasse",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "docs/team-briefing-technical.md",
+    "server/migrations/007_update_propagation_fixes.sql"
+  ],
+  "sessions": [
+    {
+      "metadata": "/5a/cbd381f79b/0/metadata.json",
+      "transcript": "/5a/cbd381f79b/0/full.jsonl",
+      "content_hash": "/5a/cbd381f79b/0/content_hash.txt",
+      "prompt": "/5a/cbd381f79b/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 500,
+    "cache_creation_tokens": 350370,
+    "cache_read_tokens": 39683121,
+    "output_tokens": 138113,
+    "api_call_count": 255
+  }
+}

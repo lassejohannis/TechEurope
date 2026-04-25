@@ -1,0 +1,68 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "5acbd381f79b",
+  "session_id": "43003030-6411-41de-8c03-b4da450d5896",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T18:38:42.178982Z",
+  "branch": "Lasse",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "docs/team-briefing-technical.md",
+    "server/migrations/007_update_propagation_fixes.sql"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "1465ccf4cee1",
+  "token_usage": {
+    "input_tokens": 500,
+    "cache_creation_tokens": 350370,
+    "cache_read_tokens": 39683121,
+    "output_tokens": 138113,
+    "api_call_count": 255
+  },
+  "session_metrics": {
+    "turn_count": 17
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T18:38:42.074194Z",
+    "agent_lines": 1417,
+    "agent_removed": 21,
+    "human_added": 161,
+    "human_modified": 1,
+    "human_removed": 0,
+    "total_committed": 1579,
+    "total_lines_changed": 1600,
+    "agent_percentage": 89.875,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 9189,
+      "agent_lines_removed": 89
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 188,
+      "user_lines_removed": 1,
+      "agent_lines_added": 9397,
+      "agent_lines_removed": 89,
+      "user_added_per_file": {
+        "data/training/eval_holdout.jsonl": 26,
+        "docs/team-briefing-technical.md": 162
+      },
+      "user_removed_per_file": {
+        "docs/team-briefing-technical.md": 1
+      }
+    }
+  ]
+}
