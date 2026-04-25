@@ -7,6 +7,7 @@ Usage examples:
   - `uv run server status`
   - `uv run server discover --connector all --path data/enterprise-bench` (dry-run)
   - `uv run server resolve --limit 200 --source-type email`
+  - `uv run server reprocess` (re-derive needs_refresh facts)
 """
 
 from __future__ import annotations
@@ -49,11 +50,12 @@ def cmd_ingest(
     if connector == "all":
         order = [
             "email",
-            "crm",       # umbrella: customer, product, sale, client
+            "crm",           # umbrella: customer, product, sale, client
             "hr_record",
             "invoice_pdf",
             "it_ticket",
             "document",
+            "collaboration",
         ]
         total = 0
         for name in order:
@@ -282,6 +284,75 @@ def cmd_resolve(
                 )
 
         # Persist pending facts now that all entities for this record are known.
+        for pf in pending_facts:
+            if _persist_fact(db, pf, name_to_id, rec["id"]):
+                stats["facts"] += 1
+
+    typer.echo("done:")
+    for k, v in stats.items():
+        typer.echo(f"  {k}: {v}")
+
+
+@cli.command("reprocess")
+def cmd_reprocess(
+    limit: int = typer.Option(500, help="Max stale source records to reprocess"),
+) -> None:
+    """Re-derive facts for source_records whose facts are marked needs_refresh.
+
+    Finds source_records linked to needs_refresh facts, re-runs the resolver
+    on them, and inserts fresh facts. Idempotent: deterministic entity IDs
+    mean repeated runs are safe.
+    """
+    from server.resolver.cascade import resolve as cascade_resolve
+    from server.resolver.extract import extract_candidates
+
+    db = get_supabase()
+
+    stale = (
+        db.table("facts")
+        .select("source_id")
+        .eq("status", "needs_refresh")
+        .limit(limit)
+        .execute()
+    )
+    source_ids = list({r["source_id"] for r in (stale.data or []) if r.get("source_id")})
+
+    if not source_ids:
+        typer.echo("no stale facts found")
+        return
+
+    typer.echo(f"found {len(source_ids)} stale source records")
+
+    records: list[dict] = []
+    _chunk = 50
+    for i in range(0, len(source_ids), _chunk):
+        chunk = source_ids[i : i + _chunk]
+        res = db.table("source_records").select("id, source_type, payload").in_("id", chunk).execute()
+        records.extend(res.data or [])
+
+    typer.echo(f"reprocessing {len(records)} records …")
+
+    # Reset needs_refresh → active before reinserting so GIST dedup works correctly
+    for i in range(0, len(source_ids), _chunk):
+        chunk = source_ids[i : i + _chunk]
+        db.table("facts").update({"status": "active"}).in_("source_id", chunk).eq(
+            "status", "needs_refresh"
+        ).execute()
+
+    stats = {"records": 0, "facts": 0}
+    for rec in records:
+        stats["records"] += 1
+        candidates, pending_facts = extract_candidates(rec)
+        name_to_id: dict[tuple[str, str], str] = {}
+        for cand in candidates:
+            result = cascade_resolve(cand, db)
+            same_type_match = (
+                result.matched_id
+                if result.tier in ("hard_id", "alias", "embedding", "pioneer")
+                else None
+            )
+            entity_id = _persist_entity(db, cand, same_type_match)
+            name_to_id[(cand.entity_type, cand.canonical_name)] = entity_id
         for pf in pending_facts:
             if _persist_fact(db, pf, name_to_id, rec["id"]):
                 stats["facts"] += 1

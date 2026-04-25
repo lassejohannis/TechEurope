@@ -61,3 +61,8 @@ try:
     CONNECTOR_REGISTRY[getattr(DocumentConnector, "source_type")] = DocumentConnector
 except Exception:
     pass
+try:
+    from .collaboration import CollaborationConnector  # noqa: F401
+    CONNECTOR_REGISTRY[getattr(CollaborationConnector, "source_type")] = CollaborationConnector
+except Exception:
+    pass
