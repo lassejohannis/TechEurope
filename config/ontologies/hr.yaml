@@ -1,0 +1,16 @@
+entity_types:
+  employee:
+    id_field: "employee_id"
+    attributes: ["email", "title", "department", "manager_id"]
+  department:
+    id_field: "name"
+    attributes: ["cost_center"]
+  role:
+    id_field: "name"
+    attributes: ["level"]
+
+edge_types:
+  assigned_to: { from: employee, to: role }
+  member_of: { from: employee, to: department }
+  reports_to: { from: employee, to: employee }
+

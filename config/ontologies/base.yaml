@@ -1,0 +1,19 @@
+entity_types:
+  person:
+    id_field: "email"
+    attributes: ["title", "department"]
+  organization:
+    id_field: "name"
+    attributes: ["domain"]
+  document:
+    id_field: "uri"
+    attributes: ["mime", "title"]
+  communication:
+    id_field: "thread_id"
+    attributes: ["channel"]
+
+edge_types:
+  works_at: { from: person, to: organization }
+  reports_to: { from: person, to: person }
+  mentions: { from: communication, to: person }
+

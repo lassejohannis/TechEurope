@@ -19,6 +19,8 @@ from server.api.facts import router as facts_router
 from server.api.search import router as search_router
 from server.api.vfs import router as vfs_router
 from server.config import settings
+from server.db import get_supabase
+from server.ontology.loader import get_ontology_dir, load_all, load_yaml, upsert_to_db
 from server.sync.neo4j_projection import Neo4jProjection, SyncConfig
 
 logger = logging.getLogger(__name__)
@@ -67,7 +69,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 pass
         if projection:
             await projection.stop()
-
 
 app = FastAPI(
     title="Tech Europe — Context Engine",
@@ -142,3 +143,30 @@ def health() -> HealthResponse:
 @app.get("/api/hello")
 def hello() -> dict[str, str]:
     return {"message": "Hello from FastAPI — backend is reachable."}
+
+
+@app.post("/admin/reload-ontologies")
+@app.post("/api/admin/reload-ontologies")
+async def reload_ontologies() -> dict[str, object]:
+    """Load ontology YAMLs from config/ontologies and upsert them to DB.
+
+    Returns the list of YAML files processed. If Supabase credentials are not
+    configured, performs a dry-run and returns only the filenames.
+    """
+    loaded = load_all()
+    mode = "dry-run"
+    try:
+        client = get_supabase()
+        # Upsert each YAML into the config tables
+        dirpath = get_ontology_dir()
+        for name in loaded:
+            if not dirpath:
+                break
+            path = dirpath / name
+            ontology = load_yaml(path)
+            upsert_to_db(client, ontology)
+        mode = "applied"
+    except Exception:  # no creds or client error → dry run only
+        # We remain quiet for missing creds to keep endpoint usable in dev
+        mode = "dry-run"
+    return {"loaded": loaded, "mode": mode}
