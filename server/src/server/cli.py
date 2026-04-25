@@ -42,10 +42,11 @@ def cmd_ingest(
     if connector == "all":
         order = [
             "email",
-            # crm umbrella covers: customer, product, sale, client
-            "crm",
+            "crm",       # umbrella: customer, product, sale, client
             "hr_record",
             "invoice_pdf",
+            "it_ticket",
+            "document",
         ]
         total = 0
         for name in order:

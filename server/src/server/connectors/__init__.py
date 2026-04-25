@@ -51,3 +51,13 @@ try:
     CONNECTOR_REGISTRY[getattr(InvoicePDFConnector, "source_type")] = InvoicePDFConnector
 except Exception:
     pass
+try:
+    from .itsm import ITSMConnector  # noqa: F401
+    CONNECTOR_REGISTRY[getattr(ITSMConnector, "source_type")] = ITSMConnector
+except Exception:
+    pass
+try:
+    from .document import DocumentConnector  # noqa: F401
+    CONNECTOR_REGISTRY[getattr(DocumentConnector, "source_type")] = DocumentConnector
+except Exception:
+    pass
