@@ -455,3 +455,7 @@ Also gibt es Sachen die wir jetzt noch ändern sollten oder sollen wir jetzt nur
 ---
 
 Gehe mal an die vier roten Fehler ran und prüfe und plane sie falls sie einen fix benötigen
+
+---
+
+Perfekt ja dann lass merge mit main machen und beides up to date machen
