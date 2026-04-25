@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from server.api.admin import router as admin_router
+from server.api.changes import router as changes_router
 from server.api.cypher import router as cypher_demo_router
 from server.api.cypher_proxy import router as cypher_proxy_router
 from server.api.entities import router as entities_router
@@ -21,6 +22,8 @@ from server.api.traverse import router as traverse_router
 from server.api.vfs import router as vfs_router
 from server.api.webhooks import router as webhooks_router
 from server.config import settings
+from server.db import get_supabase
+from server.ontology.loader import get_ontology_dir, load_all, load_yaml, upsert_to_db
 from server.sync.neo4j_projection import Neo4jProjection, SyncConfig
 
 logger = logging.getLogger(__name__)
@@ -37,7 +40,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         projection = Neo4jProjection(
             SyncConfig(
                 neo4j_uri=settings.neo4j_uri,
-                neo4j_user=settings.neo4j_username,
+                neo4j_user=settings.neo4j_user,
                 neo4j_password=settings.neo4j_password,
                 neo4j_database=settings.neo4j_database,
                 supabase_url=settings.supabase_url,
@@ -102,6 +105,7 @@ app.include_router(vfs_router, prefix="/api")
 app.include_router(cypher_proxy_router, prefix="/api")
 app.include_router(webhooks_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
+app.include_router(changes_router)  # already has /api/changes prefix
 
 # WS-5: live Aura demo endpoints under /query/cypher (own prefix in router)
 app.include_router(cypher_demo_router)

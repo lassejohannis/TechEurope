@@ -17,6 +17,30 @@ from unittest.mock import MagicMock
 
 import pytest
 
+
+def _load_dotenv() -> None:
+    """Pick up server/.env so live tests work via plain `pytest`."""
+    try:
+        from dotenv import load_dotenv
+    except ModuleNotFoundError:
+        return
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    load_dotenv(os.path.join(here, ".env"))
+
+
+_load_dotenv()
+
+
+def neo4j_creds_or_skip() -> tuple[str, str, str]:
+    """Read NEO4J_* from env or skip — WS-5 tests are opt-in until Aura is up."""
+    uri = os.environ.get("NEO4J_URI", "")
+    user = os.environ.get("NEO4J_USERNAME") or os.environ.get("NEO4J_USER") or "neo4j"
+    password = os.environ.get("NEO4J_PASSWORD", "")
+    if not (uri and password):
+        pytest.skip("NEO4J_URI / NEO4J_PASSWORD not set — skipping live Neo4j test")
+    return uri, user, password
+
+
 # tests/ → server/ → TechEurope/
 REPO_ROOT = Path(__file__).parent.parent.parent
 DATA_DIR = REPO_ROOT / "data" / "enterprise-bench"
@@ -194,15 +218,3 @@ def mock_db(sample_entity, sample_fact, sample_source_record):
     return make_mock_db(entity=sample_entity, facts=[sample_fact], source_record=sample_source_record)
 
 
-# ---------------------------------------------------------------------------
-# Neo4j skip helper (WS-5 integration tests)
-# ---------------------------------------------------------------------------
-
-def neo4j_creds_or_skip():
-    """Return (uri, password) or skip if Neo4j is not configured."""
-    import os
-    uri = os.getenv("NEO4J_URI", "")
-    password = os.getenv("NEO4J_PASSWORD", "")
-    if not uri or not password:
-        pytest.skip("NEO4J_URI / NEO4J_PASSWORD not set — skipping live Neo4j test")
-    return uri, password
