@@ -16,6 +16,7 @@ Nodes also store attrs.vfs_path for direct path lookup.
 from __future__ import annotations
 
 import uuid
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -37,10 +38,89 @@ from server.vfs_paths import (
 )
 
 router = APIRouter(prefix="/vfs", tags=["vfs"])
+logger = logging.getLogger(__name__)
 
 _COLLECTION_ALIASES: dict[str, str] = {
     "contacts": "person",
 }
+
+
+def _missing_column(exc: Exception, column: str) -> bool:
+    text = str(exc).lower()
+    return column.lower() in text and (
+        "column" in text
+        or "schema cache" in text
+        or "pgrst" in text
+    )
+
+
+def _list_active_entities(db, *, entity_type: str | None = None, limit: int = 500, glob: str | None = None):
+    """Schema-compatible active-entity listing.
+
+    Prefers `deleted_at is null` (new soft-delete schema); falls back to
+    `status != archived` when `deleted_at` doesn't exist yet.
+    """
+    def _build_base():
+        q = db.table("entities").select("*")
+        if entity_type:
+            q = q.eq("entity_type", entity_type)
+        if glob:
+            q = q.ilike("attrs->>vfs_path", glob_to_ilike(glob))
+        return q
+
+    try:
+        return _build_base().is_("deleted_at", "null").limit(limit).execute()
+    except Exception as exc:
+        if not _missing_column(exc, "deleted_at"):
+            raise
+        logger.warning("entities.deleted_at missing; falling back to status filter in vfs list")
+        return _build_base().neq("status", "archived").limit(limit).execute()
+
+
+def _get_active_entity_for_patch(db, *, slug: str, entity_type: str):
+    try:
+        uuid.UUID(slug)
+        try:
+            return (
+                db.table("entities")
+                .select("id, attrs")
+                .eq("id", slug)
+                .is_("deleted_at", "null")
+                .single()
+                .execute()
+            )
+        except Exception as exc:
+            if not _missing_column(exc, "deleted_at"):
+                raise
+            logger.warning("entities.deleted_at missing; falling back to status filter in vfs patch lookup (id)")
+            return (
+                db.table("entities")
+                .select("id, attrs")
+                .eq("id", slug)
+                .neq("status", "archived")
+                .single()
+                .execute()
+            )
+    except ValueError:
+        def _name_base():
+            return (
+                db.table("entities")
+                .select("id, attrs")
+                .eq("entity_type", entity_type)
+                .ilike("canonical_name", f"%{slug.replace('-', ' ')}%")
+            )
+
+        try:
+            return (
+                _name_base().is_("deleted_at", "null").limit(1).execute()
+            )
+        except Exception as exc:
+            if not _missing_column(exc, "deleted_at"):
+                raise
+            logger.warning("entities.deleted_at missing; falling back to status filter in vfs patch lookup (name)")
+            return (
+                _name_base().neq("status", "archived").limit(1).execute()
+            )
 
 # ---------------------------------------------------------------------------
 # Path helpers
@@ -85,15 +165,7 @@ def vfs_glob(
     limit: int = Query(default=200, ge=1, le=500),
     db=Depends(get_db),
 ):
-    ilike_pattern = glob_to_ilike(pattern)
-    res = (
-        db.table("entities")
-        .select("*")
-        .ilike("attrs->>vfs_path", ilike_pattern)
-        .is_("deleted_at", "null")
-        .limit(limit)
-        .execute()
-    )
+    res = _list_active_entities(db, limit=limit, glob=pattern)
     rows = res.data or []
     nodes = [_entity_to_vfs_node(e, "") for e in rows]
     return VfsListResponse(path=pattern, children=nodes, total=len(nodes))
@@ -130,10 +202,7 @@ def vfs_read(
 
     if len(segments) == 1:
         # List all entities of this type
-        q = db.table("entities").select("*").eq("entity_type", entity_type).is_("deleted_at", "null").limit(100)
-        if glob:
-            q = q.ilike("attrs->>vfs_path", glob_to_ilike(glob))
-        res = q.execute()
+        res = _list_active_entities(db, entity_type=entity_type, limit=500, glob=glob)
         nodes = [
             _entity_to_vfs_node(
                 e,
@@ -234,7 +303,7 @@ def propose_fact(req: ProposeFactRequest, db=Depends(get_db)):
         "source_id": sr_id,
         "derivation": f"{req.source_method}",
         "valid_from": now,
-        "status": "active",
+        "status": "live",
     }
     db.table("facts").insert(fact_payload).execute()
 
@@ -261,15 +330,9 @@ def vfs_patch(path: str, req: VfsPatchRequest, db=Depends(get_db)):
     entity_type = _COLLECTION_ALIASES.get(type_key, type_from_segment(type_key))
     slug = segments[1]
 
-    try:
-        uuid.UUID(slug)
-        e_res = db.table("entities").select("id, attrs").eq("id", slug).is_("deleted_at", "null").single().execute()
-    except ValueError:
-        e_res = db.table("entities").select("id, attrs").eq("entity_type", entity_type).ilike(
-            "canonical_name", f"%{slug.replace('-', ' ')}%"
-        ).is_("deleted_at", "null").limit(1).execute()
-        if e_res.data:
-            e_res.data = e_res.data[0]  # type: ignore[assignment]
+    e_res = _get_active_entity_for_patch(db, slug=slug, entity_type=entity_type)
+    if e_res.data and isinstance(e_res.data, list):
+        e_res.data = e_res.data[0]  # type: ignore[assignment]
 
     if not e_res.data:
         raise HTTPException(status_code=404, detail=f"Entity not found: /{path}")
@@ -368,18 +431,22 @@ def vfs_delete(path: str, reason: str | None = Query(default=None), db=Depends(g
     # Invalidate all live facts where entity is subject (outgoing edges)
     out_res = db.table("facts").update({
         "valid_to": now,
-        "status": "invalidated",
+        "status": "superseded",
     }).eq("subject_id", entity_id).is_("valid_to", "null").execute()
 
     # Invalidate all live facts where entity is object (incoming edges)
     in_res = db.table("facts").update({
         "valid_to": now,
-        "status": "invalidated",
+        "status": "superseded",
     }).eq("object_id", entity_id).is_("valid_to", "null").execute()
 
-    # Soft-delete the entity row — fires Supabase Realtime UPDATE event so
-    # the Neo4j projection sees deleted_at and DETACH DELETEs the node.
-    db.table("entities").update({"deleted_at": now}).eq("id", entity_id).execute()
+    try:
+        db.table("entities").update({"deleted_at": now, "status": "archived"}).eq("id", entity_id).execute()
+    except Exception as exc:
+        if not _missing_column(exc, "deleted_at"):
+            raise
+        logger.warning("entities.deleted_at missing; falling back to status-only archival in vfs delete")
+        db.table("entities").update({"status": "archived"}).eq("id", entity_id).execute()
 
     invalidated = (len(out_res.data) if out_res.data else 0) + (
         len(in_res.data) if in_res.data else 0

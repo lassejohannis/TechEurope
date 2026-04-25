@@ -50,6 +50,8 @@ free_port 8000
 free_port 5173
 
 echo "Starting backend on :8000 and frontend on :5173"
+echo "Backend log file: ${BACKEND_LOG}"
+echo "Tip: live logs with: tail -f ${BACKEND_LOG}"
 
 (
   cd "${ROOT_DIR}/server"
