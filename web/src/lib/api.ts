@@ -184,6 +184,52 @@ export function getTrustWeights(): Promise<{ weights: Record<string, number> }> 
   return apiFetch('/api/trust-weights')
 }
 
+// ── Pending Types Inbox (Autonome Ontologie-Evolution) ──────────────────────
+
+export interface PendingTypeItem {
+  id: string
+  kind: 'entity' | 'edge' | 'source_mapping'
+  config?: Record<string, unknown>
+  approval_status?: string
+  status?: string
+  auto_proposed?: boolean
+  proposed_by_source_id?: string | null
+  similarity_to_nearest?: number | null
+  proposal_rationale?: string | null
+  rationale?: string | null
+  from_type?: string | null
+  to_type?: string | null
+  source_type?: string
+  mapping_version?: number
+  validation_stats?: Record<string, unknown>
+  created_from_sample_ids?: string[]
+  proposed_at?: string
+}
+
+export function listPendingTypes(
+  kind?: 'entity' | 'edge' | 'source_mapping',
+  limit = 50,
+): Promise<{ items: PendingTypeItem[]; total: number; kind_filter: string | null }> {
+  const params = new URLSearchParams()
+  if (kind) params.set('kind', kind)
+  params.set('limit', String(limit))
+  return apiFetch(`/api/admin/pending-types?${params.toString()}`)
+}
+
+export function decidePendingType(
+  pendingId: string,
+  body: {
+    kind: 'entity' | 'edge' | 'source_mapping'
+    decision: 'approved' | 'rejected'
+    note?: string
+  },
+): Promise<{ id: string; kind: string; decision: string; decided_by: string }> {
+  return apiFetch(`/api/admin/pending-types/${encodeURIComponent(pendingId)}/decide`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
 export function editProperty(
   entityId: string,
   factId: string,
