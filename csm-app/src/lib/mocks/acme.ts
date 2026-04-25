@@ -1,4 +1,7 @@
-import type { AccountCard, DailyBriefing } from '@/types'
+import type {
+  AccountCard, AccountInsight, CardSummary,
+  DailyBriefing, EmailDraft, EscalationBriefing,
+} from '@/types'
 
 // ── ACME GmbH ────────────────────────────────────────────────────────────────
 
@@ -360,6 +363,15 @@ const ACME_CARD: AccountCard = {
     ],
     computed_at: '2026-04-25T06:00:00Z',
   },
+  stakeholder_change_detected: false,
+  new_stakeholders: [],
+  executive_summary: {
+    status_label: 'Needs Attention',
+    why: 'Renewal date disputed and price adjustment ticket unresolved',
+    impact: '€180k ARR · renewal in 66 days',
+    next_action: 'Send recovery email',
+    cta_type: 'recovery-email',
+  },
 }
 
 // ── Meridian Robotics ─────────────────────────────────────────────────────────
@@ -375,6 +387,7 @@ const MERIDIAN_CARD: AccountCard = {
       region: 'Benelux',
       employee_count: 1100,
       arr_eur: 96000,
+      expansion_potential_eur: 36000,  // 80 seats × estimated per-seat rate; added to mock per README audit
     },
     status: 'live',
     created_at: '2024-02-01T09:00:00Z',
@@ -585,6 +598,15 @@ const MERIDIAN_CARD: AccountCard = {
     ],
     computed_at: '2026-04-25T06:00:00Z',
   },
+  stakeholder_change_detected: true,
+  new_stakeholders: [{ name: 'Lars van der Berg', first_seen: '2026-04-01T11:00:00Z' }],
+  executive_summary: {
+    status_label: 'Expanding',
+    why: 'New procurement lead onboarded, 80-seat expansion request received',
+    impact: '€96k ARR · €36k expansion potential in Q3',
+    next_action: 'Send intro email to Lars',
+    cta_type: 'stakeholder-intro',
+  },
 }
 
 // ── Northstar Energy ──────────────────────────────────────────────────────────
@@ -739,15 +761,241 @@ const NORTHSTAR_CARD: AccountCard = {
     ],
     computed_at: '2026-04-25T06:00:00Z',
   },
+  stakeholder_change_detected: false,
+  new_stakeholders: [],
+  executive_summary: {
+    status_label: 'At Risk',
+    why: '45 days without response — silent churn risk',
+    impact: '€48k ARR · renewal in 128 days',
+    next_action: 'Send recovery email',
+    cta_type: 'recovery-email',
+  },
 }
 
-// ── Daily Briefing ────────────────────────────────────────────────────────────
+// ── Recovery Email Drafts ─────────────────────────────────────────────────────
+
+export const MOCK_RECOVERY_EMAILS: Record<string, EmailDraft[]> = {
+  'ent:acme': [
+    {
+      account_id: 'ent:acme',
+      contact_id: 'ent:jose-barros',
+      to: 'jose.barros@acme.de',
+      subject: 'Following up on INZ-8821 and renewal timeline',
+      body: `Hi José,\n\nI wanted to reach out personally to follow up on two things that are on my radar this week.\n\nFirst, ticket INZ-8821 (the pricing adjustment request from Alice) has been open for 10 days. I've flagged this internally and we're working to get you a formal response by end of week. I want to make sure this doesn't create friction ahead of the renewal.\n\nSecond, I know you mentioned in April that the June 15th timeline felt tight given Q2 pressures. Now that the budget has been confirmed (thanks for the update!), I'd love to get 30 minutes on the calendar this week to lock in the renewal date and terms together.\n\nWhat does your schedule look like Thursday or Friday?\n\nBest,\nApostolos`,
+      generated_at: '2026-04-25T07:00:00Z',
+      variation: 0,
+    },
+    {
+      account_id: 'ent:acme',
+      contact_id: 'ent:jose-barros',
+      to: 'jose.barros@acme.de',
+      subject: 'ACME renewal + INZ-8821 — quick update',
+      body: `Dear José,\n\nI hope this finds you well. I'm writing to address two open items on the ACME account.\n\nRegarding ticket INZ-8821: our team is reviewing Alice's pricing adjustment request. I understand the concern and want to ensure we handle this thoughtfully. You'll hear from us by Friday.\n\nOn the renewal: given the budget approval confirmed last week, I'd like to suggest we finalise the contract terms before end of April to avoid any last-minute pressure. I have availability Wednesday afternoon or Thursday morning.\n\nPlease let me know what works best.\n\nWarm regards,\nApostolos`,
+      generated_at: '2026-04-25T07:01:00Z',
+      variation: 1,
+    },
+  ],
+  'ent:northstar': [
+    {
+      account_id: 'ent:northstar',
+      contact_id: 'ent:ingrid-salo',
+      to: 'ingrid.salo@northstarenergy.fi',
+      subject: 'Checking in — your grid modernisation project',
+      body: `Hi Ingrid,\n\nIt's been a while since we last connected — I know you mentioned things were hectic with the grid modernisation project back in March. I hope that's progressing well.\n\nI wanted to reach out because platform usage has been quieter than usual, and I want to make sure Qontext is still serving your team effectively. If there's anything we can do differently, or if the platform isn't covering a use case you need, I'd genuinely like to know.\n\nI'm also conscious that your renewal comes up in September. I'd love to reconnect before then so we can ensure everything is in good shape.\n\nWould a 20-minute call next week work for you?\n\nBest,\nApostolos`,
+      generated_at: '2026-04-25T07:00:00Z',
+      variation: 0,
+    },
+    {
+      account_id: 'ent:northstar',
+      contact_id: 'ent:ingrid-salo',
+      to: 'ingrid.salo@northstarenergy.fi',
+      subject: 'Re: Q1 Check-in — quick catch-up?',
+      body: `Hi Ingrid,\n\nFollowing up on my earlier messages — I completely understand if things have been busy with the grid modernisation project. I just wanted to make sure you haven't had any issues with the platform that went unreported.\n\nIf email isn't the best channel right now, feel free to reply with a time that suits you and I'll make it work. Alternatively, I'm happy to loop in our technical team for a product check-in if that would be more useful.\n\nLooking forward to reconnecting.\n\nApostolos`,
+      generated_at: '2026-04-25T07:01:00Z',
+      variation: 1,
+    },
+  ],
+}
+
+// ── Stakeholder Intro Email Drafts ────────────────────────────────────────────
+
+export const MOCK_STAKEHOLDER_INTRO_EMAILS: Record<string, EmailDraft[]> = {
+  'ent:meridian': [
+    {
+      account_id: 'ent:meridian',
+      contact_id: 'ent:lars-vdberg',
+      to: 'lars.vdberg@meridianrobotics.nl',
+      subject: 'Quick intro — getting aligned on Meridian Robotics',
+      body: `Hi Lars,\n\nI noticed you recently took over as procurement lead for Meridian Robotics — congratulations on the new role!\n\nI'm Apostolos Konias, your Customer Success Manager at Qontext. I've been working with the Meridian team since early 2024, and I'm excited about where things are heading — especially with the SSO rollout going smoothly and the Q3 expansion plans shaping up.\n\nI'd love to schedule a quick 15-minute intro call to get aligned. A few times that work for me:\n\n• Wednesday 29 April, 10:00–10:15 CET\n• Thursday 30 April, 14:00–14:15 CET\n• Friday 1 May, 09:30–09:45 CET\n\nDoes any of those work? Or suggest a different time — happy to be flexible.\n\nLooking forward to connecting!\n\nBest,\nApostolos`,
+      generated_at: '2026-04-25T07:00:00Z',
+      variation: 0,
+    },
+  ],
+}
+
+// ── Escalation Briefings ──────────────────────────────────────────────────────
+
+export const MOCK_ESCALATION_BRIEFINGS: Record<string, EscalationBriefing> = {
+  'ent:northstar': {
+    account_id: 'ent:northstar',
+    health_summary: 'Northstar Energy — Health 44/100 (Red). Primary contact unresponsive for 45 days. Renewal Sep 1, 2026. Silent churn risk elevated.',
+    evidence_bullets: [
+      'Last reply from Ingrid Salo: March 10 — 45 days ago',
+      'Platform usage self-reported as "lower than usual" in final email',
+      'Two outreach attempts unanswered since March 10',
+      'Renewal date: September 1, 2026 — 4 months away',
+      'No open tickets — no active product engagement signal',
+    ],
+    suggested_owners: [
+      { name: 'AK (CSM)', action: 'Try direct phone call + explore exec escalation path' },
+      { name: 'Account Director', action: 'Executive outreach from senior sponsor' },
+      { name: 'Technical Success', action: 'Platform usage review — identify adoption gaps' },
+    ],
+    generated_at: '2026-04-25T07:00:00Z',
+  },
+  'ent:acme': {
+    account_id: 'ent:acme',
+    health_summary: 'ACME GmbH — Health 58/100 (Yellow). Renewal date disputed. Price adjustment ticket open 10 days. Finance and IT misaligned.',
+    evidence_bullets: [
+      'Renewal date disputed: CRM 2026-07-01 vs José 2026-06-15 (fact confidence 0.61)',
+      'Ticket INZ-8821: 12% price reduction request open since Apr 15 — high priority, unresolved',
+      'Alice Müller (Finance Director) formal complaint — sentiment score −0.45',
+      'José budget confirmation email Apr 14 is positive (+0.68) — IT vs Finance misalignment',
+      'SSO ticket INZ-8799 also in progress — 2 open issues simultaneously',
+    ],
+    suggested_owners: [
+      { name: 'AK (CSM)', action: 'Schedule joint call with José + Alice to align on terms' },
+      { name: 'Finance / Pricing', action: 'Review INZ-8821 and prepare counter-proposal' },
+      { name: 'Solutions Engineer', action: 'Prepare ROI / value report for Alice Müller' },
+    ],
+    generated_at: '2026-04-25T07:00:00Z',
+  },
+}
+
+// ── Card Summaries ────────────────────────────────────────────────────────────
+
+export const MOCK_CARD_SUMMARIES: Record<string, CardSummary> = {
+  'brief:acme-renewal-risk': {
+    item_id: 'brief:acme-renewal-risk',
+    summary: "José raised fiscal uncertainty about the June renewal — but his April 14 email confirmed budget. The renewal date is still disputed in the Context Layer (confidence 0.61). Alice's open price ticket adds a second pressure point that could derail the close.",
+    generated_at: '2026-04-25T06:00:00Z',
+  },
+  'brief:acme-sentiment-drop': {
+    item_id: 'brief:acme-sentiment-drop',
+    summary: "Alice Müller formally requested a 12% price reduction, citing underutilised features (sentiment −0.45). The mismatch with José's positive April 14 email (+0.68) suggests IT and Finance are not aligned — a risky combination heading into renewal.",
+    generated_at: '2026-04-25T06:00:00Z',
+  },
+  'brief:northstar-engagement-gap': {
+    item_id: 'brief:northstar-engagement-gap',
+    summary: 'Ingrid Salo last replied March 10, citing a busy grid modernisation project. Two outreach attempts since then have gone unanswered. Usage is self-reported as low. Renewal is September — long enough to recover, but the silence needs breaking now.',
+    generated_at: '2026-04-25T06:00:00Z',
+  },
+  'brief:acme-ticket-spike': {
+    item_id: 'brief:acme-ticket-spike',
+    summary: 'INZ-8821 (price adjustment) has been open 10 days without a resolution update. Combined with SSO ticket INZ-8799 still in progress, ACME has 2 open issues simultaneously. The negative sentiment on INZ-8821 (−0.45) means this is customer-visible friction.',
+    generated_at: '2026-04-25T06:00:00Z',
+  },
+  'brief:meridian-stakeholder-change': {
+    item_id: 'brief:meridian-stakeholder-change',
+    summary: "Lars van der Berg replaced Sandra Hoek as procurement lead on April 1. He's been responsive and professional, but hasn't been briefed on the Meridian–Qontext relationship history or the Q3 expansion context. Early alignment is critical.",
+    generated_at: '2026-04-25T06:00:00Z',
+  },
+  'brief:meridian-upsell': {
+    item_id: 'brief:meridian-upsell',
+    summary: 'Lars formally requested a quote for 80 additional seats for the Amsterdam R&D centre and flagged Advanced Analytics interest (email sentiment +0.71). SSO rollout is on track. The momentum is there to close a meaningful upsell.',
+    generated_at: '2026-04-25T06:00:00Z',
+  },
+}
+
+// ── Account Insights ──────────────────────────────────────────────────────────
+// Derived from existing facts, tickets, and communications per account.
+// In production these would be computed server-side; cached here for demo.
+
+export const MOCK_ACCOUNT_INSIGHTS: Record<string, AccountInsight[]> = {
+  'ent:acme': [
+    {
+      id: 'ins:acme-ticket-age',
+      icon_key: 'ticket',
+      headline: 'High-priority ticket open 11 days',
+      secondary: 'INZ-8821 · Price adjustment — no resolution update',
+    },
+    {
+      id: 'ins:acme-sentiment',
+      icon_key: 'sentiment',
+      headline: 'Negative sentiment on formal complaint',
+      secondary: 'Alice Müller · score −0.45 · Apr 15',
+    },
+    {
+      id: 'ins:acme-renewal',
+      icon_key: 'renewal',
+      headline: 'Renewal date disputed — confidence 61%',
+      secondary: 'CRM: Jul 1 · Customer says: Jun 15',
+    },
+    {
+      id: 'ins:acme-budget',
+      icon_key: 'sentiment',
+      headline: 'Budget confirmed positive by José (+0.68)',
+      secondary: 'Apr 14 · IT and Finance not yet aligned',
+    },
+    {
+      id: 'ins:acme-expansion',
+      icon_key: 'expansion',
+      headline: 'Expansion interest: analytics module + 50 seats',
+      secondary: 'José via Slack · Apr 20',
+    },
+  ],
+  'ent:meridian': [
+    {
+      id: 'ins:meridian-stakeholder',
+      icon_key: 'stakeholder',
+      headline: 'New stakeholder: Lars van der Berg',
+      secondary: 'Replaced Sandra Hoek as procurement lead · Apr 1',
+    },
+    {
+      id: 'ins:meridian-expansion',
+      icon_key: 'expansion',
+      headline: '80-seat expansion request from Amsterdam R&D',
+      secondary: 'Quote requested via email · Apr 22',
+    },
+    {
+      id: 'ins:meridian-sso',
+      icon_key: 'ticket',
+      headline: 'SSO rollout on track',
+      secondary: 'MRD-441 · Okta SAML — completion expected May 20',
+    },
+  ],
+  'ent:northstar': [
+    {
+      id: 'ins:northstar-silence',
+      icon_key: 'engagement',
+      headline: 'No response in 45 days',
+      secondary: 'Last reply: Ingrid Salo · March 10',
+    },
+    {
+      id: 'ins:northstar-usage',
+      icon_key: 'engagement',
+      headline: 'Platform usage self-reported as low',
+      secondary: 'Grid modernisation project cited as reason',
+    },
+    {
+      id: 'ins:northstar-renewal',
+      icon_key: 'renewal',
+      headline: 'Renewal approaching: September 1',
+      secondary: '128 days remaining',
+    },
+  ],
+}
+
+// ── Account Cards index ───────────────────────────────────────────────────────
 
 export const MOCK_ACCOUNT_CARDS: Record<string, AccountCard> = {
   'ent:acme': ACME_CARD,
   'ent:meridian': MERIDIAN_CARD,
   'ent:northstar': NORTHSTAR_CARD,
 }
+
+// ── Daily Briefing / Tasks ────────────────────────────────────────────────────
+// Items sorted by revenue_impact_eur desc in mock; TasksPage re-sorts client-side.
 
 export const MOCK_BRIEFING: DailyBriefing = {
   generated_at: '2026-04-25T06:00:00Z',
@@ -759,6 +1007,10 @@ export const MOCK_BRIEFING: DailyBriefing = {
       account_name: 'ACME GmbH',
       priority: 'red',
       signal_type: 'renewal_risk',
+      segment: 'Enterprise',
+      revenue_impact: '€180k ARR at risk',
+      revenue_impact_eur: 180000,
+      renewal_date: '2026-07-01',
       headline: 'Renewal date disputed — contract at risk',
       detail: 'José Barros raised uncertainty about committing by the June 15 renewal window due to fiscal pressures. Contract date shows July 1. Fact marked as disputed. Budget approval email received April 14 is positive, but open ticket INZ-8821 adds risk.',
       recommended_action: 'Schedule a 30-minute call with José this week to confirm the renewal date and address INZ-8821 before it escalates.',
@@ -772,6 +1024,10 @@ export const MOCK_BRIEFING: DailyBriefing = {
       account_name: 'ACME GmbH',
       priority: 'red',
       signal_type: 'sentiment_drop',
+      segment: 'Enterprise',
+      revenue_impact: '€180k ARR at risk',
+      revenue_impact_eur: 180000,
+      renewal_date: '2026-07-01',
       headline: 'Price adjustment request signals budget pressure',
       detail: 'Alice Müller submitted a formal 12% price reduction request via ticket INZ-8821 (sentiment score: -0.45). Though José\'s April 14 email was positive (+0.68), the finance team\'s formal complaint indicates internal misalignment that may threaten renewal.',
       recommended_action: 'Prepare a value realisation report showing ACME\'s ROI metrics. Share before the next call with Alice.',
@@ -780,24 +1036,15 @@ export const MOCK_BRIEFING: DailyBriefing = {
       created_at: '2026-04-25T06:00:00Z',
     },
     {
-      id: 'brief:northstar-engagement-gap',
-      account_id: 'ent:northstar',
-      account_name: 'Northstar Energy',
-      priority: 'red',
-      signal_type: 'engagement_gap',
-      headline: '45 days no response from primary contact',
-      detail: 'Ingrid Salo (primary contact) last replied on March 10. Two follow-up attempts have gone unanswered. Platform usage trending low. Renewal is September 1 — 4 months away. Silent churn risk is elevated.',
-      recommended_action: 'Try a different channel — call Ingrid directly or escalate to an exec sponsor. Consider a personalised re-engagement email referencing their grid modernisation project.',
-      evidence_fact_ids: ['fact:northstar-last-contact'],
-      communication_id: 'comm-northstar-002',
-      created_at: '2026-04-25T06:00:00Z',
-    },
-    {
       id: 'brief:acme-ticket-spike',
       account_id: 'ent:acme',
       account_name: 'ACME GmbH',
       priority: 'yellow',
       signal_type: 'ticket_spike',
+      segment: 'Enterprise',
+      revenue_impact: '€180k ARR at risk',
+      revenue_impact_eur: 180000,
+      renewal_date: '2026-07-01',
       headline: 'INZ-8821 price adjustment open 10 days without resolution',
       detail: 'Ticket INZ-8821 opened April 15 has not progressed to resolution. Alongside SSO ticket INZ-8799 (in progress), ACME has two open issues. Ticket sentiment is negative (-0.45). SLA at risk if no update by April 26.',
       recommended_action: 'Check internal status of INZ-8821 with support team and send ACME a proactive update today.',
@@ -811,6 +1058,10 @@ export const MOCK_BRIEFING: DailyBriefing = {
       account_name: 'Meridian Robotics',
       priority: 'yellow',
       signal_type: 'stakeholder_change',
+      segment: 'Mid-Market',
+      revenue_impact: '€96k renewal at stake',
+      revenue_impact_eur: 96000,
+      renewal_date: '2026-08-15',
       headline: 'New procurement lead may need re-engagement',
       detail: 'Lars van der Berg replaced Sandra Hoek as procurement lead on April 1. Lars has been responsive so far, but has not yet been fully briefed on the Meridian–Qontext relationship history, pricing rationale, or expansion roadmap.',
       recommended_action: 'Send Lars a welcome note with a brief on the account history and schedule an intro call to align on Q3 expansion plans.',
@@ -819,11 +1070,32 @@ export const MOCK_BRIEFING: DailyBriefing = {
       created_at: '2026-04-25T06:00:00Z',
     },
     {
+      id: 'brief:northstar-engagement-gap',
+      account_id: 'ent:northstar',
+      account_name: 'Northstar Energy',
+      priority: 'red',
+      signal_type: 'engagement_gap',
+      segment: 'SMB',
+      revenue_impact: '€48k ARR at risk',
+      revenue_impact_eur: 48000,
+      renewal_date: '2026-09-01',
+      headline: '45 days no response from primary contact',
+      detail: 'Ingrid Salo (primary contact) last replied on March 10. Two follow-up attempts have gone unanswered. Platform usage trending low. Renewal is September 1 — 4 months away. Silent churn risk is elevated.',
+      recommended_action: 'Try a different channel — call Ingrid directly or escalate to an exec sponsor. Consider a personalised re-engagement email referencing their grid modernisation project.',
+      evidence_fact_ids: ['fact:northstar-last-contact'],
+      communication_id: 'comm-northstar-002',
+      created_at: '2026-04-25T06:00:00Z',
+    },
+    {
       id: 'brief:meridian-upsell',
       account_id: 'ent:meridian',
       account_name: 'Meridian Robotics',
       priority: 'green',
       signal_type: 'upsell_signal',
+      segment: 'Mid-Market',
+      revenue_impact: '€36k expansion potential',
+      revenue_impact_eur: 36000,
+      renewal_date: '2026-08-15',
       headline: 'Q2 expansion ask — 80 seats + Advanced Analytics interest',
       detail: 'Lars van der Berg formally requested a quote for 80 additional seats for the Amsterdam R&D centre and expressed interest in the Advanced Analytics add-on (email sentiment: +0.71). SSO rollout is on track, indicating healthy adoption.',
       recommended_action: 'Prepare an expansion quote for 80 seats + Advanced Analytics within 48 hours. Include a case study from a similar robotics customer.',

@@ -1,37 +1,47 @@
-import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Building2 } from 'lucide-react'
-import { useAccounts } from '@/hooks/useAccounts'
+import { NavLink, useMatch } from 'react-router-dom'
+import { CheckSquare, Building2 } from 'lucide-react'
+import { useAccount } from '@/hooks/useAccount'
 
 export default function TopBar() {
-  const { data: accounts } = useAccounts()
+  const accountMatch = useMatch('/accounts/:accountId')
+  const accountId = accountMatch?.params.accountId
+    ? decodeURIComponent(accountMatch.params.accountId)
+    : null
+  const { data: account } = useAccount(accountId)
 
   return (
     <header className="topbar">
-      <div className="brand-mark">Q</div>
-      <span className="brand-name">Qontext</span>
-      <span className="brand-sub">CSM</span>
+      <NavLink to="/tasks" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div className="brand-mark">Q</div>
+        <span className="brand-name">Qontext</span>
+        <span className="brand-sub">CSM</span>
+      </NavLink>
 
       <div className="topbar-divider" />
 
       <nav className="topnav">
         <NavLink
-          to="/briefing"
+          to="/tasks"
           className={({ isActive }) => `topnav-tab${isActive ? ' active' : ''}`}
         >
-          <LayoutDashboard size={13} />
-          Daily Briefing
+          <CheckSquare size={13} />
+          Tasks
         </NavLink>
 
-        {accounts?.map((account) => (
-          <NavLink
-            key={account.id}
-            to={`/accounts/${encodeURIComponent(account.id)}`}
-            className={({ isActive }) => `topnav-tab${isActive ? ' active' : ''}`}
-          >
-            <Building2 size={13} />
-            {account.name}
-          </NavLink>
-        ))}
+        <NavLink
+          to="/accounts"
+          className={({ isActive }) => `topnav-tab${isActive || accountId !== null ? ' active' : ''}`}
+        >
+          <Building2 size={13} />
+          Accounts
+        </NavLink>
+
+        {account && (
+          <>
+            <span className="topnav-sep">›</span>
+            <span className="topnav-context">{account.entity.canonical_name}</span>
+          </>
+        )}
       </nav>
 
       <div className="topbar-spacer" />

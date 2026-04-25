@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom'
 import TopBar from './TopBar'
+import ToastManager from '@/components/common/ToastManager'
 
 export default function AppShell() {
   return (
@@ -8,6 +9,7 @@ export default function AppShell() {
       <main className="csm-main">
         <Outlet />
       </main>
+      <ToastManager />
     </div>
   )
 }
