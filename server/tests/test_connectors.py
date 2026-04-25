@@ -9,7 +9,7 @@ import pytest
 from server.connectors.email import EmailConnector
 from server.connectors.crm import CRMConnector
 from server.connectors.hr import HRConnector
-from server.models import SourceRecord, ExtractionStatus
+from server.ingestion_models import SourceRecord, ExtractionStatus
 
 DATA_PATH = Path(__file__).resolve().parents[2] / "data" / "enterprise-bench"
 

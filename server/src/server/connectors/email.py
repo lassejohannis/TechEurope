@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Iterator
 
-from server.models import SourceRecord, ExtractionStatus
+from server.ingestion_models import SourceRecord, ExtractionStatus
 from .base import BaseConnector
 
 

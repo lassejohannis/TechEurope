@@ -8,7 +8,7 @@ from typing import Any, Dict, Iterator, List
 
 from supabase import Client
 
-from server.models import SourceRecord
+from server.ingestion_models import SourceRecord
 from .diff import mark_needs_refresh
 
 
