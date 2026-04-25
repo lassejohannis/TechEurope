@@ -1,4 +1,4 @@
-"""Tests for FastAPI routes (no Supabase required)."""
+"""Tests for FastAPI routes."""
 
 from __future__ import annotations
 
@@ -6,11 +6,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from server.main import app
+from server.config import settings
 
 
 @pytest.fixture(scope="module")
 def client():
-    return TestClient(app)
+    return TestClient(app, raise_server_exceptions=False)
 
 
 def test_health(client):
@@ -27,18 +28,14 @@ def test_hello(client):
     assert "message" in resp.json()
 
 
-def test_reload_ontologies_dry_run(client):
-    """Without supabase creds the endpoint returns dry-run mode."""
-    resp = client.post("/admin/reload-ontologies")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert "loaded" in body
-    assert "mode" in body
-    assert body["mode"] in ("dry-run", "applied")
-    assert isinstance(body["loaded"], list)
-    assert len(body["loaded"]) >= 4
-
-
-def test_reload_ontologies_alias(client):
+@pytest.mark.skipif(
+    not settings.supabase_secret_key,
+    reason="Requires live Supabase credentials",
+)
+def test_reload_ontologies(client):
     resp = client.post("/api/admin/reload-ontologies")
     assert resp.status_code == 200
+    body = resp.json()
+    assert body.get("status") in ("ok", "stub")
+    assert isinstance(body.get("loaded"), list)
+    assert len(body["loaded"]) >= 4

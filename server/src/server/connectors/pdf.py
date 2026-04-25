@@ -8,7 +8,7 @@ try:
 except Exception:  # pragma: no cover
     pdfplumber = None
 
-from server.models import SourceRecord, ExtractionStatus
+from server.ingestion_models import SourceRecord, ExtractionStatus
 from server.extractors.gemini_structured import gemini_extract_invoice
 from server.utils.normalize import parse_currency, parse_date_iso
 from .base import BaseConnector
