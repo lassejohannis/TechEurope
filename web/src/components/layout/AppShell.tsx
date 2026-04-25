@@ -3,11 +3,9 @@ import TopNav from './TopNav'
 
 export default function AppShell() {
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background">
+    <div className="app">
       <TopNav />
-      <main className="flex-1 overflow-hidden">
-        <Outlet />
-      </main>
+      <Outlet />
     </div>
   )
 }

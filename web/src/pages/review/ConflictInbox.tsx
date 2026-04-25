@@ -1,117 +1,88 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
-import { CheckCircle } from 'lucide-react'
-import type { DisputedFact } from '@/types'
+import Icon from '@/components/qontext/icon'
+import { SourceBadge } from '@/components/qontext/badges'
+import { INAZUMA, type MockConflict } from '@/lib/inazuma-mock'
 
-// Static mock disputes — replaced by real API when backend is live
-const MOCK_DISPUTES: DisputedFact[] = [
-  {
-    id: 'fact:abc001',
-    subject: 'customer:acme-gmbh',
-    predicate: 'renewal_date',
-    object: '2026-06-30',
-    object_type: 'date',
-    confidence: 0.72,
-    status: 'disputed',
-    derived_from: ['email:sha256:aaa', 'crm:sha256:bbb'],
-    qualifiers: {},
-    created_at: '2026-04-20T10:00:00Z',
-    updated_at: '2026-04-24T15:30:00Z',
-    superseded_by: null,
-  },
-  {
-    id: 'fact:abc002',
-    subject: 'person:alice-schmidt',
-    predicate: 'email',
-    object: 'alice@example.com',
-    object_type: 'string',
-    confidence: 0.85,
-    status: 'disputed',
-    derived_from: ['email:sha256:ccc', 'crm:sha256:ddd'],
-    qualifiers: {},
-    created_at: '2026-04-22T08:00:00Z',
-    updated_at: '2026-04-25T09:00:00Z',
-    superseded_by: null,
-  },
-  {
-    id: 'fact:abc003',
-    subject: 'customer:techcorp-ag',
-    predicate: 'account_owner',
-    object: 'person:bob-mueller',
-    object_type: 'entity',
-    confidence: 0.65,
-    status: 'disputed',
-    derived_from: ['crm:sha256:eee'],
-    qualifiers: {},
-    created_at: '2026-04-23T14:00:00Z',
-    updated_at: '2026-04-25T11:00:00Z',
-    superseded_by: null,
-  },
-]
-
-interface Props {
-  selectedId: string | null
+const SOURCE_MAP: Record<string, [string, string]> = {
+  'conf:1': ['src:crm:acme',      'src:email:2'],
+  'conf:2': ['src:crm:meridian',  'src:email:3'],
+  'conf:3': ['src:hr:E0203',      'src:hr:roster'],
+  'conf:4': ['src:crm:northstar', 'src:email:1'],
+  'conf:5': ['src:crm:acme',      'src:doc:onepage'],
 }
 
-export default function ConflictInbox({ selectedId }: Props) {
-  const navigate = useNavigate()
+interface Props {
+  activeId: string | null
+}
+
+function InboxItem({ c, activeId, onClick }: { c: MockConflict; activeId: string | null; onClick: () => void }) {
+  const [srcA, srcB] = SOURCE_MAP[c.id] ?? []
+  const sources = INAZUMA.sources
+  const isActive = c.id === activeId
 
   return (
-    <div className="flex flex-col">
-      <div className="border-b px-3 py-2">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Conflict Inbox
-          </p>
-          {MOCK_DISPUTES.length > 0 && (
-            <Badge variant="destructive" className="text-xs">
-              {MOCK_DISPUTES.length}
-            </Badge>
-          )}
-        </div>
+    <div
+      className={`inbox-item${isActive ? ' active' : ''}${c.unread ? ' unread' : ''}`}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === 'Enter' && onClick()}
+    >
+      <div className="inbox-row1">
+        <span className="conf-badge conflict" style={{ padding: '1px 6px' }}>{c.severity}</span>
+        <span className="inbox-subject">{c.subject}</span>
+        <span className="inbox-time">{c.time}</span>
+      </div>
+      <div className="inbox-pred">predicate: <span style={{ color: 'var(--text-primary)' }}>{c.pred}</span></div>
+      <div className="inbox-sources">
+        {srcA && sources[srcA] && <SourceBadge src={sources[srcA]} mini />}
+        {srcA && srcB && <span>vs</span>}
+        {srcB && sources[srcB] && <SourceBadge src={sources[srcB]} mini />}
+        <span style={{ marginLeft: 'auto' }}>2 candidate values</span>
+      </div>
+    </div>
+  )
+}
+
+export default function ConflictInbox({ activeId }: Props) {
+  const navigate = useNavigate()
+  const [filter, setFilter] = useState<'pending' | 'resolved' | 'all'>('pending')
+  const conflicts = INAZUMA.conflicts
+
+  return (
+    <div className="col">
+      <div className="panel-header sticky">
+        <Icon name="inbox" size={14} className="muted" />
+        <span className="panel-title">Conflicts inbox</span>
+        <span className="spacer" />
+        <span className="chip" style={{ background: 'var(--conf-conflict-soft)', color: 'var(--conf-conflict)', fontWeight: 700 }}>
+          {conflicts.length} pending
+        </span>
       </div>
 
-      {MOCK_DISPUTES.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 p-6 text-center">
-          <CheckCircle className="size-6 text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">
-            No conflicts to review. Conflicts appear here when two sources disagree on the same fact.
-          </p>
+      <div className="inbox-filter">
+        {(['pending', 'resolved', 'all'] as const).map((f) => (
+          <button key={f} className={filter === f ? 'active' : ''} onClick={() => setFilter(f)}>
+            {f.charAt(0).toUpperCase() + f.slice(1)}{' '}
+            <span className="count">{f === 'pending' ? conflicts.length : f === 'resolved' ? 312 : 317}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="inbox-list">
+        {conflicts.map((c) => (
+          <InboxItem
+            key={c.id}
+            c={c}
+            activeId={activeId}
+            onClick={() => navigate(`/review/${encodeURIComponent(c.id)}`)}
+          />
+        ))}
+        <div style={{ padding: '16px 14px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 12 }}>
+          End of pending queue · auto-resolved 312 conflicts in last 24h
         </div>
-      ) : (
-        <ul className="flex flex-col py-1">
-          {MOCK_DISPUTES.map((fact) => {
-            const isActive = selectedId === fact.id
-            return (
-              <li key={fact.id}>
-                <button
-                  onClick={() => navigate(`/review/${encodeURIComponent(fact.id)}`)}
-                  className={cn(
-                    'flex w-full flex-col gap-1 px-3 py-3 text-left transition-colors hover:bg-muted/50',
-                    isActive && 'bg-muted',
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium capitalize">
-                      {fact.predicate.replace(/_/g, ' ')}
-                    </span>
-                    <Badge variant="destructive" className="text-xs shrink-0">
-                      conflict
-                    </Badge>
-                  </div>
-                  <span className="text-xs text-muted-foreground font-mono truncate">
-                    {fact.subject}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(fact.updated_at).toLocaleDateString()}
-                  </span>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      )}
+      </div>
     </div>
   )
 }

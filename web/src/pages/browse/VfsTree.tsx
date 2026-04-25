@@ -1,54 +1,91 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronRight, ChevronDown, User, Building2, Package, FileText, FolderOpen, CheckSquare, MessageSquare } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useUiStore } from '@/store/ui'
-import type { LucideIcon } from 'lucide-react'
+import Icon from '@/components/qontext/icon'
+import { INAZUMA, type MockTreeItem, type MockTreeFolder, type MockTreeEntity } from '@/lib/inazuma-mock'
 
-interface VfsItem {
-  path: string
-  entityId: string
-  label: string
-  Icon: LucideIcon
-  type: string
+const CONF_COLORS: Record<string, string> = {
+  high:     'var(--conf-high)',
+  med:      'var(--conf-med)',
+  low:      'var(--conf-low)',
+  conflict: 'var(--conf-conflict)',
 }
 
-interface VfsSection {
-  path: string
-  label: string
-  items: VfsItem[]
+function entityIcon(type: string) {
+  if (type === 'person')   return 'user'
+  if (type === 'customer') return 'briefcase'
+  if (type === 'product')  return 'box'
+  if (type === 'policy')   return 'shield'
+  if (type === 'project')  return 'target'
+  return 'file'
 }
 
-// Static mock VFS structure — replaced by real API when backend is live
-const VFS_SECTIONS: VfsSection[] = [
-  {
-    path: '/static',
-    label: 'Static',
-    items: [
-      { path: '/static/people', entityId: 'person:alice-schmidt', label: 'Alice Schmidt', Icon: User, type: 'person' },
-      { path: '/static/people', entityId: 'person:bob-mueller', label: 'Bob Müller', Icon: User, type: 'person' },
-      { path: '/static/customers', entityId: 'customer:acme-gmbh', label: 'Acme GmbH', Icon: Building2, type: 'customer' },
-      { path: '/static/customers', entityId: 'customer:techcorp-ag', label: 'TechCorp AG', Icon: Building2, type: 'customer' },
-      { path: '/static/products', entityId: 'product:core-platform', label: 'Core Platform', Icon: Package, type: 'product' },
-    ],
-  },
-  {
-    path: '/procedural',
-    label: 'Procedural',
-    items: [
-      { path: '/procedural/policies', entityId: 'policy:data-protection', label: 'Data Protection Policy', Icon: FileText, type: 'policy' },
-      { path: '/procedural/policies', entityId: 'policy:information-security', label: 'Information Security Policy', Icon: FileText, type: 'policy' },
-    ],
-  },
-  {
-    path: '/trajectory',
-    label: 'Trajectory',
-    items: [
-      { path: '/trajectory/projects', entityId: 'project:q3-expansion', label: 'Q3 Expansion', Icon: FolderOpen, type: 'project' },
-      { path: '/trajectory/tasks', entityId: 'task:onboarding-flow', label: 'Onboarding Flow', Icon: CheckSquare, type: 'task' },
-      { path: '/trajectory/communications', entityId: 'communication:acme-thread-apr', label: 'Acme Apr Thread', Icon: MessageSquare, type: 'communication' },
-    ],
-  },
-]
+function TreeRow({
+  node, depth = 0, openSet, onToggle, activeId, onSelect,
+}: {
+  node: MockTreeItem
+  depth?: number
+  openSet: Set<string>
+  onToggle: (id: string) => void
+  activeId: string | null
+  onSelect: (id: string) => void
+}) {
+  if (node.kind === 'section') {
+    return <div className="tree-section">{node.label}</div>
+  }
+
+  const folder = node as MockTreeFolder
+  const entity = node as MockTreeEntity
+  const isOpen   = node.kind === 'folder' && openSet.has(folder.id)
+  const isActive = node.kind === 'entity' && activeId === entity.id
+  const hasChildren = node.kind === 'folder' && (folder.children?.length ?? 0) > 0
+
+  const handleClick = () => {
+    if (node.kind === 'folder') onToggle(folder.id)
+    else onSelect(entity.id)
+  }
+
+  return (
+    <>
+      <div
+        className={`tree-row${isActive ? ' active' : ''}`}
+        style={{ paddingLeft: 8 + depth * 14 }}
+        onClick={handleClick}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => e.key === 'Enter' && handleClick()}
+      >
+        <span className="tree-caret">
+          {hasChildren
+            ? <Icon name={isOpen ? 'chevron-down' : 'chevron-right'} size={11} />
+            : null}
+        </span>
+        <span className="tree-icon">
+          {node.kind === 'folder'
+            ? <Icon name={folder.icon ?? 'folder'} size={14} />
+            : <Icon name={entityIcon(entity.type)} size={14} />}
+        </span>
+        <span className="tree-label">{node.kind === 'folder' ? folder.label : entity.label}</span>
+        {node.kind === 'entity' && entity.confidence && (
+          <span className="conf-dot" style={{ background: CONF_COLORS[entity.confidence] }} />
+        )}
+        {node.kind === 'folder' && folder.count != null && (
+          <span className="tree-count">{folder.count}</span>
+        )}
+      </div>
+      {hasChildren && isOpen && folder.children!.map((child) => (
+        <TreeRow
+          key={'id' in child ? child.id : child.label}
+          node={child}
+          depth={depth + 1}
+          openSet={openSet}
+          onToggle={onToggle}
+          activeId={activeId}
+          onSelect={onSelect}
+        />
+      ))}
+    </>
+  )
+}
 
 interface Props {
   selectedEntityId: string | null
@@ -56,66 +93,56 @@ interface Props {
 
 export default function VfsTree({ selectedEntityId }: Props) {
   const navigate = useNavigate()
-  const { expandedPaths, togglePath } = useUiStore()
+  const [openSet, setOpenSet] = useState(() => new Set(['fold:cust', 'fold:people', 'fold:policies', 'fold:projects']))
+  const [q, setQ] = useState('')
+
+  const handleToggle = (id: string) => {
+    setOpenSet((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const handleSelect = (id: string) => {
+    navigate(`/browse/${encodeURIComponent(id)}`)
+  }
 
   return (
-    <div className="flex flex-col">
-      <div className="border-b px-3 py-2">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Context Base
-        </p>
+    <div className="col">
+      <div className="panel-header sticky">
+        <Icon name="folder" size={14} className="muted" />
+        <span className="panel-title">Virtual File System</span>
+        <span className="spacer" />
+        <button className="action-btn" style={{ width: 'auto', padding: '4px 6px', background: 'transparent', border: 'none' }} title="New entity">
+          <Icon name="plus" size={14} />
+        </button>
       </div>
 
-      {VFS_SECTIONS.length === 0 && (
-        <div className="flex flex-col items-center gap-2 p-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            Your context base is organized here. Select a path to explore entities and facts.
-          </p>
+      <div className="tree-search">
+        <Icon name="search" size={13} className="muted" />
+        <input
+          placeholder="Search files…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+        <span className="kbd-chip">/</span>
+      </div>
+
+      <div className="panel-body">
+        <div className="tree">
+          {INAZUMA.tree.map((node) => (
+            <TreeRow
+              key={'id' in node ? node.id : node.label}
+              node={node}
+              openSet={openSet}
+              onToggle={handleToggle}
+              activeId={selectedEntityId}
+              onSelect={handleSelect}
+            />
+          ))}
         </div>
-      )}
-
-      <ul className="flex flex-col py-1">
-        {VFS_SECTIONS.map((section) => {
-          const isExpanded = expandedPaths.has(section.path)
-          return (
-            <li key={section.path}>
-              <button
-                onClick={() => togglePath(section.path)}
-                className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-sm font-medium hover:bg-muted/50 transition-colors"
-              >
-                {isExpanded ? (
-                  <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
-                ) : (
-                  <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
-                )}
-                <span className="text-muted-foreground">{section.label}</span>
-              </button>
-
-              {isExpanded && (
-                <ul className="flex flex-col">
-                  {section.items.map((item) => {
-                    const isActive = selectedEntityId === item.entityId
-                    return (
-                      <li key={item.entityId}>
-                        <button
-                          onClick={() => navigate(`/browse/${encodeURIComponent(item.entityId)}`)}
-                          className={cn(
-                            'flex w-full items-center gap-2 py-1.5 pl-8 pr-3 text-left text-sm transition-colors hover:bg-muted/50',
-                            isActive && 'bg-muted font-medium text-foreground',
-                          )}
-                        >
-                          <item.Icon className="size-3.5 shrink-0 text-muted-foreground" />
-                          <span className="truncate">{item.label}</span>
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </li>
-          )
-        })}
-      </ul>
+      </div>
     </div>
   )
 }
