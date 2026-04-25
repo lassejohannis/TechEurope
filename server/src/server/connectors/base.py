@@ -31,18 +31,23 @@ class BaseConnector(ABC):
     def normalize(self, raw: dict) -> SourceRecord:
         """Convert raw dict into a normalized SourceRecord (id, hashes set)."""
 
+    _IN_CHUNK = 50  # PostgREST URL limit: keep IN clauses small
+
     def _upsert_batch(self, supabase: Client, rows: List[Dict[str, Any]]) -> int:
         if not rows:
             return 0
         ids = [r["id"] for r in rows]
-        # fetch existing hashes
-        existing = (
-            supabase.table("source_records")
-            .select("id, content_hash")
-            .in_("id", ids)
-            .execute()
-            .data
-        )
+        # fetch existing hashes in chunks to stay within URL length limits
+        existing: List[Dict[str, Any]] = []
+        for i in range(0, len(ids), self._IN_CHUNK):
+            chunk = ids[i : i + self._IN_CHUNK]
+            existing += (
+                supabase.table("source_records")
+                .select("id, content_hash")
+                .in_("id", chunk)
+                .execute()
+                .data
+            )
         existing_map = {r["id"]: r["content_hash"] for r in existing}
         to_write = [r for r in rows if existing_map.get(r["id"]) != r["content_hash"]]
         if not to_write:
@@ -65,7 +70,7 @@ class BaseConnector(ABC):
         written = 0
         for raw in self.discover(path):
             record = self.normalize(raw)
-            row = record.model_dump()
+            row = record.model_dump(exclude_none=True)
             buffer.append(row)
             if len(buffer) >= batch_size:
                 written += self._upsert_batch(supabase, buffer)

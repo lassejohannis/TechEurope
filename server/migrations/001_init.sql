@@ -99,13 +99,15 @@ create index if not exists facts_object_gin on facts using gin (object);
 create index if not exists facts_embedding_hnsw on facts using hnsw (embedding vector_l2_ops) with (m=16, ef_construction=64);
 
 -- Prevent temporal overlap for the same (subject, predicate) among live facts
-alter table facts
-    add constraint if not exists no_temporal_overlap
-    exclude using gist (
-        subject_id with =,
-        predicate with =,
-        validity with &&
-    ) where (status = 'live');
+do $$ begin
+    alter table facts
+        add constraint no_temporal_overlap
+        exclude using gist (
+            subject_id with =,
+            predicate with =,
+            validity with &&
+        ) where (status = 'live');
+exception when duplicate_object then null; end $$;
 
 -- 4) resolutions — human decisions on conflicts
 create table if not exists resolutions (
@@ -190,30 +192,30 @@ alter table if exists entity_type_config enable row level security;
 alter table if exists edge_type_config enable row level security;
 
 -- Service role: full access (Supabase evaluates auth.role())
-do $$ begin execute $$
+do $$ begin execute $pol$
 create policy service_all_source_records on source_records for all
-    using (auth.role() = 'service_role') with check (auth.role() = 'service_role');$$; exception when duplicate_object then null; end $$;
-do $$ begin execute $$
+    using (auth.role() = 'service_role') with check (auth.role() = 'service_role');$pol$; exception when duplicate_object then null; end $$;
+do $$ begin execute $pol$
 create policy service_all_entities on entities for all
-    using (auth.role() = 'service_role') with check (auth.role() = 'service_role');$$; exception when duplicate_object then null; end $$;
-do $$ begin execute $$
+    using (auth.role() = 'service_role') with check (auth.role() = 'service_role');$pol$; exception when duplicate_object then null; end $$;
+do $$ begin execute $pol$
 create policy service_all_facts on facts for all
-    using (auth.role() = 'service_role') with check (auth.role() = 'service_role');$$; exception when duplicate_object then null; end $$;
-do $$ begin execute $$
+    using (auth.role() = 'service_role') with check (auth.role() = 'service_role');$pol$; exception when duplicate_object then null; end $$;
+do $$ begin execute $pol$
 create policy service_all_resolutions on resolutions for all
-    using (auth.role() = 'service_role') with check (auth.role() = 'service_role');$$; exception when duplicate_object then null; end $$;
-do $$ begin execute $$
+    using (auth.role() = 'service_role') with check (auth.role() = 'service_role');$pol$; exception when duplicate_object then null; end $$;
+do $$ begin execute $pol$
 create policy service_all_entity_type_config on entity_type_config for all
-    using (auth.role() = 'service_role') with check (auth.role() = 'service_role');$$; exception when duplicate_object then null; end $$;
-do $$ begin execute $$
+    using (auth.role() = 'service_role') with check (auth.role() = 'service_role');$pol$; exception when duplicate_object then null; end $$;
+do $$ begin execute $pol$
 create policy service_all_edge_type_config on edge_type_config for all
-    using (auth.role() = 'service_role') with check (auth.role() = 'service_role');$$; exception when duplicate_object then null; end $$;
+    using (auth.role() = 'service_role') with check (auth.role() = 'service_role');$pol$; exception when duplicate_object then null; end $$;
 
 -- Authenticated read-only for demo (adjust later per product needs)
-do $$ begin execute $$
-create policy authenticated_read_entities on entities for select using (auth.role() in ('authenticated','service_role'));$$; exception when duplicate_object then null; end $$;
-do $$ begin execute $$
-create policy authenticated_read_facts on facts for select using (auth.role() in ('authenticated','service_role'));$$; exception when duplicate_object then null; end $$;
+do $$ begin execute $pol$
+create policy authenticated_read_entities on entities for select using (auth.role() in ('authenticated','service_role'));$pol$; exception when duplicate_object then null; end $$;
+do $$ begin execute $pol$
+create policy authenticated_read_facts on facts for select using (auth.role() in ('authenticated','service_role'));$pol$; exception when duplicate_object then null; end $$;
 
 -- Timestamps maintenance (simple updated_at touch)
 create or replace function touch_updated_at() returns trigger language plpgsql as $$
