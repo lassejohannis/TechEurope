@@ -6,7 +6,7 @@ from typing import Any
 import yaml
 
 try:
-    from supabase import create_client, Client  # type: ignore
+    from supabase import Client  # type: ignore
 except Exception:  # pragma: no cover - import guard for local dev w/o deps
     Client = Any  # type: ignore
 

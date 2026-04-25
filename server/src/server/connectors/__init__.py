@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, TypeVar, Dict, Type
+from typing import TypeVar, Dict, Type
 
 from .base import BaseConnector
 
