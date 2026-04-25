@@ -71,7 +71,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if projection:
             await projection.stop()
 
-
 app = FastAPI(
     title="Tech Europe — Context Engine",
     version="0.2.0",
