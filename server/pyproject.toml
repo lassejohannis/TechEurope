@@ -24,6 +24,7 @@ dev = [
 
 [project.scripts]
 server = "server.cli:main"
+server-eval = "server.eval.harness:main"
 
 [build-system]
 requires = ["uv_build>=0.10.10,<0.11.0"]
@@ -32,6 +33,11 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = "server"
 module-root = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 100

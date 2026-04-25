@@ -1,0 +1,10 @@
+# Source Trust Weights — used in auto-resolution authority tier.
+# Higher weight = facts from this source win conflicts.
+# Scale: 0.0 (untrusted) → 1.0 (ground truth)
+
+crm_contact:  1.0   # CRM-verified contact data — highest authority
+hr_record:    0.95  # HR system of record — near-canonical
+email:        0.8   # Emails reference real people but content is informal
+it_ticket:    0.7   # IT tickets are structured but self-reported
+chat:         0.6   # Slack/Teams messages — informal, often ambiguous
+social_post:  0.5   # Internal social platform — lowest authority
