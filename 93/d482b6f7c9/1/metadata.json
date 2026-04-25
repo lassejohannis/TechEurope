@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "93d482b6f7c9",
+  "session_id": "60294954-bc73-44f3-a951-6633f66d8e32",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T22:03:15.19245Z",
+  "branch": "Lasse",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "server/src/server/sync/neo4j_projection.py"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "d0d301cb91f7",
+  "checkpoint_transcript_start": 4258,
+  "transcript_lines_at_start": 4258,
+  "token_usage": {
+    "input_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 0,
+    "api_call_count": 0
+  },
+  "session_metrics": {
+    "turn_count": 66
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T22:03:15.004346Z",
+    "agent_lines": 5,
+    "agent_removed": 7,
+    "human_added": 57,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 62,
+    "total_lines_changed": 97,
+    "agent_percentage": 12.371134020618557,
+    "metric_version": 2
+  }
+}
