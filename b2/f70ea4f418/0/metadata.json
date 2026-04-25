@@ -1,0 +1,148 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "b2f70ea4f418",
+  "session_id": "12c0983c-bf52-4a45-9fb9-7f90b87265d5",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T19:53:22.491148Z",
+  "branch": "Lasse",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "server/migrations/008_inference_refresh.sql",
+    "server/migrations/009_conflict_detection.sql",
+    "server/src/server/api/resolutions.py",
+    "server/src/server/cli.py",
+    "server/src/server/db.py",
+    "server/src/server/extractors/gemini_structured.py",
+    "server/src/server/main.py",
+    "server/src/server/resolver/auto_resolve.py",
+    "server/src/server/resolver/cascade.py",
+    "server/src/server/resolver/embed.py",
+    "server/src/server/resolver/extract.py",
+    "web/src/hooks/useConflicts.ts",
+    "web/src/lib/api.ts",
+    "web/src/pages/review/ConflictDetail.tsx",
+    "web/src/pages/review/ConflictInbox.tsx",
+    "web/src/pages/review/DecisionPanel.tsx",
+    "web/src/pages/review/ReviewPage.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "503cf66b9d29",
+  "token_usage": {
+    "input_tokens": 178,
+    "cache_creation_tokens": 199487,
+    "cache_read_tokens": 7219170,
+    "output_tokens": 58135,
+    "api_call_count": 66
+  },
+  "session_metrics": {
+    "turn_count": 5
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T19:53:22.470399Z",
+    "agent_lines": 749,
+    "agent_removed": 20,
+    "human_added": 422,
+    "human_modified": 216,
+    "human_removed": 0,
+    "total_committed": 1387,
+    "total_lines_changed": 1407,
+    "agent_percentage": 54.65529495380241,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 10092,
+      "user_lines_removed": 128,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "data/training/comparison.json": 6878,
+        "data/training/eval_holdout.jsonl": 30,
+        "data/training/eval_v2.json": 1111,
+        "data/training/pioneer_versions.json": 252,
+        "server/scripts/compare_extractors.py": 28,
+        "server/scripts/compare_pioneer_versions.py": 154,
+        "server/scripts/eval_extractors.py": 392,
+        "server/scripts/gen_pioneer_training.py": 1,
+        "server/scripts/pioneer_pipeline.py": 352,
+        "server/src/server/cli.py": 145,
+        "server/src/server/db.py": 48,
+        "server/src/server/extractors/gemini.py": 11,
+        "server/src/server/extractors/gemini_structured.py": 77,
+        "server/src/server/extractors/pioneer.py": 134,
+        "server/src/server/extractors/prompt.py": 161,
+        "server/src/server/resolver/cascade.py": 54,
+        "server/src/server/resolver/extract.py": 208,
+        "server/src/server/resolver/types/communication.py": 31,
+        "server/src/server/resolver/types/document.py": 25
+      },
+      "user_removed_per_file": {
+        "server/scripts/compare_extractors.py": 6,
+        "server/scripts/gen_pioneer_training.py": 17,
+        "server/src/server/cli.py": 24,
+        "server/src/server/db.py": 8,
+        "server/src/server/extractors/gemini.py": 17,
+        "server/src/server/extractors/gemini_structured.py": 1,
+        "server/src/server/extractors/pioneer.py": 27,
+        "server/src/server/resolver/cascade.py": 11,
+        "server/src/server/resolver/extract.py": 17
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 20,
+      "user_lines_removed": 0,
+      "agent_lines_added": 12147,
+      "agent_lines_removed": 155,
+      "user_added_per_file": {
+        "server/migrations/010_cross_confirmation_view.sql": 20
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 114,
+      "user_lines_removed": 0,
+      "agent_lines_added": 12667,
+      "agent_lines_removed": 155,
+      "user_added_per_file": {
+        "server/migrations/010_cross_confirmation_view.sql": 20,
+        "server/src/server/main.py": 1,
+        "web/src/lib/api.ts": 93
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 425,
+      "user_lines_removed": 155,
+      "agent_lines_added": 12852,
+      "agent_lines_removed": 155,
+      "user_added_per_file": {
+        "server/migrations/010_cross_confirmation_view.sql": 20,
+        "web/src/pages/review/ConflictDetail.tsx": 118,
+        "web/src/pages/review/ConflictInbox.tsx": 102,
+        "web/src/pages/review/DecisionPanel.tsx": 114,
+        "web/src/pages/review/ReviewPage.tsx": 12,
+        "web/src/pages/review/TrustWeightsPanel.tsx": 59
+      },
+      "user_removed_per_file": {
+        "web/src/pages/review/ConflictDetail.tsx": 54,
+        "web/src/pages/review/ConflictInbox.tsx": 84,
+        "web/src/pages/review/DecisionPanel.tsx": 15,
+        "web/src/pages/review/ReviewPage.tsx": 2
+      }
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 79,
+      "user_lines_removed": 0,
+      "agent_lines_added": 13198,
+      "agent_lines_removed": 310,
+      "user_added_per_file": {
+        "server/migrations/010_cross_confirmation_view.sql": 20,
+        "web/src/pages/review/TrustWeightsPanel.tsx": 59
+      }
+    }
+  ]
+}

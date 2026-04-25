@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "b2f70ea4f418",
+  "strategy": "manual-commit",
+  "branch": "Lasse",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "server/migrations/008_inference_refresh.sql",
+    "server/migrations/009_conflict_detection.sql",
+    "server/src/server/api/resolutions.py",
+    "server/src/server/cli.py",
+    "server/src/server/db.py",
+    "server/src/server/extractors/gemini_structured.py",
+    "server/src/server/main.py",
+    "server/src/server/resolver/auto_resolve.py",
+    "server/src/server/resolver/cascade.py",
+    "server/src/server/resolver/embed.py",
+    "server/src/server/resolver/extract.py",
+    "web/src/hooks/useConflicts.ts",
+    "web/src/lib/api.ts",
+    "web/src/pages/review/ConflictDetail.tsx",
+    "web/src/pages/review/ConflictInbox.tsx",
+    "web/src/pages/review/DecisionPanel.tsx",
+    "web/src/pages/review/ReviewPage.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b2/f70ea4f418/0/metadata.json",
+      "transcript": "/b2/f70ea4f418/0/full.jsonl",
+      "content_hash": "/b2/f70ea4f418/0/content_hash.txt",
+      "prompt": "/b2/f70ea4f418/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 178,
+    "cache_creation_tokens": 199487,
+    "cache_read_tokens": 7219170,
+    "output_tokens": 58135,
+    "api_call_count": 66
+  }
+}
