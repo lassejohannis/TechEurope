@@ -194,9 +194,26 @@ Bei Final-Submission: Screenshot des Security-Reports (Issue-Counts + Categories
 [ ] Falls nein: Tavily als Backup-Plan vorbereitet
 ```
 
+## Stack-Components (kein Partner, aber relevant)
+
+### Neo4j Aura (Free-Tier) — Read-only Graph-Projection
+- **Nicht Hack-Partner**, aber Stack-Component für Skalierbarkeits-Story
+- Postgres bleibt SoT, Neo4j wird via Supabase-Realtime Sync-Worker gepflegt
+- Free-Tier: 200k Nodes / 400k Relationships — reicht massiv für EnterpriseBench
+- Setup-Zeit: 30min Aura-Account + Connection-String, 3-4h Sync-Worker
+- **Hard-Cap Samstag 14:00.** Bei Nicht-Stabilität → Postgres-only, Neo4j als "Day 2"
+- Implementation: [`server/sync/neo4j_projection.py`](../server/sync/neo4j_projection.py)
+
 ## Decision-Log
 
 - **2026-04-25 — Splink raus, hand-rolled Cascade rein.** Cowork-Research zeigte: Splink will Labeled-Pairs + EM-Training, 6-10h Time-to-Value. Hand-rolled ist 4h.
 - **2026-04-25 — Pioneer fokussiert auf E+R-Extraction (nicht ER-Matching).** ER-Matching ist deterministic-first, keine ML-Aufgabe. E+R ist High-Volume Hot-Path mit klarer Cost/Latency-Story.
 - **2026-04-25 — Entire ist Dev-Tool, kein Produkt-Feature.** Vorherige HITL-Allokation revidiert. Pending-Review-Queue läuft als FastAPI-Form, nicht via Entire.
 - **2026-04-25 — Tavily als Backup für Pflicht-3.** Aktivieren falls Orga Dev-Tool-Nutzung nicht akzeptiert.
+- **2026-04-25 — Neo4j als Read-only Projection re-adoptiert.** Postgres bleibt SoT, Neo4j ist Read-Layer für Multi-Hop. Skalierbarkeits-Story (transaktional/graph) + Pitch-Narrative gewichtiger als +4h Setup-Tax. Sync via Supabase-Realtime, Failure-Mode: stale Projection, nichts korruptes. Hard-Cap Samstag 14:00.
+- **2026-04-25 — Graphiti runtime trotz Neo4j-Adoption NICHT adoptiert.** Argument der Versuchung: "wir haben eh Neo4j, lass mal Graphiti einbauen". Widerlegt durch 4 Punkte:
+  1. Graphiti ist End-to-End-Pipeline (Episode-Store, Extraction, bi-temporal, Search), nicht augmentierbare Library — würde 60% unserer Architektur ersetzen
+  2. Bi-temporal-Konflikt: Postgres-EXCLUDE-Constraint vs Graphiti's App-Logic in Neo4j → zwei konkurrierende Engines
+  3. Pioneer-Side-Prize-Story zerschossen (Graphiti macht Extraction, Pioneer raus)
+  4. Library-Lernkurve in 48h, nullte Erfahrung im Team
+  Patterns weiter klauen (Edge-Properties, Invalidation-Logic, Extraction-Prompts auf Gemini portieren) — Runtime nicht. **Wer am Samstag "sollten wir Graphiti einbauen?" sagt, hat 60min, das selbst zu widerlegen, sonst overruled.**

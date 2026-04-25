@@ -16,8 +16,8 @@ See [team-briefing-technical.md](team-briefing-technical.md) for the canonical e
 | **Markdown rendering** | react-markdown + rehype | VFS file viewer with custom citation components. |
 | **Backend framework** | FastAPI (Python 3.12+) | Fast, async, auto OpenAPI, tight Pydantic integration. |
 | **Python deps mgmt** | uv | Fast installs, lockfile, workspace-aware. |
-| **Database (everything)** | **Supabase (Postgres 15 + pgvector + Realtime + Auth + Storage)** | One service for SQL + vectors + change streams + auth + raw artifacts. Local dev via `supabase start` (Docker-backed CLI). Replaces Qdrant + NetworkX + SQLite + custom auth in a single move. |
-| **Graph store** | **Postgres** (`nodes` + `edges` tables; recursive CTEs for traversal) | Team brief explicitly listed this as the acceptable fallback to Neo4j. We dropped Neo4j: viz comes from `react-flow` in the frontend, not from Neo4j Browser. |
+| **Source of Truth (SoT)** | **Supabase (Postgres 15 + pgvector + Realtime + Auth + Storage)** | Alle Writes gehen hier hin. Bi-temporal `tstzrange + EXCLUDE GIST`, RLS, Realtime, Auth, Storage in einer Box. Postgres skaliert transaktional zu Milliarden Rows. |
+| **Graph-Projection (read-only)** | **Neo4j Aura (Free-Tier)** | Read-only Projection von Postgres-Facts auf Cypher-zugreifbaren Property-Graph. Postgres skaliert transaktional, Neo4j skaliert Multi-Hop-Graph-Traversal — jeder macht was er kann. Sync via Supabase-Realtime → Worker. Verworfen 2026-04-25, re-adoptiert 2026-04-25 nachdem Skalierbarkeit + Pitch-Narrative explizit als Anforderungen geklärt waren. |
 | **Vector store** | **pgvector** (Supabase column on `entities` and `facts`) | Same DB as everything else. Filter by status/confidence works natively. |
 | **LLM provider** | **Gemini (Google DeepMind)** | Partner-eligible. Multimodal handles policy PDFs with images. Long context for draft generation. Claude is not on the partner list, so we don't use it. |
 | **Embeddings** | Gemini `text-embedding-004` (or current equivalent) | Same partner stack, multilingual. |
@@ -60,13 +60,45 @@ Decide Day 1 with the team:
 - Which 3 action types get prepared drafts?
 - HR-Onboarding or Finance-Briefing as the Second App?
 
+## DB-Architektur (Dual-Store, post 2026-04-25)
+
+```
+Connectors → SourceRecord (Episode)
+                  │
+                  ▼
+       ┌──────────────────────┐
+       │ POSTGRES (SoT)       │   alles wird hier geschrieben
+       │  - source_records    │   bi-temporal, RLS, Realtime
+       │  - entities          │   + pgvector embeddings
+       │  - facts (reified)   │   EXCLUDE-Constraint enforced
+       │  - resolutions       │
+       └──────────┬───────────┘
+                  │ Supabase Realtime trigger
+                  ▼
+       ┌──────────────────────┐
+       │ NEO4J (Projection)   │   read-only, optimiert für graph
+       │  - Nodes (Entities)  │   Cypher Multi-Hop Demo-Queries
+       │  - Edges (Facts)     │   GDS für Algorithmen falls Zeit
+       │  + source_episode FK │   crash = einfach re-syncen
+       └──────────────────────┘
+```
+
+**Sync-Pipeline:** [`server/sync/neo4j_projection.py`](../server/sync/neo4j_projection.py) hört auf Supabase-Realtime auf `entities` + `facts`, mappt zu idempotentem MERGE-Cypher in Neo4j. Kein Dual-Write-Risiko: Failure am Neo4j-Schritt = stale Projection, nichts Korruptes.
+
+**Routing-Regel in der Query-API:**
+- Transaktionale / Recent / Provenance-Joins → Postgres
+- Multi-Hop / Pattern-Match / Graph-Algos → Neo4j (Cypher)
+- Hybrid Search → Postgres pgvector ∩ Neo4j edges → Postgres rerank
+
+**Pitch-Antwort auf "warum dual-store":** *"Postgres skaliert transaktional zu Milliarden Rows. Neo4j skaliert Graph-Traversal zu 100M+ Edges. Jeder Layer skaliert in seinem Domain. Postgres ist Source-of-Truth für Provenance + Audit, Neo4j ist Read-Projection für Graph-Queries."*
+
 ## Excluded on purpose
 
 - **Next.js** — SSR/RSC add complexity we don't need; Vite is faster for hack.
-- **Neo4j** — Postgres + recursive CTEs covers our graph queries; viz lives in `react-flow`.
 - **Qdrant** — pgvector in Supabase covers the same filtering needs without an extra service.
 - **SQLite** — Supabase Postgres is the source of truth.
 - **Claude Anthropic API** — not on the partner list; Gemini covers LLM needs and counts as Google DeepMind partner usage.
+- **Neo4j als Single-SoT** — wir nutzen es als Read-Projection neben Postgres, nicht als primären Store. Bi-temporal EXCLUDE-Constraints, RLS, Realtime und Audit-Trail bleiben in Postgres.
 
 ## Non-decisions (don't relitigate Day 1)
 
