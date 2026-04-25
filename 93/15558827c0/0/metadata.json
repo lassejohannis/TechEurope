@@ -1,0 +1,65 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "9315558827c0",
+  "session_id": "60294954-bc73-44f3-a951-6633f66d8e32",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T15:26:16.7444Z",
+  "branch": "Lasse",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "server/src/server/models.py"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "2a53fff78475",
+  "checkpoint_transcript_start": 635,
+  "transcript_lines_at_start": 635,
+  "token_usage": {
+    "input_tokens": 45,
+    "cache_creation_tokens": 31668,
+    "cache_read_tokens": 8027424,
+    "output_tokens": 16777,
+    "api_call_count": 35
+  },
+  "session_metrics": {
+    "turn_count": 18
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T15:26:16.680849Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 4455,
+    "human_modified": 75,
+    "human_removed": 0,
+    "total_committed": 4455,
+    "total_lines_changed": 4548,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 1780,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/agents/entire-search.md": 25,
+        ".claude/scheduled_tasks.lock": 1,
+        ".claude/settings.json": 84,
+        "CLAUDE.md": 97,
+        "data/training/gliner2_holdout.jsonl": 10,
+        "data/training/gliner2_training.jsonl": 294,
+        "data/training/pioneer_training.jsonl": 304,
+        "docs/ws3-pioneer-finetune.md": 164,
+        "server/scripts/compare_extractors.py": 141,
+        "server/scripts/convert_to_gliner2.py": 145,
+        "server/scripts/gen_pioneer_training.py": 290,
+        "server/src/server/extractors/__init__.py": 1,
+        "server/src/server/extractors/gemini.py": 83,
+        "server/src/server/extractors/pioneer.py": 41,
+        "server/src/server/models.py": 100
+      }
+    }
+  ]
+}
