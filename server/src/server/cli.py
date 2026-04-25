@@ -65,12 +65,21 @@ def cmd_ingest(
 @cli.command("status")
 def cmd_status() -> None:
     supabase = get_supabase()
-    # simple per-type counts (two queries to avoid group-by limitations)
-    res = supabase.table("source_records").select("source_type").execute()
     types: dict[str, int] = {}
-    for row in res.data:
-        t = row["source_type"]
-        types[t] = types.get(t, 0) + 1
+    page, page_size = 0, 1000
+    while True:
+        res = (
+            supabase.table("source_records")
+            .select("source_type")
+            .range(page * page_size, (page + 1) * page_size - 1)
+            .execute()
+        )
+        for row in res.data:
+            t = row["source_type"]
+            types[t] = types.get(t, 0) + 1
+        if len(res.data) < page_size:
+            break
+        page += 1
     for t, c in sorted(types.items()):
         typer.echo(f"{t}: {c}")
     typer.echo(f"total: {sum(types.values())}")
