@@ -1,0 +1,23 @@
+meta {
+  name: Edit fact (supersede)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/facts/REPLACE_FACT_ID/edit
+  body: json
+}
+
+headers {
+  Authorization: Bearer {{token}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "object_literal": "VP Eng",
+    "confidence": 0.95,
+    "note": "title change confirmed by HR"
+  }
+}

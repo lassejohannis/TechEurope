@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Qontext Eval Report — 2026-04-25 20:26 UTC</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #0f172a; color: #e2e8f0; margin: 0; padding: 2rem; }
+    h1 { color: #f8fafc; margin-bottom: 0.25rem; }
+    .meta { color: #64748b; font-size: 0.875rem; margin-bottom: 2rem; }
+    .score { font-size: 3rem; font-weight: 700; color: #22c55e; }
+    .score-label { font-size: 1rem; color: #94a3b8; margin-bottom: 2rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    th { background: #1e293b; color: #94a3b8; text-align: left;
+          padding: 0.75rem 0.5rem; border-bottom: 1px solid #334155; }
+    td { padding: 0.6rem 0.5rem; border-bottom: 1px solid #1e293b; vertical-align: top; }
+    tr.pass td { background: #052e16; }
+    tr.fail td { background: #2d0707; }
+    tr:hover td { filter: brightness(1.2); }
+    .question { max-width: 240px; font-weight: 500; }
+    .facts { font-family: monospace; font-size: 0.75rem; color: #94a3b8; max-width: 160px; }
+    .error { color: #f87171; font-family: monospace; font-size: 0.75rem; }
+    .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px;
+              font-size: 0.75rem; font-weight: 600; background: #1e293b; margin-right: 0.5rem; }
+  </style>
+</head>
+<body>
+  <h1>🔍 Qontext Eval Report</h1>
+  <p class="meta">Generated 2026-04-25 20:26 UTC · EnterpriseBench dataset · WS-8</p>
+  <div class="score">8/8</div>
+  <div class="score-label">questions passed (100%)</div>
+  <span class="badge">🟢 PASS</span>
+  <span class="badge">avg latency 928ms</span>
+  <br><br>
+  <table>
+    <thead>
+      <tr>
+        <th></th>
+        <th>Question</th>
+        <th>Expected Entity</th>
+        <th>Found Entity</th>
+        <th>Expected Facts</th>
+        <th>Found Facts</th>
+        <th>Expected Sources</th>
+        <th>Confidence</th>
+        <th>Latency</th>
+        <th>Error</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr class="pass">
+          <td>✅</td>
+          <td class="question">Who is the Engineering Director at Inazuma?</td>
+          <td>—</td>
+          <td>Inazuma</td>
+          <td class="facts">—</td>
+          <td class="facts">works_at=company:inazuma</td>
+          <td>hr:employees</td>
+          <td>0.62 / 0.50</td>
+          <td>1407ms</td>
+          <td>—</td>
+        </tr>
+        <tr class="pass">
+          <td>✅</td>
+          <td class="question">What is Raj Patel's email address?</td>
+          <td>Raj Patel</td>
+          <td>Raj Patel</td>
+          <td class="facts">email=raj.patel@inazuma.com</td>
+          <td class="facts">works_at=company:inazuma</td>
+          <td>hr:employees</td>
+          <td>0.60 / 0.55</td>
+          <td>686ms</td>
+          <td>—</td>
+        </tr>
+        <tr class="pass">
+          <td>✅</td>
+          <td class="question">What department does Raj Patel work in?</td>
+          <td>Raj Patel</td>
+          <td>Raj Patel</td>
+          <td class="facts">department=Engineering</td>
+          <td class="facts">works_at=company:inazuma</td>
+          <td>hr:employees</td>
+          <td>0.63 / 0.55</td>
+          <td>654ms</td>
+          <td>—</td>
+        </tr>
+        <tr class="pass">
+          <td>✅</td>
+          <td class="question">Who reports to Raj Patel?</td>
+          <td>Raj Patel</td>
+          <td>Raj Patel</td>
+          <td class="facts">manages=emp_0106</td>
+          <td class="facts">works_at=company:inazuma</td>
+          <td>hr:employees</td>
+          <td>0.59 / 0.55</td>
+          <td>679ms</td>
+          <td>—</td>
+        </tr>
+        <tr class="pass">
+          <td>✅</td>
+          <td class="question">What open IT tickets exist for the Engineering department?</td>
+          <td>—</td>
+          <td>Brittany Shaw</td>
+          <td class="facts">—</td>
+          <td class="facts">works_at=company:reyes-torres-and-williams</td>
+          <td>itsm:it_tickets</td>
+          <td>0.44 / 0.40</td>
+          <td>1659ms</td>
+          <td>—</td>
+        </tr>
+        <tr class="pass">
+          <td>✅</td>
+          <td class="question">Which customers have made the most purchases?</td>
+          <td>—</td>
+          <td>Additional Customer</td>
+          <td class="facts">—</td>
+          <td class="facts">—</td>
+          <td>crm:sales</td>
+          <td>0.47 / 0.40</td>
+          <td>572ms</td>
+          <td>—</td>
+        </tr>
+        <tr class="pass">
+          <td>✅</td>
+          <td class="question">What is Raj Patel's employee ID?</td>
+          <td>Raj Patel</td>
+          <td>Raj Patel</td>
+          <td class="facts">emp_id=emp_0431</td>
+          <td class="facts">works_at=company:inazuma</td>
+          <td>hr:employees</td>
+          <td>0.64 / 0.55</td>
+          <td>982ms</td>
+          <td>—</td>
+        </tr>
+        <tr class="pass">
+          <td>✅</td>
+          <td class="question">How many employees work at Inazuma?</td>
+          <td>—</td>
+          <td>Inazuma</td>
+          <td class="facts">—</td>
+          <td class="facts">works_at=company:inazuma</td>
+          <td>hr:employees</td>
+          <td>0.69 / 0.40</td>
+          <td>788ms</td>
+          <td>—</td>
+        </tr></tbody>
+  </table>
+</body>
+</html>

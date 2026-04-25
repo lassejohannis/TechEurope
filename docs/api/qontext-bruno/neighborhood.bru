@@ -1,0 +1,13 @@
+meta {
+  name: Graph neighborhood
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/graph/neighborhood/person:jane-doe?depth=1
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}
