@@ -25,10 +25,15 @@ def get_db():
     global _supabase
     if _supabase is None:
         from supabase import create_client
+
         if not settings.supabase_url or not settings.supabase_service_key:
             raise RuntimeError("SUPABASE_URL / SUPABASE_SERVICE_KEY not set")
         _supabase = create_client(settings.supabase_url, settings.supabase_service_key)
     return _supabase
+
+
+# Alias used by ontology loader and other modules from origin/kathi.
+get_supabase = get_db
 
 
 # ---------------------------------------------------------------------------
@@ -43,6 +48,7 @@ def get_gemini():
     global _gemini
     if _gemini is None:
         from google import genai
+
         if not settings.gemini_api_key:
             raise RuntimeError("GEMINI_API_KEY not set")
         _gemini = genai.Client(api_key=settings.gemini_api_key)
@@ -63,6 +69,7 @@ def embed_text(text: str, dimensions: int = 768) -> list[float]:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def row_to_dict(row: Any) -> dict:
     """Normalise a supabase-py result row to a plain dict."""

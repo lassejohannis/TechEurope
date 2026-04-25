@@ -34,6 +34,7 @@ SourceRecord:
   content_hash:    string         # sha256 of canonical JSON(payload)
   ingested_at:     timestamp
   superseded_by:   string?        # id of the SourceRecord that replaced this one
+  extraction_status: enum         # pending | extracted | failed
 ```
 
 **Principles:**
@@ -123,14 +124,20 @@ Fact:
   predicate:       string         # "account_manager_of", "renewal_date",
                                   # "reports_to", "volume_eur", "status"
   object:          Entity.id | literal  # another Entity, or a scalar value
-  object_type:     enum           # entity | string | number | date | bool | enum
+  object_type:     enum           # entity | string | number | date | bool | enum | json
   confidence:      float          # 0..1, from the extractor that produced it
-  status:          enum           # live | draft | superseded | disputed
+  status:          enum           # live | draft | superseded | disputed | needs_refresh
   derived_from:    string[]       # SourceRecord.id[] — which sources support this fact
   last_hash_seen:  object         # { [source_id]: content_hash } for change detection
-  qualifiers:      object         # {valid_from, valid_to, context, ...}
-  created_at:      timestamp
-  updated_at:      timestamp
+
+  # Bi-temporal columns (explicit contract)
+  valid_from:      timestamp?
+  valid_to:        timestamp?
+  ingested_at:     timestamp      # set by DB default now()
+  superseded_at:   timestamp?
+
+  extraction_method: enum         # rule | gemini | pioneer | human
+  qualifiers:      object         # extra context (kept in addition to explicit temporal fields)
   superseded_by:   string?        # id of Fact that replaced this one
   embedding:       float[]?       # embedding of the verbalized form
 ```
