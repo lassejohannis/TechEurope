@@ -1,0 +1,100 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "010132fc7622",
+  "session_id": "12c0983c-bf52-4a45-9fb9-7f90b87265d5",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T20:47:47.696606Z",
+  "branch": "Lasse",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "data/eval/report.html",
+    "docs/api-consumer-guide.md",
+    "docs/api/qontext-bruno/bruno.json",
+    "docs/api/qontext-bruno/create-webhook.bru",
+    "docs/api/qontext-bruno/edit-fact.bru",
+    "docs/api/qontext-bruno/environments/local.bru",
+    "docs/api/qontext-bruno/get-entity.bru",
+    "docs/api/qontext-bruno/health.bru",
+    "docs/api/qontext-bruno/neighborhood.bru",
+    "docs/api/qontext-bruno/recent-changes.bru",
+    "scripts/gdpr_delete_demo.sh",
+    "server/migrations/011_api_layer.sql",
+    "server/scripts/smoke_api_layer.py",
+    "server/src/server/api/_pagination.py",
+    "server/src/server/api/facts.py",
+    "server/src/server/api/graph.py",
+    "server/src/server/api/webhooks.py",
+    "server/src/server/auth/__init__.py",
+    "server/src/server/auth/tokens.py",
+    "server/src/server/eval/questions.yaml",
+    "server/src/server/mcp/server.py",
+    "server/src/server/mcp/stdio.py",
+    "server/src/server/sync/webhook_dispatcher.py",
+    "server/tests/test_api_layer.py",
+    "web/package.json"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "79b552f30ca2",
+  "token_usage": {
+    "input_tokens": 364,
+    "cache_creation_tokens": 479549,
+    "cache_read_tokens": 30739953,
+    "output_tokens": 122459,
+    "api_call_count": 172
+  },
+  "session_metrics": {
+    "turn_count": 16
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T20:47:47.625798Z",
+    "agent_lines": 1954,
+    "agent_removed": 18,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1954,
+    "total_lines_changed": 1972,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 11668,
+      "agent_lines_removed": 70
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 12033,
+      "agent_lines_removed": 88
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 12033,
+      "agent_lines_removed": 88
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 272,
+      "user_lines_removed": 16,
+      "agent_lines_added": 12033,
+      "agent_lines_removed": 88,
+      "user_added_per_file": {
+        "server/src/server/config.py": 6,
+        "server/src/server/db.py": 100,
+        "server/src/server/extractors/gemini_structured.py": 2,
+        "server/src/server/gemini_budget.py": 164
+      },
+      "user_removed_per_file": {
+        "server/src/server/db.py": 16
+      }
+    }
+  ]
+}

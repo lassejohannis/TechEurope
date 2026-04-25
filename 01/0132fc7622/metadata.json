@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "010132fc7622",
+  "strategy": "manual-commit",
+  "branch": "Lasse",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "data/eval/report.html",
+    "docs/api-consumer-guide.md",
+    "docs/api/qontext-bruno/bruno.json",
+    "docs/api/qontext-bruno/create-webhook.bru",
+    "docs/api/qontext-bruno/edit-fact.bru",
+    "docs/api/qontext-bruno/environments/local.bru",
+    "docs/api/qontext-bruno/get-entity.bru",
+    "docs/api/qontext-bruno/health.bru",
+    "docs/api/qontext-bruno/neighborhood.bru",
+    "docs/api/qontext-bruno/recent-changes.bru",
+    "scripts/gdpr_delete_demo.sh",
+    "server/migrations/011_api_layer.sql",
+    "server/scripts/smoke_api_layer.py",
+    "server/src/server/api/_pagination.py",
+    "server/src/server/api/facts.py",
+    "server/src/server/api/graph.py",
+    "server/src/server/api/webhooks.py",
+    "server/src/server/auth/__init__.py",
+    "server/src/server/auth/tokens.py",
+    "server/src/server/eval/questions.yaml",
+    "server/src/server/mcp/server.py",
+    "server/src/server/mcp/stdio.py",
+    "server/src/server/sync/webhook_dispatcher.py",
+    "server/tests/test_api_layer.py",
+    "web/package.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/01/0132fc7622/0/metadata.json",
+      "transcript": "/01/0132fc7622/0/full.jsonl",
+      "content_hash": "/01/0132fc7622/0/content_hash.txt",
+      "prompt": "/01/0132fc7622/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 364,
+    "cache_creation_tokens": 479549,
+    "cache_read_tokens": 30739953,
+    "output_tokens": 122459,
+    "api_call_count": 172
+  }
+}
