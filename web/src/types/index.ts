@@ -1,4 +1,4 @@
-// Canonical data model — aligned with docs/data-model.md
+// Canonical data model — aligned with actual backend API responses.
 // No enum keyword (TS 6.0 erasableSyntaxOnly). Use const + type union throughout.
 
 export const ENTITY_TYPES = [
@@ -19,7 +19,7 @@ export type EntityType = (typeof ENTITY_TYPES)[number]
 export const ENTITY_STATUS = ['live', 'draft', 'archived'] as const
 export type EntityStatus = (typeof ENTITY_STATUS)[number]
 
-export const FACT_STATUS = ['live', 'draft', 'superseded', 'disputed'] as const
+export const FACT_STATUS = ['live', 'active', 'draft', 'superseded', 'disputed', 'invalidated', 'needs_refresh'] as const
 export type FactStatus = (typeof FACT_STATUS)[number]
 
 export const OBJECT_TYPES = ['entity', 'string', 'number', 'date', 'bool', 'enum'] as const
@@ -42,134 +42,156 @@ export const CHANGE_KINDS = [
 ] as const
 export type ChangeKind = (typeof CHANGE_KINDS)[number]
 
-// ── Core domain models ──────────────────────────────────────────────────────
+// ── Backend response shapes ──────────────────────────────────────────────────
+// These match what FastAPI actually returns (server/src/server/models.py)
 
-export interface Entity {
-  id: string
-  type: EntityType
-  canonical_name: string
-  aliases: string[]
-  attributes: Record<string, unknown>
-  status: EntityStatus
-  created_at: string
-  updated_at: string
-  provenance: string[]
+export interface EvidenceItem {
+  source: string
+  record_id: string | null
+  quote: string | null
+  field: string | null
+  confidence: number | null
 }
 
+export interface SourceReference {
+  system: string
+  path: string | null
+  record_id: string | null
+  timestamp: string | null
+  method: string
+}
+
+// Matches FactResponse in models.py
 export interface Fact {
   id: string
-  subject: string
+  subject_id: string
   predicate: string
-  object: string | number | boolean | null
-  object_type: ObjectType
+  object_id: string | null
+  object_literal: unknown | null
   confidence: number
+  derivation: string
+  valid_from: string
+  valid_to: string | null
+  recorded_at: string
+  source_id: string
   status: FactStatus
-  derived_from: string[]
-  qualifiers: Record<string, unknown>
-  created_at: string
-  updated_at: string
-  superseded_by: string | null
+  evidence: EvidenceItem[]
+  superseded_by?: string | null
 }
 
-export interface Resolution {
+// Matches EntityResponse in models.py
+export interface Entity {
   id: string
-  conflict_facts: string[]
-  decision: ResolutionDecision
-  chosen_fact_id: string | null
-  qualifier_added: Record<string, unknown> | null
-  rationale: string
-  resolved_by: string
-  resolved_at: string
-}
-
-// ── MCP tool response shapes (from docs/mcp-tools.md) ──────────────────────
-
-export interface EntityCard {
-  entity: Entity
+  entity_type: EntityType | string
+  canonical_name: string
+  aliases: string[]
+  attrs: Record<string, unknown>
+  trust_score: number
+  fact_count: number
+  source_diversity: number
   facts: Fact[]
-  inbound_facts: Fact[]
-  related_entities: Array<{
-    entity: Entity
-    via_predicate: string
-    via_fact_id: string
-  }>
-  vfs_path: string
 }
 
-export interface SearchParams {
-  query: string
-  k?: number
-  filter?: {
-    entity_types?: EntityType[]
-    predicates?: string[]
-    min_confidence?: number
-    status?: FactStatus[]
-    updated_since?: string
-  }
-}
-
-export interface SearchResult {
-  entities: Entity[]
-  facts: Fact[]
-  files: Array<{ path: string; snippet: string; entity_id: string }>
-  query_interpretation: {
-    entities_mentioned: string[]
-    predicates_mentioned: string[]
-    intent: 'lookup' | 'question' | 'browse'
-  }
-}
-
-export interface ProvenanceEntry {
-  source_record_id: string
-  evidence_snippet: string
-  extractor: 'rule' | 'pioneer' | 'gemini' | 'human'
-  extracted_at: string
-}
-
-export interface ProvenanceHistory {
+// Matches ProvenanceResponse in models.py — returned by GET /api/facts/{id}/provenance
+export interface ProvenanceResponse {
   fact: Fact
-  provenance: ProvenanceEntry[]
-  conflicts?: Fact[]
-  supersedes?: string
-  superseded_by?: string
+  source_reference: SourceReference
+  superseded_by: Fact | null
+  trust_weight: number
 }
 
-export interface RecentChangesParams {
-  since: string
-  entity_ids?: string[]
-  kinds?: ChangeKind[]
+// Matches what GET /api/entities/{id} returns
+export interface EntityCard {
+  id: string
+  entity_type: EntityType | string
+  canonical_name: string
+  aliases: string[]
+  attrs: Record<string, unknown>
+  trust_score: number
+  fact_count: number
+  source_diversity: number
+  facts: Fact[]
 }
 
+// Matches SearchResponse in models.py — returned by POST /api/search
+export interface SearchResultItem {
+  entity: Entity
+  score: number
+  match_type: 'semantic' | 'structural' | 'hybrid'
+  evidence: EvidenceItem[]
+}
+
+export interface SearchResponse {
+  query: string
+  results: SearchResultItem[]
+  total: number
+}
+
+// Matches fact_changes row returned by GET /api/changes/recent
 export interface ChangeEvent {
-  kind: ChangeKind
-  fact_id: string
-  entity_id: string
-  old_value?: unknown
-  new_value: unknown
-  triggered_by: string
+  id: number
+  kind: string
+  fact_id: string | null
+  old_value: unknown | null
+  new_value: unknown | null
+  triggered_by: string | null
   at: string
 }
 
-export interface ProposeResult {
-  status: 'accepted' | 'duplicate' | 'escalated' | 'rejected'
-  fact_id?: string
-  reason: string
-  escalated_to?: { inbox_item_id: string; conflict_with: string[] }
+// Matches ProposeFactRequest in models.py — body for POST /api/vfs/propose-fact
+export interface FactProposal {
+  subject_id: string
+  predicate: string
+  object_id?: string | null
+  object_literal?: unknown | null
+  confidence: number
+  source_system: string
+  source_method: string
+  note?: string | null
 }
 
-export interface FactProposal {
-  subject: string
-  predicate: string
-  object: string | number | boolean | null
-  object_type: ObjectType
-  confidence: number
-  source: { kind: string; description: string; ref?: string }
-  qualifiers?: Record<string, unknown>
+// Matches ProposeFactResponse in models.py
+export interface ProposeResult {
+  fact_id: string
+  source_record_id: string
+  status: string
+}
+
+// Params for the recent changes feed
+export interface RecentChangesParams {
+  limit?: number
+}
+
+// Search request body — matches SearchRequest in models.py
+export interface SearchParams {
+  query: string
+  k?: number
+  as_of?: string | null
+  entity_type?: string | null
+}
+
+// Resolution in resolutions table
+export interface Resolution {
+  id: string
+  entity_id_1: string
+  entity_id_2: string
+  status: string
+  resolution_signals: Record<string, unknown>
+  decided_at: string | null
+  decided_by: string | null
 }
 
 // ── UI utility types ────────────────────────────────────────────────────────
 
 export type ConfidenceLevel = 'high' | 'medium' | 'low' | 'very-low'
 
-// Narrowed type for facts in the conflict inbox
 export type DisputedFact = Fact & { status: 'disputed' }
+
+// Legacy aliases — kept so components that haven't been updated yet still compile.
+// Remove once all components are migrated.
+/** @deprecated Use Entity instead */
+export type EntityLegacy = Entity
+/** @deprecated Use ProvenanceResponse instead */
+export type ProvenanceHistory = ProvenanceResponse
+/** @deprecated Use SearchResponse instead */
+export type SearchResult = SearchResponse
