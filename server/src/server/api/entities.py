@@ -45,9 +45,9 @@ def _build_entity(entity_row: dict, facts: list[dict], trust_row: dict | None) -
         canonical_name=entity_row["canonical_name"],
         aliases=entity_row.get("aliases") or [],
         attrs=entity_row.get("attrs") or {},
-        trust_score=float(trust_row["trust_score"]) if trust_row else 0.0,
-        fact_count=int(trust_row["fact_count"]) if trust_row else 0,
-        source_diversity=int(trust_row["source_diversity"]) if trust_row else 0,
+        trust_score=float(trust_row.get("trust_score") or 0) if trust_row else 0.0,
+        fact_count=int(trust_row.get("fact_count") or 0) if trust_row else 0,
+        source_diversity=int(trust_row.get("source_diversity") or 0) if trust_row else 0,
         facts=fact_responses,
     )
 

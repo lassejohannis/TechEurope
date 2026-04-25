@@ -14,12 +14,14 @@ Postgres-only und Neo4j wird im Pitch als "Day 2"-Story geframt.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from neo4j import AsyncGraphDatabase, AsyncDriver
+from neo4j import AsyncDriver, AsyncGraphDatabase
 from supabase import AsyncClient as SupabaseClient
+from supabase import acreate_client
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,8 @@ class SyncConfig:
     neo4j_user: str
     neo4j_password: str
     supabase_url: str
-    supabase_service_key: str
+    supabase_secret_key: str
+    neo4j_database: str = "neo4j"
     batch_size: int = 50
     retry_max: int = 5
     retry_backoff_seconds: float = 1.0
@@ -49,25 +52,48 @@ class Neo4jProjection:
         self.cfg = cfg
         self.driver: AsyncDriver | None = None
         self.supabase: SupabaseClient | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._channels: list[Any] = []
 
     async def start(self) -> None:
         self.driver = AsyncGraphDatabase.driver(
             self.cfg.neo4j_uri,
             auth=(self.cfg.neo4j_user, self.cfg.neo4j_password),
         )
-        # Supabase client init kept simple; replace with project's actual factory
-        # in server/main.py when wiring this up.
+        if self.cfg.supabase_url and self.cfg.supabase_secret_key:
+            self.supabase = await acreate_client(
+                self.cfg.supabase_url,
+                self.cfg.supabase_secret_key,
+            )
+        self._loop = asyncio.get_running_loop()
         await self._ensure_constraints()
         logger.info("Neo4j projection ready")
 
     async def stop(self) -> None:
+        for ch in self._channels:
+            try:
+                await ch.unsubscribe()
+            except Exception as exc:
+                logger.warning("channel unsubscribe failed: %s", exc)
+        self._channels.clear()
         if self.driver:
             await self.driver.close()
+
+    async def healthcheck(self) -> dict[str, Any]:
+        """Cheap probe used by `/query/cypher/_health`."""
+        if not self.driver:
+            return {"status": "down", "reason": "driver not started"}
+        try:
+            async with self.driver.session(database=self.cfg.neo4j_database) as s:
+                rec = await (await s.run("RETURN 1 AS ok")).single()
+                return {"status": "up", "ok": rec["ok"] if rec else None}
+        except Exception as exc:
+            return {"status": "down", "reason": str(exc)}
 
     async def _ensure_constraints(self) -> None:
         """Idempotent constraint + index setup."""
         assert self.driver
-        async with self.driver.session() as s:
+        async with self.driver.session(database=self.cfg.neo4j_database) as s:
             await s.run(
                 "CREATE CONSTRAINT entity_id IF NOT EXISTS "
                 "FOR (n:Entity) REQUIRE n.id IS UNIQUE"
@@ -83,32 +109,70 @@ class Neo4jProjection:
 
     async def listen(self) -> None:
         """
-        Subscribe to Supabase Realtime channels for `entities` and `facts`.
+        Subscribe to Supabase Realtime on `entities` and `facts`.
 
-        Each event triggers an idempotent MERGE in Neo4j.
+        Each event is dispatched to an idempotent MERGE in Neo4j. Returns once
+        both channels are subscribed; the supabase-py async client keeps the
+        websockets running in its own background tasks.
         """
-        assert self.supabase
-        # Pseudo-code — adjust to actual supabase-py realtime API once wired:
-        #
-        # await self.supabase.channel("entities-changes") \
-        #     .on("postgres_changes", {"event": "*", "table": "entities"},
-        #         self._on_entity_event) \
-        #     .subscribe()
-        # await self.supabase.channel("facts-changes") \
-        #     .on("postgres_changes", {"event": "*", "table": "facts"},
-        #         self._on_fact_event) \
-        #     .subscribe()
-        raise NotImplementedError("wire to supabase-py realtime client")
+        assert self.supabase, "call start() first"
+
+        ch_entities = (
+            self.supabase.channel("ws5-entities")
+            .on_postgres_changes(
+                event="*",
+                schema="public",
+                table="entities",
+                callback=lambda p: self._dispatch(self._on_entity_event, p),
+            )
+        )
+        await ch_entities.subscribe()
+        self._channels.append(ch_entities)
+
+        ch_facts = (
+            self.supabase.channel("ws5-facts")
+            .on_postgres_changes(
+                event="*",
+                schema="public",
+                table="facts",
+                callback=lambda p: self._dispatch(self._on_fact_event, p),
+            )
+        )
+        await ch_facts.subscribe()
+        self._channels.append(ch_facts)
+
+        logger.info("Neo4j projection listening on entities + facts")
+
+    def _dispatch(self, async_handler, payload: dict[str, Any]) -> None:
+        """Bridge the sync supabase-py callback into the asyncio loop."""
+        if self._loop is None:
+            logger.error("event received before loop captured; dropping")
+            return
+        asyncio.run_coroutine_threadsafe(async_handler(payload), self._loop)
 
     async def _on_entity_event(self, payload: dict[str, Any]) -> None:
-        evt: EventType = payload["eventType"]
-        row = payload["new"] if evt != "DELETE" else payload["old"]
+        evt, row = self._extract_event(payload)
+        if row is None:
+            return
         await self._apply_with_retry(self._upsert_entity, evt, row)
 
     async def _on_fact_event(self, payload: dict[str, Any]) -> None:
-        evt: EventType = payload["eventType"]
-        row = payload["new"] if evt != "DELETE" else payload["old"]
+        evt, row = self._extract_event(payload)
+        if row is None:
+            return
         await self._apply_with_retry(self._upsert_fact, evt, row)
+
+    @staticmethod
+    def _extract_event(payload: dict[str, Any]) -> tuple[EventType, dict[str, Any] | None]:
+        """Normalize a supabase-py Realtime payload into (event, row)."""
+        data = payload.get("data") or payload  # tolerate either shape
+        raw_type = data.get("type") or data.get("eventType")
+        evt = str(raw_type).upper().replace("REALTIMEPOSTGRESCHANGESLISTENEVENT.", "")
+        if evt not in ("INSERT", "UPDATE", "DELETE"):
+            logger.warning("unknown event type: %r", raw_type)
+            return "INSERT", None  # safe no-op
+        row = data.get("old_record") if evt == "DELETE" else data.get("record")
+        return evt, row  # type: ignore[return-value]
 
     # ------------------------------------------------------------------
     # Upsert primitives (idempotent MERGE-Cypher)
@@ -128,14 +192,17 @@ class Neo4jProjection:
                     n.attrs = $attrs,
                     n.last_synced = datetime()
             """
+            # Neo4j node properties must be primitives or arrays of primitives.
+            # `attrs` (JSONB in Postgres) is serialized to a JSON string here;
+            # consumers deserialize on read.
             params = {
                 "id": row["id"],
                 "entity_type": row.get("entity_type"),
                 "canonical_name": row.get("canonical_name"),
                 "aliases": row.get("aliases") or [],
-                "attrs": row.get("attrs") or {},
+                "attrs": json.dumps(row.get("attrs") or {}),
             }
-        async with self.driver.session() as s:
+        async with self.driver.session(database=self.cfg.neo4j_database) as s:
             await s.run(cypher, params)
 
     async def _upsert_fact(self, evt: EventType, row: dict[str, Any]) -> None:
@@ -176,7 +243,7 @@ class Neo4jProjection:
                 "valid_to": row.get("valid_to"),
                 "source_record_id": row.get("source_id"),
             }
-        async with self.driver.session() as s:
+        async with self.driver.session(database=self.cfg.neo4j_database) as s:
             await s.run(cypher, params)
 
     # ------------------------------------------------------------------
@@ -202,14 +269,54 @@ class Neo4jProjection:
 
     async def replay_all(self) -> None:
         """
-        Full re-sync from Postgres. Call after a long downtime to repair
-        a stale projection. Idempotent — safe to run multiple times.
+        Full re-sync from Postgres. Idempotent (MERGE) — safe to run on every
+        boot to repair a stale projection or bootstrap a fresh Neo4j DB.
         """
+        assert self.supabase, "call start() first"
+        await self._replay_table("entities", self._upsert_entity)
+        await self._replay_table("facts", self._upsert_fact)
+        logger.info("Neo4j projection replay complete")
+
+    async def _replay_table(self, table: str, upsert) -> None:
+        """Idempotent batch sync from Postgres → Neo4j.
+
+        Tolerates a missing table (PGRST205) so the projection can come up
+        before WS-0's migration lands; once the table appears and rows are
+        inserted, Realtime events take over from `listen()`.
+        """
+        from postgrest.exceptions import APIError
+
         assert self.supabase
-        # 1. Drain entities, batch-MERGE
-        # 2. Drain facts (entity-to-entity only), batch-MERGE
-        # Use cfg.batch_size for paging.
-        raise NotImplementedError("implement once supabase client is wired")
+        offset = 0
+        size = self.cfg.batch_size
+        total = 0
+        while True:
+            try:
+                res = (
+                    await self.supabase.table(table)
+                    .select("*")
+                    .range(offset, offset + size - 1)
+                    .execute()
+                )
+            except APIError as exc:
+                if getattr(exc, "code", None) == "PGRST205":
+                    logger.warning(
+                        "table %r not found yet — skipping replay; listen() will pick "
+                        "it up once the schema is applied",
+                        table,
+                    )
+                    return
+                raise
+            rows = res.data or []
+            if not rows:
+                break
+            for row in rows:
+                await self._apply_with_retry(upsert, "INSERT", row)
+            total += len(rows)
+            if len(rows) < size:
+                break
+            offset += size
+        logger.info("replayed %d rows from %s", total, table)
 
 
 # ----------------------------------------------------------------------
