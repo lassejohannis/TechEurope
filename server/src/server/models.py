@@ -65,6 +65,7 @@ class ProvenanceResponse(BaseModel):
     fact: FactResponse
     source_reference: SourceReference
     superseded_by: FactResponse | None = None
+    trust_weight: float = 0.5
 
 
 # ---------------------------------------------------------------------------

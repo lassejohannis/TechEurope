@@ -110,7 +110,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if dispatcher:
             await dispatcher.stop()
 
-
 app = FastAPI(
     title="Tech Europe — Context Engine",
     version="0.3.0",

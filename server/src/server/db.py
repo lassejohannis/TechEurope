@@ -26,9 +26,12 @@ def get_db():
     if _supabase is None:
         from supabase import create_client
 
-        if not settings.supabase_url or not settings.supabase_secret_key:
-            raise RuntimeError("SUPABASE_URL / SUPABASE_SECRET_KEY not set")
-        _supabase = create_client(settings.supabase_url, settings.supabase_secret_key)
+        key = settings.supabase_secret_key or settings.supabase_service_key
+        if not settings.supabase_url or not key:
+            raise RuntimeError(
+                "Supabase URL/key not configured. Set SUPABASE_URL and SUPABASE_SECRET_KEY in server/.env."
+            )
+        _supabase = create_client(settings.supabase_url, key)
     return _supabase
 
 
