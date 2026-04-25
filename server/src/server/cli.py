@@ -30,6 +30,17 @@ from server.vfs_paths import segment_from_type, slugify_name
 cli = typer.Typer(add_completion=False, no_args_is_help=False)
 
 
+# Resolver-internal type aliases. The DB ontology uses "organization" while
+# extractor/cascade internals still emit "company".
+_ENTITY_TYPE_ALIASES = {
+    "company": "organization",
+}
+
+
+def _canonical_entity_type(entity_type: str) -> str:
+    return _ENTITY_TYPE_ALIASES.get(entity_type, entity_type)
+
+
 @cli.command("dev")
 def cmd_dev() -> None:
     uvicorn.run(
@@ -144,14 +155,15 @@ def _entity_id(entity_type: str, canonical_name: str) -> str:
     multiple source_records that mention it.
     """
     slug = slugify_name(canonical_name)
-    return f"{entity_type}:{slug}"
+    etype = _canonical_entity_type(entity_type)
+    return f"{etype}:{slug}"
 
 
 def _persist_entity(
     db,
     candidate,
     matched_id: str | None,
-) -> str:
+) -> str | None:
     """Upsert an entity row and return its id.
 
     If matched_id is set, returns it (assumed: existing row in DB; we don't
@@ -164,8 +176,9 @@ def _persist_entity(
     if matched_id:
         return matched_id
 
-    eid = _entity_id(candidate.entity_type, candidate.canonical_name)
-    entity_segment = segment_from_type(candidate.entity_type)
+    canonical_entity_type = _canonical_entity_type(candidate.entity_type)
+    eid = _entity_id(canonical_entity_type, candidate.canonical_name)
+    entity_segment = segment_from_type(canonical_entity_type)
     base_slug = slugify_name(candidate.canonical_name)
     base_path = f"/{entity_segment}/{base_slug}"
 
@@ -195,7 +208,7 @@ def _persist_entity(
             path_res = (
                 db.table("entities")
                 .select("id")
-                .eq("entity_type", candidate.entity_type)
+                .eq("entity_type", canonical_entity_type)
                 .filter("attrs->>vfs_path", "eq", vfs_path)
                 .limit(1)
                 .execute()
@@ -218,16 +231,22 @@ def _persist_entity(
 
     row: dict[str, object] = {
         "id": eid,
-        "entity_type": candidate.entity_type,
+        "entity_type": canonical_entity_type,
         "canonical_name": candidate.canonical_name,
         "aliases": aliases,
-        "attrs": candidate.attrs,
+        "attrs": attrs,
         "provenance": [candidate.source_id] if candidate.source_id else [],
     }
     if embedding is not None:
         row["embedding"] = embedding
 
-    db.table("entities").upsert(row, on_conflict="id").execute()
+    try:
+        db.table("entities").upsert(row, on_conflict="id").execute()
+    except Exception as exc:
+        # DB-side ontology guards can reject unknown/unapproved entity types.
+        if "not approved" in str(exc):
+            return None
+        raise
     return eid
 
 
@@ -279,18 +298,20 @@ def _persist_fact(
     name_to_id: dict[tuple[str, str], str],
     source_id: str,
 ) -> bool:
-    subject_id = name_to_id.get(pf.subject_key)
+    subject_key = (_canonical_entity_type(pf.subject_key[0]), pf.subject_key[1])
+    subject_id = name_to_id.get(subject_key)
     if not subject_id:
         return False
 
     object_id: str | None = None
     object_literal = pf.object_literal
     if pf.object_key is not None:
-        object_id = name_to_id.get(pf.object_key)
+        object_key = (_canonical_entity_type(pf.object_key[0]), pf.object_key[1])
+        object_id = name_to_id.get(object_key)
         if not object_id:
             # Object entity wasn't extracted from this record — store as literal
             # so the fact still carries the reference.
-            object_literal = {"name": pf.object_key[1], "type": pf.object_key[0]}
+            object_literal = {"name": pf.object_key[1], "type": object_key[0]}
     if object_id is None and object_literal is None:
         return False
 
@@ -310,6 +331,8 @@ def _persist_fact(
         ).execute()
         return True
     except Exception as exc:
+        if "not approved" in str(exc):
+            return False
         # `no_temporal_overlap` GIST exclusion fires when (subject, predicate)
         # is already asserted with overlapping validity — that's expected when
         # the same person/company appears in many source records. Treat as a
@@ -400,16 +423,28 @@ def cmd_resolve(
             # as a new entity so a human can decide if they're duplicates.
             if result.action == "inbox":
                 entity_id = _persist_entity(db, cand, None)  # force new
-                name_to_id[(cand.entity_type, cand.canonical_name)] = entity_id
+                if not entity_id:
+                    continue
+                canonical_type = _canonical_entity_type(cand.entity_type)
+                name_to_id[(canonical_type, cand.canonical_name)] = entity_id
                 from server.resolver.cascade import write_pending_inbox
 
                 write_pending_inbox(cand, result, db)
                 stats["entities_inboxed"] += 1
             else:
-                entity_id = _persist_entity(db, cand, result.matched_id)
-                name_to_id[(cand.entity_type, cand.canonical_name)] = entity_id
+                # Tier-4 "context" matches are relationship hints (e.g. email-domain
+                # → employer) — they must NOT collapse a person entity into a
+                # company. Only same-type tiers are safe to merge by ID.
+                same_type_match = result.matched_id if result.tier in (
+                    "hard_id", "alias", "embedding", "pioneer"
+                ) else None
+                entity_id = _persist_entity(db, cand, same_type_match)
+                if not entity_id:
+                    continue
+                canonical_type = _canonical_entity_type(cand.entity_type)
+                name_to_id[(canonical_type, cand.canonical_name)] = entity_id
 
-                if result.matched_id:
+                if same_type_match:
                     stats["entities_merged"] += 1
                 else:
                     stats["entities_created"] += 1

@@ -62,8 +62,8 @@ def gdpr_delete_source(
 
     sr_res = db.table("source_records").select("id, source_type").eq(
         "id", source_record_id
-    ).single().execute()
-    if not sr_res.data:
+    ).limit(1).execute()
+    if not (sr_res.data or []):
         raise HTTPException(status_code=404, detail="Source record not found")
 
     # Count facts that will cascade
