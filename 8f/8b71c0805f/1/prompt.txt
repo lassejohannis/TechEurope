@@ -1,0 +1,97 @@
+Welche branches gibt es jetzt noch, die ich einmal mit meinem mergen sollte? Nur Kathi oder?
+
+---
+
+Yes los gehts
+
+---
+
+Kannst du einmal von vorne bis hinten durchchecken, was jetzt schon funktioniert und was nicht vom FLow
+
+---
+
+Dann plane alle changes, du kannst das alles umändern.
+
+---
+
+Also wir challenegen jetzt einmal von vorne bis hinten das Produkt durch und schreiben überall hin was jetzt noch gebaut werden mus und was davon schon steht damit wir gleich neu Aufgaben verteilen können
+
+---
+
+Lass uns mal ganz vorne anfangen und das nach und nach in die Team briefing technical reinschreiben: Man muss jegliche Art von Dokument einspeisen können oder Konnektoren zu Apps haben, die Daten einspeisen, was existiert davon schon und was nicht?
+
+---
+
+Kannst du nochmal in die Anforderungen schauen, wenn sich Dateien ändern oder neue Informationen hinzukommen, dann muss sich das ja updaten, ist das schon drinnen? Beziehungsweise checkst du was ich meine, ich verstehe das selber noch nicht so ganz
+
+---
+
+ALles reinschreiben
+
+---
+
+OK dann haben wir jetzt den injection part besprochen, was passiert als nächstes im Flow
+
+---
+
+Erkläre das nochmal einfacher: Wir haben hardcoded entitiy und fact typen und edges die theoretisch per hand anpassbar sind oder?
+
+---
+
+Muss es nicht eigentlich am besten einen Agent geben, der jede information die reinkommt in eine passende entity mit facts baut und custom edges gibt im ersten schritt damit es perfekt ist?
+
+---
+
+Muss es nicht eigentlich am besten einen Agent geben, der jede information die reinkommt in eine passende entity mit facts baut und custom edges gibt im ersten schritt damit es perfekt ist?
+
+---
+
+Muss es nicht eigentlich am besten einen Agent geben, der jede information die reinkommt in eine passende entity mit facts baut und custom edges gibt im ersten schritt damit es perfekt ist? Bzw einen deterministischen Ansatz, der immer passende Entitys und facts baut?
+
+---
+
+Macht es nicht Sinn deterministisch einen passenden entity typen zu finden und wenn das nicht existiert erstellt ein LLM einen neuen Typen?
+
+---
+
+Gleiches für facts und edges
+
+---
+
+Vollversion reinschreiben als to do
+
+---
+
+So was ist der nächste Schritt im Flow? Gleiches combinen und indifferenzen versuchen zu fixen?
+
+---
+
+Also es sollten gleiche entities gemerged werden und konflikte versucht behoben zu werden, wenn nötig human in the loop. ist das richtig?
+
+---
+
+Schreibe das full in die to dos
+
+---
+
+Ok dann wollen wir ein Surface, dass alle Nodes und Edges darstellt richtig?
+
+---
+
+Schreibe plan a full auf to do
+
+---
+
+Und dann als letztes noch die Schnittstelle für Software und AI um auf unser Kontextsystem zuzugreifen? Was fehlt da noch?
+
+---
+
+Ergänze das alles komplett als todo
+
+---
+
+Los gehts überlege für alle genaue fixes und wie das anzugehen ist. Schreibe es dann dazu
+
+---
+
+ja
