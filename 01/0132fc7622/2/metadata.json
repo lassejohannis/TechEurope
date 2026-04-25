@@ -1,0 +1,99 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "010132fc7622",
+  "session_id": "60294954-bc73-44f3-a951-6633f66d8e32",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T20:47:53.708285Z",
+  "branch": "Lasse",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "data/eval/report.html",
+    "docs/api-consumer-guide.md",
+    "docs/api/qontext-bruno/bruno.json",
+    "docs/api/qontext-bruno/create-webhook.bru",
+    "docs/api/qontext-bruno/edit-fact.bru",
+    "docs/api/qontext-bruno/environments/local.bru",
+    "docs/api/qontext-bruno/get-entity.bru",
+    "docs/api/qontext-bruno/health.bru",
+    "docs/api/qontext-bruno/neighborhood.bru",
+    "docs/api/qontext-bruno/recent-changes.bru",
+    "scripts/gdpr_delete_demo.sh",
+    "server/migrations/011_api_layer.sql",
+    "server/scripts/smoke_api_layer.py",
+    "server/src/server/api/_pagination.py",
+    "server/src/server/api/facts.py",
+    "server/src/server/api/graph.py",
+    "server/src/server/api/webhooks.py",
+    "server/src/server/auth/__init__.py",
+    "server/src/server/auth/tokens.py",
+    "server/src/server/eval/questions.yaml",
+    "server/src/server/mcp/server.py",
+    "server/src/server/mcp/stdio.py",
+    "server/tests/test_api_layer.py",
+    "web/package.json"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "8bafde1212fd",
+  "checkpoint_transcript_start": 3168,
+  "transcript_lines_at_start": 3168,
+  "token_usage": {
+    "input_tokens": 103,
+    "cache_creation_tokens": 87046,
+    "cache_read_tokens": 71895739,
+    "output_tokens": 44933,
+    "api_call_count": 78
+  },
+  "session_metrics": {
+    "turn_count": 57
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T20:47:53.556848Z",
+    "agent_lines": 1823,
+    "agent_removed": 18,
+    "human_added": 131,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1954,
+    "total_lines_changed": 1972,
+    "agent_percentage": 93.35699797160242,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 11668,
+      "agent_lines_removed": 70
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 12033,
+      "agent_lines_removed": 88
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 12033,
+      "agent_lines_removed": 88
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 12033,
+      "agent_lines_removed": 88
+    }
+  ]
+}

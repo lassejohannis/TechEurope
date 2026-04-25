@@ -3,7 +3,7 @@
   "checkpoint_id": "010132fc7622",
   "strategy": "manual-commit",
   "branch": "Lasse",
-  "checkpoints_count": 5,
+  "checkpoints_count": 9,
   "files_touched": [
     "data/eval/report.html",
     "docs/api-consumer-guide.md",
@@ -43,13 +43,19 @@
       "transcript": "/01/0132fc7622/1/full.jsonl",
       "content_hash": "/01/0132fc7622/1/content_hash.txt",
       "prompt": "/01/0132fc7622/1/prompt.txt"
+    },
+    {
+      "metadata": "/01/0132fc7622/2/metadata.json",
+      "transcript": "/01/0132fc7622/2/full.jsonl",
+      "content_hash": "/01/0132fc7622/2/content_hash.txt",
+      "prompt": "/01/0132fc7622/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 1015,
-    "cache_creation_tokens": 909671,
-    "cache_read_tokens": 94260642,
-    "output_tokens": 305037,
-    "api_call_count": 498
+    "input_tokens": 1118,
+    "cache_creation_tokens": 996717,
+    "cache_read_tokens": 166156381,
+    "output_tokens": 349970,
+    "api_call_count": 576
   }
 }
