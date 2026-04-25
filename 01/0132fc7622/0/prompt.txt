@@ -93,3 +93,7 @@ Lass uns das hier angehen, durchsuche aber erstmal das Projekt, ich glaube das d
 <status>completed</status>
 <summary>Background command "Start dev server and wait for boot" completed (exit code 0)</summary>
 </task-notification>
+
+---
+
+Können wir während ein anderer Chat noch sachen abarbeitet einmal die neuen sachen aus main ziehen und hier reinmergen?
