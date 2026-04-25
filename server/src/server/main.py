@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from server.config import settings
 from server.db import get_supabase
-from server.ontology.loader import load_all, upsert_to_db
+from server.ontology.loader import load_all, upsert_to_db, get_ontology_dir, load_yaml
 
 app = FastAPI(
     title="Tech Europe — Context Engine",
@@ -62,13 +62,11 @@ async def reload_ontologies() -> dict[str, object]:
     try:
         client = get_supabase()
         # Upsert each YAML into the config tables
-        from pathlib import Path
-        import yaml  # noqa: F401
-
+        dirpath = get_ontology_dir()
         for name in loaded:
-            path = __import__("pathlib").Path("config/ontologies") / name
-            from server.ontology.loader import load_yaml
-
+            if not dirpath:
+                break
+            path = dirpath / name
             ontology = load_yaml(path)
             upsert_to_db(client, ontology)
         mode = "applied"

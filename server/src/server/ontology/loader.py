@@ -33,11 +33,32 @@ def upsert_to_db(client: Client, ontology: dict[str, Any]) -> None:
         client.table("edge_type_config").upsert(rows, on_conflict="id").execute()
 
 
-def load_all(directory: Path = Path("config/ontologies")) -> list[str]:
+def get_ontology_dir(default: Path | None = None) -> Path | None:
+    """Find the ontologies directory regardless of current working dir.
+
+    Tries in order:
+      1) provided default
+      2) CWD/config/ontologies
+      3) walk up from this file to find a parent containing config/ontologies
+    """
+    candidates: list[Path] = []
+    if default is not None:
+        candidates.append(default)
+    candidates.append(Path.cwd() / "config/ontologies")
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        candidates.append(parent / "config/ontologies")
+    for c in candidates:
+        if c.exists() and c.is_dir():
+            return c
+    return None
+
+
+def load_all(directory: Path | None = None) -> list[str]:
     loaded: list[str] = []
-    if not directory.exists():
+    dirpath = get_ontology_dir(directory or Path("config/ontologies"))
+    if not dirpath:
         return loaded
-    for path in sorted(directory.glob("*.yaml")):
+    for path in sorted(dirpath.glob("*.yaml")):
         loaded.append(path.name)
     return loaded
-

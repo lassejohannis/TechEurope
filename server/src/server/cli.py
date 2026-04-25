@@ -5,6 +5,7 @@ Usage examples:
   - `uv run server dev` → same as above
   - `uv run server ingest --connector email --path data/enterprise-bench/`
   - `uv run server status`
+  - `uv run server discover --connector all --path data/enterprise-bench` (dry-run)
 """
 
 from __future__ import annotations
@@ -73,6 +74,33 @@ def cmd_status() -> None:
     for t, c in sorted(types.items()):
         typer.echo(f"{t}: {c}")
     typer.echo(f"total: {sum(types.values())}")
+
+
+@cli.command("discover")
+def cmd_discover(
+    connector: str = typer.Option(..., help="Connector name or 'all'"),
+    path: Path = typer.Option(Path("data/enterprise-bench"), exists=False),
+    sample: int = typer.Option(3, help="Show first N normalized IDs as sample"),
+):
+    def run_one(name: str) -> None:
+        cls = CONNECTOR_REGISTRY.get(name) or get_connector(name)
+        inst = cls()
+        count = 0
+        samples: list[str] = []
+        for raw in inst.discover(path):
+            count += 1
+            if len(samples) < sample:
+                rec = inst.normalize(raw)
+                samples.append(f"{rec.id} :: {rec.content_hash[:12]}")
+        typer.echo(f"[{name}] discovered={count}")
+        for s in samples:
+            typer.echo(f"  - {s}")
+
+    if connector == "all":
+        for name in ["email", "crm", "hr_record", "invoice_pdf"]:
+            run_one(name)
+        return
+    run_one(connector)
 
 
 def main() -> None:
