@@ -1,0 +1,53 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "afc6ba1d2dc7",
+  "strategy": "manual-commit",
+  "branch": "Lasse",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "config/ontologies/base.yaml",
+    "config/ontologies/enterprise.yaml",
+    "config/ontologies/hr.yaml",
+    "config/ontologies/sales.yaml",
+    "docs/connector-template.md",
+    "docs/data-model.md",
+    "server/.env.example",
+    "server/migrations/001_init.sql",
+    "server/pyproject.toml",
+    "server/src/server/cli.py",
+    "server/src/server/connectors/__init__.py",
+    "server/src/server/connectors/base.py",
+    "server/src/server/connectors/crm.py",
+    "server/src/server/connectors/diff.py",
+    "server/src/server/connectors/email.py",
+    "server/src/server/connectors/hr.py",
+    "server/src/server/connectors/pdf.py",
+    "server/src/server/db.py",
+    "server/src/server/extractors/gemini_structured.py",
+    "server/src/server/main.py",
+    "server/src/server/models.py",
+    "server/src/server/ontology/loader.py",
+    "server/src/server/utils/normalize.py",
+    "server/tests/test_api.py",
+    "server/tests/test_connectors.py",
+    "server/tests/test_models.py",
+    "server/tests/test_ontology.py",
+    "server/tests/test_utils.py",
+    "server/uv.lock"
+  ],
+  "sessions": [
+    {
+      "metadata": "/af/c6ba1d2dc7/0/metadata.json",
+      "transcript": "/af/c6ba1d2dc7/0/full.jsonl",
+      "content_hash": "/af/c6ba1d2dc7/0/content_hash.txt",
+      "prompt": "/af/c6ba1d2dc7/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 333,
+    "cache_creation_tokens": 243441,
+    "cache_read_tokens": 18106608,
+    "output_tokens": 76787,
+    "api_call_count": 168
+  }
+}
