@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,10 +18,29 @@ class Settings(BaseSettings):
     api_port: int = 8000
     api_cors_origins: list[str] = ["http://localhost:5173"]
 
-    # Supabase (new API key naming: publishable replaces anon, secret replaces service_role)
+    # Supabase. Field names match existing usage (anon/service); env vars accept
+    # both the new Supabase naming (publishable/secret, sb_publishable_..., sb_secret_...)
+    # and the legacy names. Tokens go in .env as SUPABASE_PUBLISHABLE_KEY /
+    # SUPABASE_SECRET_KEY for fresh setups.
     supabase_url: str = ""
-    supabase_publishable_key: str = ""
-    supabase_secret_key: str = ""
+    supabase_anon_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("SUPABASE_ANON_KEY", "SUPABASE_PUBLISHABLE_KEY"),
+    )
+    supabase_service_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("SUPABASE_SERVICE_KEY", "SUPABASE_SECRET_KEY"),
+    )
+
+    @property
+    def supabase_secret_key(self) -> str:
+        """Read-only alias for new naming; consumers should prefer this."""
+        return self.supabase_service_key
+
+    @property
+    def supabase_publishable_key(self) -> str:
+        """Read-only alias for new naming."""
+        return self.supabase_anon_key
 
     # Gemini (Google DeepMind partner)
     gemini_api_key: str = ""
@@ -28,9 +48,12 @@ class Settings(BaseSettings):
 
     # Neo4j (read-only projection — WS-5)
     # Empty `neo4j_uri` disables the projection worker; the app stays Postgres-only.
-    # `neo4j_username` matches the Aura .env convention.
+    # Accepts both NEO4J_USER (default) and NEO4J_USERNAME (Aura .env convention).
     neo4j_uri: str = ""
-    neo4j_username: str = "neo4j"
+    neo4j_user: str = Field(
+        default="neo4j",
+        validation_alias=AliasChoices("NEO4J_USER", "NEO4J_USERNAME"),
+    )
     neo4j_password: str = ""
     neo4j_database: str = "neo4j"
 

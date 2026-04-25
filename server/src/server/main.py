@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         projection = Neo4jProjection(
             SyncConfig(
                 neo4j_uri=settings.neo4j_uri,
-                neo4j_user=settings.neo4j_username,
+                neo4j_user=settings.neo4j_user,
                 neo4j_password=settings.neo4j_password,
                 neo4j_database=settings.neo4j_database,
                 supabase_url=settings.supabase_url,
