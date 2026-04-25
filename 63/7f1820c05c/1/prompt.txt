@@ -1,0 +1,63 @@
+Ok, lass uns WS-5 planen und umsetzen, können wir das während andere Leute gerade an anderen WS arbeiten (siehe workstreams.md)
+
+---
+
+Habe glaube ich alles für die env hinzugefügt
+
+---
+
+Aber ich habe die Sachen 1 zu 1 aus der Vorlage von Neo4j selbst kopiert
+
+---
+
+[Image #1]
+
+---
+
+Aber das sind die richtigen Werte
+
+---
+
+Die Werte stimmen zu einhundert prozent. Gehe einmal online in die Dokumentation und versuche dich an sie zu halten
+
+---
+
+https://neo4j.com/docs/aura/getting-started/connect-instance/#_instance_credentials
+
+sag mir wie ich resette
+
+---
+
+Habe ein neues erstellt und das alte gelöscht, was brauchst du eingetragen
+
+---
+
+Ok habe das neue hinzugefügt
+
+---
+
+CREATE USER ws5 SET PASSWORD 'TechEurope-WS5-Hack2026!' CHANGE NOT REQUIRED;
+
+Neo.ClientError.Security.Forbidden
+Permission has not been granted for CREATE USER. Try executing SHOW USER PRIVILEGES to determine the missing or denied privileges. In case of missing privileges, they need to be granted (See GRANT). In case of denied privileges, they need to be revoked (See REVOKE) and granted.
+GRANT ROLE admin TO ws5;
+
+---
+
+[Image #3] Was mache falsch?
+
+---
+
+[Image #4]
+
+---
+
+DU hast eine MCP verbindung zu supabase
+
+---
+
+Wir nehmen die neuen keys, es gibt publishable und secret key
+
+---
+
+Es sind die richtigen in env drinnen

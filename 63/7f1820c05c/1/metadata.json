@@ -1,0 +1,239 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "637f1820c05c",
+  "session_id": "60294954-bc73-44f3-a951-6633f66d8e32",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T15:17:50.702432Z",
+  "branch": "Lasse",
+  "checkpoints_count": 16,
+  "files_touched": [
+    "server/.env.example",
+    "server/pyproject.toml",
+    "server/src/server/__init__.py",
+    "server/src/server/api/__init__.py",
+    "server/src/server/api/cypher.py",
+    "server/src/server/config.py",
+    "server/src/server/main.py",
+    "server/src/server/sync/neo4j_projection.py",
+    "server/tests/__init__.py",
+    "server/tests/conftest.py",
+    "server/tests/test_neo4j_projection.py",
+    "server/uv.lock"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "b89a0e8b1dd9",
+  "checkpoint_transcript_start": 26,
+  "transcript_lines_at_start": 26,
+  "token_usage": {
+    "input_tokens": 259,
+    "cache_creation_tokens": 266889,
+    "cache_read_tokens": 21710427,
+    "output_tokens": 87613,
+    "api_call_count": 154
+  },
+  "session_metrics": {
+    "turn_count": 16
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T15:17:50.648977Z",
+    "agent_lines": 561,
+    "agent_removed": 40,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 561,
+    "total_lines_changed": 601,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 206,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1421,
+      "agent_lines_removed": 27
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 34,
+      "user_lines_removed": 2,
+      "agent_lines_added": 1446,
+      "agent_lines_removed": 30,
+      "user_added_per_file": {
+        "server/scripts/gen_pioneer_training.py": 2,
+        "server/src/server/extractors/gemini.py": 32
+      },
+      "user_removed_per_file": {
+        "server/scripts/gen_pioneer_training.py": 1,
+        "server/src/server/extractors/gemini.py": 1
+      }
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 34,
+      "user_lines_removed": 2,
+      "agent_lines_added": 1447,
+      "agent_lines_removed": 31,
+      "user_added_per_file": {
+        "server/scripts/gen_pioneer_training.py": 2,
+        "server/src/server/extractors/gemini.py": 32
+      },
+      "user_removed_per_file": {
+        "server/scripts/gen_pioneer_training.py": 1,
+        "server/src/server/extractors/gemini.py": 1
+      }
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1511,
+      "agent_lines_removed": 31
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 159,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1511,
+      "agent_lines_removed": 31,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1,
+        "data/training/pioneer_training.jsonl": 158
+      }
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 300,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1511,
+      "agent_lines_removed": 31,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1,
+        "data/training/pioneer_training.jsonl": 299
+      }
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 300,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1511,
+      "agent_lines_removed": 31,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1,
+        "data/training/pioneer_training.jsonl": 299
+      }
+    },
+    {
+      "checkpoint_number": 10,
+      "user_lines_added": 300,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1511,
+      "agent_lines_removed": 31,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1,
+        "data/training/pioneer_training.jsonl": 299
+      }
+    },
+    {
+      "checkpoint_number": 11,
+      "user_lines_added": 300,
+      "user_lines_removed": 0,
+      "agent_lines_added": 2008,
+      "agent_lines_removed": 31,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1,
+        "data/training/pioneer_training.jsonl": 299
+      }
+    },
+    {
+      "checkpoint_number": 12,
+      "user_lines_added": 300,
+      "user_lines_removed": 0,
+      "agent_lines_added": 2008,
+      "agent_lines_removed": 31,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1,
+        "data/training/pioneer_training.jsonl": 299
+      }
+    },
+    {
+      "checkpoint_number": 13,
+      "user_lines_added": 300,
+      "user_lines_removed": 0,
+      "agent_lines_added": 2008,
+      "agent_lines_removed": 31,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1,
+        "data/training/pioneer_training.jsonl": 299
+      }
+    },
+    {
+      "checkpoint_number": 14,
+      "user_lines_added": 300,
+      "user_lines_removed": 0,
+      "agent_lines_added": 2013,
+      "agent_lines_removed": 32,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1,
+        "data/training/pioneer_training.jsonl": 299
+      }
+    },
+    {
+      "checkpoint_number": 15,
+      "user_lines_added": 300,
+      "user_lines_removed": 0,
+      "agent_lines_added": 2013,
+      "agent_lines_removed": 32,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1,
+        "data/training/pioneer_training.jsonl": 299
+      }
+    },
+    {
+      "checkpoint_number": 16,
+      "user_lines_added": 302,
+      "user_lines_removed": 2,
+      "agent_lines_added": 2023,
+      "agent_lines_removed": 40,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1,
+        "data/training/pioneer_training.jsonl": 299,
+        "server/scripts/convert_to_gliner2.py": 2
+      },
+      "user_removed_per_file": {
+        "server/scripts/convert_to_gliner2.py": 2
+      }
+    },
+    {
+      "checkpoint_number": 17,
+      "user_lines_added": 302,
+      "user_lines_removed": 2,
+      "agent_lines_added": 2041,
+      "agent_lines_removed": 40,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1,
+        "data/training/pioneer_training.jsonl": 299,
+        "server/scripts/convert_to_gliner2.py": 2
+      },
+      "user_removed_per_file": {
+        "server/scripts/convert_to_gliner2.py": 2
+      }
+    }
+  ]
+}
