@@ -7,9 +7,11 @@ even when env vars are absent (useful for unit tests and dry-run imports).
 from __future__ import annotations
 
 import logging
+from functools import lru_cache
 from typing import Any
 
 from server.config import settings
+from server.gemini_budget import gemini_call
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +61,7 @@ def get_gemini():
 
 
 _EMBEDDING_MODELS = ("gemini-embedding-001", "text-embedding-004")
+_EMBEDDING_BATCH_MAX = 100
 _COMPANY_SUFFIXES = (
     " inc", " ltd", " limited", " gmbh", " bv", " corp", " corporation",
     " ag", " sa", " s.a.", " llc", " l.l.c.", " co", " co.",
@@ -80,24 +83,28 @@ def normalize_for_embedding(text: str) -> str:
     return " ".join(text.split())
 
 
-def embed_text(text: str, dimensions: int = 768) -> list[float] | None:
-    """Embed text using Gemini. Tries newer model first, falls back to legacy.
-
-    Returns None if both models fail (caller should treat as "skip Tier 3").
-    """
-    if not text:
+def _embed_single(normalized: str, dimensions: int) -> list[float] | None:
+    """Single-text embed with model+prefix fallback, all under gemini_call."""
+    if not normalized:
         return None
     client = get_gemini()
-    normalized = normalize_for_embedding(text)
     last_err: Exception | None = None
     for model_id in _EMBEDDING_MODELS:
         for prefix in ("", "models/"):
-            try:
-                response = client.models.embed_content(
-                    model=f"{prefix}{model_id}",
+            full_model = f"{prefix}{model_id}"
+
+            def _do_call(_m=full_model):
+                return client.models.embed_content(
+                    model=_m,
                     contents=normalized,
                     config={"output_dimensionality": dimensions},
                 )
+
+            try:
+                response = gemini_call(full_model, _do_call)
+                if response is None:
+                    # cap/cooldown — don't keep trying other models
+                    return None
                 emb = response.embeddings[0]
                 vec = list(getattr(emb, "values", None) or emb)
                 if len(vec) == dimensions:
@@ -105,8 +112,49 @@ def embed_text(text: str, dimensions: int = 768) -> list[float] | None:
             except Exception as exc:
                 last_err = exc
                 continue
-    logger.warning("embed_text exhausted all models for %r: %s", text[:40], last_err)
+    logger.warning("embed_text exhausted all models for %r: %s", normalized[:40], last_err)
     return None
+
+
+@lru_cache(maxsize=2048)
+def _cached_embed(normalized: str, dimensions: int) -> tuple[float, ...] | None:
+    """LRU-cached embedding. Tuple to be hashable; converted back at call site."""
+    vec = _embed_single(normalized, dimensions)
+    return tuple(vec) if vec is not None else None
+
+
+def embed_text(text: str, dimensions: int = 768) -> list[float] | None:
+    """Embed text using Gemini. LRU-cached on the normalized text.
+
+    Returns None if both models fail (caller should treat as "skip Tier 3").
+    """
+    if not text:
+        return None
+    normalized = normalize_for_embedding(text)
+    cached = _cached_embed(normalized, dimensions)
+    return list(cached) if cached is not None else None
+
+
+def embed_texts(texts: list[str], dimensions: int = 768) -> list[list[float] | None]:
+    """Batch embed many texts. Cache-first; misses fall through per-text.
+
+    Returns a list aligned with ``texts``. Items can be None individually if
+    the API failed for that slot. Returns all-None when budget is exhausted
+    (every per-text call short-circuits via ``gemini_call``).
+    """
+    if not texts:
+        return []
+    results: list[list[float] | None] = [None] * len(texts)
+    for i, raw in enumerate(texts):
+        if not raw:
+            continue
+        norm = normalize_for_embedding(raw)
+        if not norm:
+            continue
+        vec = _cached_embed(norm, dimensions)
+        if vec is not None:
+            results[i] = list(vec)
+    return results
 
 
 # ---------------------------------------------------------------------------

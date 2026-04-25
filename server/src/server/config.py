@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
 
+    # Gemini budget guardrails (process-wide; see gemini_budget.py)
+    gemini_hard_cap_total: int = 3000
+    gemini_cooldown_seconds: int = 300
+    gemini_per_minute_limit: int = 50
+
     # Neo4j (read-only projection — WS-5)
     # Empty `neo4j_uri` disables the projection worker; the app stays Postgres-only.
     # Accepts both NEO4J_USER (default) and NEO4J_USERNAME (Aura .env convention).
