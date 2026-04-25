@@ -67,6 +67,50 @@ def _client() -> genai.Client:
     return genai.Client(api_key=settings.gemini_api_key)
 
 
+_MENTION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "names": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["names"],
+}
+
+_MENTION_PROMPT = (
+    "You receive the body of an enterprise email. "
+    "List the full names of any *third-party people* mentioned in the text "
+    "(exclude the sender and recipient — only people referenced in passing). "
+    "Return JSON: {\"names\": [\"Full Name\", ...]}. "
+    "If no third parties are named, return {\"names\": []}."
+)
+
+
+def extract_mentions(text: str) -> list[str]:
+    """Return names of people mentioned in an email body (third parties only).
+
+    Raises RuntimeError when GEMINI_API_KEY is unset so callers can distinguish
+    'unavailable' from 'succeeded with zero mentions'.
+    """
+    if not settings.gemini_api_key:
+        raise RuntimeError("GEMINI_API_KEY not set")
+    if not text.strip():
+        return []
+    import json as _json
+    resp = _client().models.generate_content(
+        model=settings.gemini_model,
+        contents=[text],
+        config=genai_types.GenerateContentConfig(
+            system_instruction=_MENTION_PROMPT,
+            response_mime_type="application/json",
+            response_schema=_MENTION_SCHEMA,
+            temperature=0.1,
+        ),
+    )
+    if not resp.text:
+        return []
+    data = _json.loads(resp.text)
+    return [str(n).strip() for n in data.get("names", []) if str(n).strip()]
+
+
 def extract(text: str, source_type: str = "unknown", model: str | None = None) -> ExtractionResult:
     resp = _client().models.generate_content(
         model=model or settings.gemini_model,
