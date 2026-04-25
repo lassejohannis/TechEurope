@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from server.resolver.normalize import normalize_name
-from server.resolver.embed import build_embedding_text, get_name_embedding
+from server.resolver.embed import get_name_embedding
 
 logger = logging.getLogger(__name__)
 
