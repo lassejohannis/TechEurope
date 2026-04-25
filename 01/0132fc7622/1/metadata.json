@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "010132fc7622",
+  "session_id": "43003030-6411-41de-8c03-b4da450d5896",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T20:47:49.006097Z",
+  "branch": "Lasse",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/api-consumer-guide.md",
+    "docs/api/qontext-bruno/bruno.json",
+    "docs/api/qontext-bruno/create-webhook.bru",
+    "docs/api/qontext-bruno/edit-fact.bru",
+    "docs/api/qontext-bruno/environments/local.bru",
+    "docs/api/qontext-bruno/get-entity.bru",
+    "docs/api/qontext-bruno/health.bru",
+    "docs/api/qontext-bruno/neighborhood.bru",
+    "server/scripts/smoke_api_layer.py",
+    "server/src/server/api/facts.py",
+    "server/src/server/eval/questions.yaml",
+    "server/src/server/mcp/server.py",
+    "server/src/server/mcp/stdio.py",
+    "server/src/server/sync/webhook_dispatcher.py",
+    "web/package.json"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "31c65e673b53",
+  "token_usage": {
+    "input_tokens": 651,
+    "cache_creation_tokens": 430122,
+    "cache_read_tokens": 63520689,
+    "output_tokens": 182578,
+    "api_call_count": 326
+  },
+  "session_metrics": {
+    "turn_count": 33
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T20:47:48.887256Z",
+    "agent_lines": 977,
+    "agent_removed": 18,
+    "human_added": 827,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1804,
+    "total_lines_changed": 1822,
+    "agent_percentage": 54.61031833150384,
+    "metric_version": 2
+  }
+}
