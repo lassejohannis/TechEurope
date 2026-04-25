@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Optional
 from pydantic import BaseModel, Field
 
 from server.config import settings
-from server.utils.normalize import parse_currency, parse_date_iso
 
 
 class InvoiceLineItem(BaseModel):

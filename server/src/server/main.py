@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -70,7 +70,7 @@ async def reload_ontologies() -> dict[str, object]:
             ontology = load_yaml(path)
             upsert_to_db(client, ontology)
         mode = "applied"
-    except Exception as exc:  # no creds or client error → dry run only
+    except Exception:  # no creds or client error → dry run only
         # We remain quiet for missing creds to keep endpoint usable in dev
         mode = "dry-run"
     return {"loaded": loaded, "mode": mode}
