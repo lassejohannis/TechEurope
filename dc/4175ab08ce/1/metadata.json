@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "dc4175ab08ce",
+  "session_id": "60294954-bc73-44f3-a951-6633f66d8e32",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T21:12:24.500487Z",
+  "branch": "Lasse",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "server/src/server/cli.py",
+    "server/src/server/extractors/gemini_structured.py",
+    "server/src/server/ontology/propose.py"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "4ce7befd5c8e",
+  "checkpoint_transcript_start": 3641,
+  "transcript_lines_at_start": 3641,
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 8266,
+    "cache_read_tokens": 1150280,
+    "output_tokens": 5118,
+    "api_call_count": 14
+  },
+  "session_metrics": {
+    "turn_count": 60
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T21:12:24.330833Z",
+    "agent_lines": 63,
+    "agent_removed": 28,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 63,
+    "total_lines_changed": 91,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
