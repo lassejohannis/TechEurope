@@ -29,6 +29,7 @@ dev = [
 
 [project.scripts]
 server = "server.cli:main"
+server-eval = "server.eval.harness:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
