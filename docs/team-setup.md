@@ -19,8 +19,9 @@ Then a **kickoff agenda** for Day 1 + a **risk register** to keep us honest.
   - Redeem discount code `COMM-BIG-PVDK` (in `NOTES.local.md`) under Settings → Plans & Credits → Pro Plan 1 (monthly)
   - **Must redeem before end of event.** Do it tonight.
 - [ ] **Entire** — https://entire.io
-  - Install CLI: https://docs.entire.io/cli/installation
-  - `entire --version` should work locally
+  - Install CLI: `brew install --cask entire` (macOS) or see https://docs.entire.io/cli/installation
+  - `entire login` once — auth persists globally across all your terminals
+  - **Don't run `entire` (init) inside the repo** — Lasse already did. Hooks live in `.claude/settings.json` and the orphan branch `entire/checkpoints/v1` is set up. Cloning + login is enough; tracking is automatic from your first prompt.
 - [ ] **Pioneer / Fastino** — https://pioneer.ai (only if Day-1 picks Path A — see [stack.md](stack.md))
   - Read the Big Berlin Hack onboarding page (linked in hack's Notion)
   - Skim GLiNER2 docs
@@ -54,6 +55,16 @@ The repo ships a project-scoped MCP config in [`.mcp.json`](../.mcp.json) and pr
 
 - **Supabase** — hosted MCP at `https://mcp.supabase.com/mcp`, scoped to project `iaxcvofompnmzxxdymmm`. Read + write (approvals fired by Claude Code per session). Auth: per-user OAuth in browser.
 - **shadcn** — stdio server via `npx shadcn@latest mcp`. Tools: browse components, search registries, install via natural language. No auth needed.
+
+### Entire — agent session tracking
+
+Hooks are wired in `.claude/settings.json` (project-scoped). Every Claude Code session in this repo automatically logs to `.entire/` and pushes checkpoints to the orphan branch `entire/checkpoints/v1`. Parallel sessions in multiple terminals all track independently. Useful commands once installed + logged in:
+
+- `entire activity` — dashboard of recent agent work (yours + teammates')
+- `entire dispatch` — auto-generate a status report from recent sessions (Slack-/Notion-ready)
+- `entire explain <session>` — human-readable summary of one session
+
+Side-prize angle: Entire's "Best use of Entire" challenge ($1000 + Switch 2 + PS5 + Xbox). Just confirm usage in the submission.
 
 ### Step 1 — Pull the repo
 
