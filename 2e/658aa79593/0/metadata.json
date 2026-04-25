@@ -1,0 +1,145 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "2e658aa79593",
+  "session_id": "12c0983c-bf52-4a45-9fb9-7f90b87265d5",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T20:22:49.395297Z",
+  "branch": "Lasse",
+  "checkpoints_count": 9,
+  "files_touched": [
+    "server/migrations/011_autonomous_ontology.sql",
+    "server/migrations/012_seed_primitives.sql",
+    "server/pyproject.toml",
+    "server/src/server/api/admin.py",
+    "server/src/server/ontology/engine.py",
+    "server/src/server/ontology/jsonata_eval.py",
+    "server/uv.lock"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "070fb3944d90",
+  "token_usage": {
+    "input_tokens": 268,
+    "cache_creation_tokens": 388561,
+    "cache_read_tokens": 14219144,
+    "output_tokens": 81515,
+    "api_call_count": 106
+  },
+  "session_metrics": {
+    "turn_count": 13
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T20:22:49.372106Z",
+    "agent_lines": 719,
+    "agent_removed": 4,
+    "human_added": 767,
+    "human_modified": 59,
+    "human_removed": 0,
+    "total_committed": 1545,
+    "total_lines_changed": 1567,
+    "agent_percentage": 46.139119336311424,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 9330,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1875,
+      "agent_lines_removed": 74,
+      "user_added_per_file": {
+        "data/training/comparison.json": 6878,
+        "data/training/eval_holdout.jsonl": 30,
+        "data/training/eval_v2.json": 1111,
+        "data/training/pioneer_versions.json": 252,
+        "server/scripts/compare_pioneer_versions.py": 154,
+        "server/scripts/eval_extractors.py": 392,
+        "server/scripts/pioneer_pipeline.py": 352,
+        "server/src/server/extractors/prompt.py": 161
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 11654,
+      "agent_lines_removed": 74
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 11654,
+      "agent_lines_removed": 74
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 6,
+      "user_lines_removed": 2,
+      "agent_lines_added": 11821,
+      "agent_lines_removed": 74,
+      "user_added_per_file": {
+        "server/scripts/pioneer_pipeline.py": 6
+      },
+      "user_removed_per_file": {
+        "server/scripts/pioneer_pipeline.py": 2
+      }
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 6,
+      "user_lines_removed": 2,
+      "agent_lines_added": 11821,
+      "agent_lines_removed": 74,
+      "user_added_per_file": {
+        "server/scripts/pioneer_pipeline.py": 6
+      },
+      "user_removed_per_file": {
+        "server/scripts/pioneer_pipeline.py": 2
+      }
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 6,
+      "user_lines_removed": 2,
+      "agent_lines_added": 11821,
+      "agent_lines_removed": 74,
+      "user_added_per_file": {
+        "server/scripts/pioneer_pipeline.py": 6
+      },
+      "user_removed_per_file": {
+        "server/scripts/pioneer_pipeline.py": 2
+      }
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 80,
+      "user_lines_removed": 19,
+      "agent_lines_added": 12796,
+      "agent_lines_removed": 74,
+      "user_added_per_file": {
+        "server/scripts/pioneer_pipeline.py": 6,
+        "server/src/server/ontology/propose.py": 74
+      },
+      "user_removed_per_file": {
+        "server/scripts/pioneer_pipeline.py": 2,
+        "server/src/server/ontology/propose.py": 17
+      }
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 80,
+      "user_lines_removed": 19,
+      "agent_lines_added": 12796,
+      "agent_lines_removed": 74,
+      "user_added_per_file": {
+        "server/scripts/pioneer_pipeline.py": 6,
+        "server/src/server/ontology/propose.py": 74
+      },
+      "user_removed_per_file": {
+        "server/scripts/pioneer_pipeline.py": 2,
+        "server/src/server/ontology/propose.py": 17
+      }
+    }
+  ]
+}

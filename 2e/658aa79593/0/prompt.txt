@@ -1,0 +1,68 @@
+14. Schnittstelle für Software & AI (Lasse)
+
+/api/entities/{id}?as_of= (siehe Temporal State)
+/api/facts/{id}/validate, /flag, /edit
+/api/graph/neighborhood/{entity_id}
+/api/admin/reingest (siehe Update Propagation)
+/api/admin/pending-types (siehe Autonome Ontologie)
+JWT-Auth-Middleware für /api/* (Supabase)
+MCP-Token-Auth (agent_tokens-Tabelle + Header-Check)
+Rate Limiting (slowapi)
+Cursor-Pagination
+Webhook-Outbound (HMAC-signed)
+docs/api-consumer-guide.md
+TypeScript / Python SDK (optional)
+Postman / Bruno Collection (optional)
+MCP stdio-Transport zusätzlich zu SSE (optional) Lass uns die Changes planen, schaue dir davor nochmal das projekt genau an und verstehe es
+
+---
+
+MAche das außer das zeug für die demo
+
+---
+
+Welchen Key brauche ich genau von Supabase, kann es sein, dass der legacy ist?
+
+---
+
+habe b genommen und alles eingetragen glaube ich
+
+---
+
+ok done
+
+---
+
+Das heißt jedes Tool und jede AI kann auf den Service zugreifen über MCP oder was auch sonst?
+
+---
+
+Ich muss also das ding irgendwann nur noch auf bspw vultr deployen?
+
+---
+
+ok teste nochmal alles durch was getestet werden muss
+
+---
+
+mus noch was getestet werden?
+
+---
+
+<task-notification>
+<task-id>biw4k7uyk</task-id>
+<summary>Monitor event: "Wait for pytest then dump summary"</summary>
+<event>[Monitor timed out — re-arm if needed.]</event>
+</task-notification>
+
+---
+
+ja mach gerne
+
+---
+
+was macht die shell gerade noch
+
+---
+
+Also haben wir diesen Part hier sauber abgeschlossen oder?
