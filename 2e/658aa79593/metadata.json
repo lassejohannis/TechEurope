@@ -3,7 +3,7 @@
   "checkpoint_id": "2e658aa79593",
   "strategy": "manual-commit",
   "branch": "Lasse",
-  "checkpoints_count": 16,
+  "checkpoints_count": 20,
   "files_touched": [
     "server/migrations/011_autonomous_ontology.sql",
     "server/migrations/012_seed_primitives.sql",
@@ -26,13 +26,19 @@
       "transcript": "/2e/658aa79593/1/full.jsonl",
       "content_hash": "/2e/658aa79593/1/content_hash.txt",
       "prompt": "/2e/658aa79593/1/prompt.txt"
+    },
+    {
+      "metadata": "/2e/658aa79593/2/metadata.json",
+      "transcript": "/2e/658aa79593/2/full.jsonl",
+      "content_hash": "/2e/658aa79593/2/content_hash.txt",
+      "prompt": "/2e/658aa79593/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 919,
-    "cache_creation_tokens": 818683,
-    "cache_read_tokens": 77739833,
-    "output_tokens": 264093,
-    "api_call_count": 432
+    "input_tokens": 1005,
+    "cache_creation_tokens": 1688468,
+    "cache_read_tokens": 128637053,
+    "output_tokens": 320930,
+    "api_call_count": 493
   }
 }

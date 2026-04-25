@@ -1,0 +1,108 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "2e658aa79593",
+  "session_id": "60294954-bc73-44f3-a951-6633f66d8e32",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T20:22:55.354979Z",
+  "branch": "Lasse",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "server/pyproject.toml",
+    "server/src/server/api/admin.py",
+    "server/uv.lock"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "1c55aed607ca",
+  "checkpoint_transcript_start": 2922,
+  "transcript_lines_at_start": 2922,
+  "token_usage": {
+    "input_tokens": 86,
+    "cache_creation_tokens": 869785,
+    "cache_read_tokens": 50897220,
+    "output_tokens": 56837,
+    "api_call_count": 61
+  },
+  "session_metrics": {
+    "turn_count": 53
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T20:22:55.207043Z",
+    "agent_lines": 298,
+    "agent_removed": 0,
+    "human_added": 1160,
+    "human_modified": 42,
+    "human_removed": 0,
+    "total_committed": 1500,
+    "total_lines_changed": 1518,
+    "agent_percentage": 19.63109354413702,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 6,
+      "user_lines_removed": 2,
+      "agent_lines_added": 11654,
+      "agent_lines_removed": 74,
+      "user_added_per_file": {
+        "server/scripts/pioneer_pipeline.py": 6
+      },
+      "user_removed_per_file": {
+        "server/scripts/pioneer_pipeline.py": 2
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 6,
+      "user_lines_removed": 2,
+      "agent_lines_added": 11654,
+      "agent_lines_removed": 74,
+      "user_added_per_file": {
+        "server/scripts/pioneer_pipeline.py": 6
+      },
+      "user_removed_per_file": {
+        "server/scripts/pioneer_pipeline.py": 2
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 6,
+      "user_lines_removed": 2,
+      "agent_lines_added": 11654,
+      "agent_lines_removed": 74,
+      "user_added_per_file": {
+        "server/scripts/pioneer_pipeline.py": 6
+      },
+      "user_removed_per_file": {
+        "server/scripts/pioneer_pipeline.py": 2
+      }
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 22,
+      "user_lines_removed": 23,
+      "agent_lines_added": 11826,
+      "agent_lines_removed": 74,
+      "user_added_per_file": {
+        "server/pyproject.toml": 1,
+        "server/scripts/pioneer_pipeline.py": 6,
+        "server/src/server/auth/tokens.py": 13,
+        "server/uv.lock": 2
+      },
+      "user_removed_per_file": {
+        "server/pyproject.toml": 1,
+        "server/scripts/pioneer_pipeline.py": 2,
+        "server/src/server/auth/tokens.py": 4,
+        "server/uv.lock": 16
+      }
+    }
+  ]
+}
