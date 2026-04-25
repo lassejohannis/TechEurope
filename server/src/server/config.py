@@ -19,7 +19,9 @@ class Settings(BaseSettings):
 
     # Supabase
     supabase_url: str = ""
-    supabase_anon_key: str = ""
+    supabase_publishable_key: str = ""   # SUPABASE_PUBLISHABLE_KEY (anon)
+    supabase_secret_key: str = ""        # SUPABASE_SECRET_KEY (service_role)
+    # legacy alias — kept so old code that reads supabase_service_key still works
     supabase_service_key: str = ""
 
     # Gemini (Google DeepMind partner)

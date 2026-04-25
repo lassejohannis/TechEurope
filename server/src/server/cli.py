@@ -6,6 +6,7 @@ Usage examples:
   - `uv run server ingest --connector email --path data/enterprise-bench/`
   - `uv run server status`
   - `uv run server discover --connector all --path data/enterprise-bench` (dry-run)
+  - `uv run server reprocess` (marks to re-derive; WS-2 hook later)
 """
 
 from __future__ import annotations
@@ -360,6 +361,20 @@ def main() -> None:
         # backward-compatible default: start dev server
         return cmd_dev()
     cli()
+
+
+@cli.command("reprocess")
+def cmd_reprocess() -> None:
+    """List facts with status=needs_refresh (WS-1.6) for re-derivation.
+
+    WS-2 will plug resolvers here. For now, we only report counts.
+    """
+    supabase = get_supabase()
+    res = supabase.table("facts").select("id").eq("status", "needs_refresh").execute()
+    ids = [r["id"] for r in res.data or []]
+    typer.echo(f"needs_refresh facts: {len(ids)}")
+    for i in ids[:20]:
+        typer.echo(f"  - {i}")
 
 
 if __name__ == "__main__":
