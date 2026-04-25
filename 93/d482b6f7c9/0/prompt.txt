@@ -1,0 +1,137 @@
+14. Schnittstelle für Software & AI (Lasse)
+
+/api/entities/{id}?as_of= (siehe Temporal State)
+/api/facts/{id}/validate, /flag, /edit
+/api/graph/neighborhood/{entity_id}
+/api/admin/reingest (siehe Update Propagation)
+/api/admin/pending-types (siehe Autonome Ontologie)
+JWT-Auth-Middleware für /api/* (Supabase)
+MCP-Token-Auth (agent_tokens-Tabelle + Header-Check)
+Rate Limiting (slowapi)
+Cursor-Pagination
+Webhook-Outbound (HMAC-signed)
+docs/api-consumer-guide.md
+TypeScript / Python SDK (optional)
+Postman / Bruno Collection (optional)
+MCP stdio-Transport zusätzlich zu SSE (optional) Lass uns die Changes planen, schaue dir davor nochmal das projekt genau an und verstehe es
+
+---
+
+MAche das außer das zeug für die demo
+
+---
+
+Welchen Key brauche ich genau von Supabase, kann es sein, dass der legacy ist?
+
+---
+
+habe b genommen und alles eingetragen glaube ich
+
+---
+
+ok done
+
+---
+
+Das heißt jedes Tool und jede AI kann auf den Service zugreifen über MCP oder was auch sonst?
+
+---
+
+Ich muss also das ding irgendwann nur noch auf bspw vultr deployen?
+
+---
+
+ok teste nochmal alles durch was getestet werden muss
+
+---
+
+mus noch was getestet werden?
+
+---
+
+<task-notification>
+<task-id>biw4k7uyk</task-id>
+<summary>Monitor event: "Wait for pytest then dump summary"</summary>
+<event>[Monitor timed out — re-arm if needed.]</event>
+</task-notification>
+
+---
+
+ja mach gerne
+
+---
+
+was macht die shell gerade noch
+
+---
+
+Also haben wir diesen Part hier sauber abgeschlossen oder?
+
+---
+
+Resolver auf alle hr_records laufen lassen (check Raj Patel + Engineering Director)
+uv run server-eval Run + HTML-Report (≥6/8 PASS)
+Live-Test gegen search_memory MCP-Tool
+GDPR-Demo-Script scripts/gdpr_delete_demo.sh
+
+Lass uns das hier angehen, durchsuche aber erstmal das Projekt, ich glaube das das schon alles gelöst ist
+
+---
+
+<task-notification>
+<task-id>b3y2qm2v2</task-id>
+<summary>Monitor event: "Wait for server then proceed"</summary>
+<event>[Monitor timed out — re-arm if needed.]</event>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>blz67jquy</task-id>
+<tool-use-id>toolu_01FeJFip5wbC2aWbGiCWPobi</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-lassejohannis-Desktop-TechEurope/12c0983c-bf52-4a45-9fb9-7f90b87265d5/tasks/blz67jquy.output</output-file>
+<status>completed</status>
+<summary>Background command "Start dev server and wait for boot" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Können wir während ein anderer Chat noch sachen abarbeitet einmal die neuen sachen aus main ziehen und hier reinmergen?
+
+---
+
+Du bist jetzt der einzige Chat der läuft. Ich möchte, dass du alles sauber merged. Wenn wir alles gemerged haben sollten alle todos abgearbeitet sein und zusammen in einer branch sein
+
+---
+
+<task-notification>
+<task-id>b3bbu5ubb</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-lassejohannis-Desktop-TechEurope/12c0983c-bf52-4a45-9fb9-7f90b87265d5/tasks/b3bbu5ubb.output</output-file>
+<status>completed</status>
+<summary>Background command "Quick smoke pass/fail count" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+push das mal kurz auch auf main
+
+---
+
+ja ok
+
+---
+
+Ich verliere nichts mit dem force push oder
+
+---
+
+Easy
+
+---
+
+Kannst du einmal testen mit was für einem account ich pushe, ich glaube da ist noch sowas wie ein nicht mehr existierender Lajonaise Account hinterlegt bzw eine falsche mail. mein account inzwischen ist lassejohannis (lasse.johannis@thinc.de)
+
+---
+
+Kannst du einmal einen mit main mergen und dann einen test push auf main machen

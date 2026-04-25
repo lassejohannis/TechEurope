@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "93d482b6f7c9",
+  "strategy": "manual-commit",
+  "branch": "Lasse",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "server/src/server/api/vfs.py",
+    "server/src/server/cli.py",
+    "server/src/server/sync/neo4j_projection.py"
+  ],
+  "sessions": [
+    {
+      "metadata": "/93/d482b6f7c9/0/metadata.json",
+      "transcript": "/93/d482b6f7c9/0/full.jsonl",
+      "content_hash": "/93/d482b6f7c9/0/content_hash.txt",
+      "prompt": "/93/d482b6f7c9/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 511,
+    "cache_creation_tokens": 585010,
+    "cache_read_tokens": 65940223,
+    "output_tokens": 170848,
+    "api_call_count": 274
+  }
+}
