@@ -131,3 +131,7 @@ Easy
 ---
 
 Kannst du einmal testen mit was für einem account ich pushe, ich glaube da ist noch sowas wie ein nicht mehr existierender Lajonaise Account hinterlegt bzw eine falsche mail. mein account inzwischen ist lassejohannis (lasse.johannis@thinc.de)
+
+---
+
+Kannst du einmal einen mit main mergen und dann einen test push auf main machen
