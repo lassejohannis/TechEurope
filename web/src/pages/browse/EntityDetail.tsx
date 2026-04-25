@@ -1,132 +1,162 @@
-import { Network } from 'lucide-react'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
-import { Skeleton } from '@/components/ui/skeleton'
-import { EntityTypeBadge } from '@/components/entity/EntityTypeBadge'
-import { FactRow } from '@/components/entity/FactRow'
-import { useEntity } from '@/hooks/useEntity'
+import Icon from '@/components/qontext/icon'
+import { ConfBadge, SourceBadge, SourceMiniStack, EntityPill } from '@/components/qontext/badges'
+import { INAZUMA } from '@/lib/inazuma-mock'
 
 interface Props {
   entityId: string | null
 }
 
-function LoadingSkeleton() {
-  return (
-    <div className="flex flex-col gap-4 p-4">
-      <div className="flex items-center gap-2">
-        <Skeleton className="h-5 w-16" />
-        <Skeleton className="h-6 w-48" />
-      </div>
-      <Skeleton className="h-px w-full" />
-      {[1, 2, 3, 4].map((i) => (
-        <div key={i} className="flex items-center justify-between">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-5 w-12" />
-        </div>
-      ))}
-    </div>
-  )
-}
-
 export default function EntityDetail({ entityId }: Props) {
-  const { data, isLoading, isError } = useEntity(entityId)
-
   if (!entityId) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-        <Network className="size-8 text-muted-foreground/40" />
-        <p className="text-sm text-muted-foreground">
-          Select an entity from the tree on the left to inspect its facts, provenance, and related
-          entities.
-        </p>
+      <div className="col col-center" style={{ alignItems: 'center', justifyContent: 'center' }}>
+        <div className="empty">
+          <div className="empty-card">
+            <div className="empty-icon"><Icon name="compass" size={26} /></div>
+            <div className="empty-title">Select an entity</div>
+            <div className="empty-text">Select an entity from the tree on the left to inspect its facts, provenance, and related entities.</div>
+          </div>
+        </div>
       </div>
     )
   }
 
-  if (isLoading) return <LoadingSkeleton />
-
-  if (isError || !data) {
-    return (
-      <div className="flex flex-col gap-4 p-4">
-        <p className="text-sm text-muted-foreground">
-          Backend not yet available. This panel will show full entity details once the API is live.
-        </p>
-        <Card>
-          <CardContent className="pt-4">
-            <p className="font-mono text-xs text-muted-foreground break-all">{entityId}</p>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  const liveFacts = data.facts.filter((f) => f.status === 'live' || f.status === 'disputed')
-  const disputedCount = data.facts.filter((f) => f.status === 'disputed').length
+  const e = INAZUMA.acme
+  const sources = INAZUMA.sources
 
   return (
-    <div className="flex flex-col gap-4 p-4">
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex flex-col gap-1.5">
-              <EntityTypeBadge type={data.entity.type} />
-              <h2 className="text-lg font-semibold leading-tight">{data.entity.canonical_name}</h2>
-              {data.entity.aliases.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Also known as: {data.entity.aliases.join(', ')}
-                </p>
-              )}
-            </div>
-            {disputedCount > 0 && (
-              <span className="shrink-0 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                {disputedCount} conflict{disputedCount > 1 ? 's' : ''}
+    <div className="col col-center">
+      <div className="panel-body">
+        <div className="detail">
+          <div className="detail-crumbs">
+            {e.crumbs.map((c, i) => (
+              <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <a href="#">{c}</a>
+                {i < e.crumbs.length - 1 && <Icon name="chevron-right" size={11} className="sep" />}
               </span>
-            )}
+            ))}
+            <span className="spacer" />
+            <span className="mono">{e.id}</span>
           </div>
-        </CardHeader>
 
-        <CardContent className="flex flex-col gap-0">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Facts
-          </p>
-          {liveFacts.length === 0 ? (
-            <p className="py-4 text-sm text-muted-foreground">
-              This entity has no live facts yet.
-            </p>
-          ) : (
-            liveFacts.map((fact, i) => (
-              <div key={fact.id}>
-                <FactRow fact={fact} />
-                {i < liveFacts.length - 1 && <Separator />}
+          <div className="detail-head">
+            <div className="detail-avatar brand">{e.avatar}</div>
+            <div className="detail-title-block">
+              <div className="detail-eyebrow">{e.eyebrow}</div>
+              <h1 className="detail-title">{e.canonical_name}</h1>
+              <div className="detail-aliases">
+                <em>aka</em>
+                {e.aliases.map((a, i) => (
+                  <span key={i}>{a}{i < e.aliases.length - 1 ? ', ' : ''}</span>
+                ))}
               </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
-
-      {data.related_entities.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Related entities
-            </p>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            {data.related_entities.map(({ entity, via_predicate }) => (
-              <div key={entity.id} className="flex items-center justify-between text-sm">
-                <span>{entity.canonical_name}</span>
-                <span className="text-xs text-muted-foreground capitalize">
-                  {via_predicate.replace(/_/g, ' ')}
+              <div className="detail-meta">
+                <span className="chip"><Icon name="check-circle" size={12} /> {e.status}</span>
+                <span className="chip outline">{e.stats.facts} facts · {e.stats.sources} sources</span>
+                <span className="chip outline">Last sync {e.stats.lastSync}</span>
+                <span className="chip" style={{ background: 'var(--conf-conflict-soft)', color: 'var(--conf-conflict)', fontWeight: 600 }}>
+                  <Icon name="alert" size={12} /> 1 disputed fact
                 </span>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+            </div>
+          </div>
 
-      <p className="text-xs text-muted-foreground">
-        Path: <span className="font-mono">{data.vfs_path}</span>
-      </p>
+          {/* Properties */}
+          <div className="detail-section">
+            <div className="detail-section-head">
+              <span className="detail-section-title">Properties</span>
+              <span className="detail-section-count">{e.facts.length}</span>
+              <span className="spacer" />
+              <div className="detail-section-actions">
+                <button className="action-btn" style={{ padding: '4px 8px', background: 'transparent', border: 'none', color: 'var(--text-secondary)', width: 'auto' }}>
+                  <Icon name="filter" size={13} /> Filter
+                </button>
+                <button className="action-btn" style={{ padding: '4px 8px', background: 'transparent', border: 'none', color: 'var(--text-secondary)', width: 'auto' }}>
+                  <Icon name="plus" size={13} /> Add fact
+                </button>
+              </div>
+            </div>
+            <div className="facts">
+              {e.facts.map((f, i) => (
+                <div className="fact-row" key={i}>
+                  <div className="fact-key">{f.key}</div>
+                  <div className={`fact-val${f.disputed ? ' disputed' : ''}`}>
+                    {f.link
+                      ? <a href="#" className="val-link">{f.val}</a>
+                      : <span className="val-text" style={f.mono ? { fontFamily: 'var(--font-mono)', fontSize: 12 } : {}}>{f.val}</span>
+                    }
+                    <ConfBadge level={f.conf} />
+                    <SourceMiniStack srcs={f.srcs} sources={sources} max={3} />
+                    {f.disputed && (
+                      <span className="chip" style={{ background: 'var(--conf-conflict)', color: 'white', fontWeight: 700, marginLeft: 'auto', cursor: 'pointer' }}>
+                        <Icon name="scale" size={11} /> Resolve →
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Relationships */}
+          <div className="detail-section">
+            <div className="detail-section-head">
+              <span className="detail-section-title">Relationships</span>
+              <span className="detail-section-count">{e.relations.length}</span>
+              <span className="spacer" />
+              <button className="action-btn" style={{ padding: '4px 8px', background: 'transparent', border: 'none', color: 'var(--text-secondary)', width: 'auto' }}>
+                <Icon name="graph" size={13} /> View graph
+              </button>
+            </div>
+            <div className="relations">
+              {e.relations.map((r, i) => (
+                <div className="relation-row" key={i}>
+                  <span className="relation-pred">{r.pred}</span>
+                  <span className="relation-target">
+                    <EntityPill entity={r.target} />
+                  </span>
+                  <span className="relation-meta">
+                    <ConfBadge level={r.conf} />
+                    <SourceMiniStack srcs={r.srcs} sources={sources} max={2} />
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Source attribution */}
+          <div className="detail-section">
+            <div className="detail-section-head">
+              <span className="detail-section-title">Source attribution</span>
+              <span className="detail-section-count">{e.sourceRecords.length}</span>
+              <span className="spacer" />
+              <span className="panel-sub">Provenance at fact level — every claim re-derived on hash change</span>
+            </div>
+            <div className="sources-list">
+              {e.sourceRecords.map((sr, i) => {
+                const s = sources[sr.id]
+                if (!s) return null
+                return (
+                  <div className="source-row" key={i}>
+                    <span className="src-icon-wrap">
+                      <SourceBadge src={s} mini />
+                    </span>
+                    <div className="source-info">
+                      <div className="source-title">{s.name}</div>
+                      <div className="source-meta">
+                        <span className="uri">{s.uri}</span>
+                        <span>·</span>
+                        <span>{s.date}</span>
+                      </div>
+                    </div>
+                    <div className="source-derived">{sr.facts} facts derived</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
