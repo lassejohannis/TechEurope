@@ -305,7 +305,7 @@ def _persist_fact(
                 "confidence": pf.confidence,
                 "source_id": source_id,
                 "extraction_method": pf.extraction_method,
-                "derivation": pf.derivation,
+                "qualifiers": {"derivation": pf.derivation} if pf.derivation else None,
             }
         ).execute()
         return True
@@ -332,8 +332,8 @@ def cmd_resolve(
     Idempotent: deterministic entity IDs (`{type}:{slug}`) mean re-running on
     the same records is safe.
     """
+    from server.ontology.engine import apply_mapping
     from server.resolver.cascade import resolve as cascade_resolve
-    from server.resolver.extract import extract_candidates
 
     db = get_supabase()
     q = db.table("source_records").select("id, source_type, payload")
@@ -344,6 +344,26 @@ def cmd_resolve(
 
     typer.echo(f"processing {len(records)} source_records …")
 
+    # Cache approved mapping configs once per source_type — avoids 28k DB
+    # roundtrips when running over the full corpus.
+    mapping_cache: dict[str, dict | None] = {}
+
+    def _mapping_for(stype: str) -> dict | None:
+        if stype not in mapping_cache:
+            r = (
+                db.table("source_type_mapping")
+                .select("config, status")
+                .eq("source_type", stype)
+                .limit(1)
+                .execute()
+            )
+            row = (r.data or [None])[0]
+            if row and row.get("status") == "approved":
+                mapping_cache[stype] = row.get("config") or {}
+            else:
+                mapping_cache[stype] = None
+        return mapping_cache[stype]
+
     stats = {
         "records": 0,
         "candidates": 0,
@@ -351,6 +371,7 @@ def cmd_resolve(
         "entities_merged": 0,
         "entities_inboxed": 0,
         "facts": 0,
+        "skipped_no_mapping": 0,
     }
 
     from server.gemini_budget import get_budget
@@ -360,7 +381,13 @@ def cmd_resolve(
             typer.echo("gemini cooldown active — stopping early")
             break
         stats["records"] += 1
-        candidates, pending_facts = extract_candidates(rec, llm_extract=llm_extract)
+        cfg = _mapping_for(rec.get("source_type") or "")
+        if cfg is None:
+            stats["skipped_no_mapping"] += 1
+            continue
+        candidates, pending_facts = apply_mapping(rec, cfg)
+        if not candidates and not pending_facts:
+            continue
         stats["candidates"] += len(candidates)
 
         # Resolve every candidate, building name → id map for facts.
@@ -699,6 +726,138 @@ def cmd_token_revoke(token_id: str) -> None:
         raise typer.Exit(code=1)
 
 
+@cli.command("infer-source-mappings")
+def cmd_infer_source_mappings(
+    sample_size: int = typer.Option(5, help="Sample records per source_type for inference"),
+    holdout_size: int = typer.Option(3, help="Held-out records used for validation"),
+    auto_approve: bool = typer.Option(
+        True,
+        help="Approve mappings even if they would normally route to the inbox",
+    ),
+    only: str | None = typer.Option(None, help="Run only for this source_type"),
+) -> None:
+    """For every source_type without an approved mapping, ask Gemini to design one.
+
+    Validates each proposal on a held-out sample and (by default) writes it
+    straight to ``source_type_mapping`` as ``status='approved'`` so the engine
+    picks it up immediately. New entity/edge types referenced by the proposal
+    are upserted into the type configs as ``approved`` so the FK trigger
+    accepts them.
+    """
+    from server.ontology.propose import (
+        infer_source_mapping,
+        persist_proposal,
+        validate_proposal,
+    )
+
+    db = get_supabase()
+
+    # Discover candidate source_types from source_records (paginate; default
+    # postgrest cap is 1000 rows so we'd otherwise miss minority types).
+    if only:
+        distinct_types = [only]
+    else:
+        seen: set[str] = set()
+        page, page_size = 0, 1000
+        while True:
+            res = (
+                db.table("source_records")
+                .select("source_type")
+                .range(page * page_size, (page + 1) * page_size - 1)
+                .execute()
+            )
+            rows = res.data or []
+            for r in rows:
+                if r.get("source_type"):
+                    seen.add(r["source_type"])
+            if len(rows) < page_size:
+                break
+            page += 1
+        distinct_types = sorted(seen)
+
+    typer.echo(f"source_types in scope: {distinct_types}")
+
+    for stype in distinct_types:
+        existing = (
+            db.table("source_type_mapping")
+            .select("status")
+            .eq("source_type", stype)
+            .limit(1)
+            .execute()
+        )
+        if existing.data and existing.data[0].get("status") == "approved":
+            typer.echo(f"  {stype}: already approved — skip")
+            continue
+
+        sample_res = (
+            db.table("source_records")
+            .select("id, source_type, payload")
+            .eq("source_type", stype)
+            .limit(sample_size + holdout_size)
+            .execute()
+        )
+        records = sample_res.data or []
+        if len(records) < 2:
+            typer.echo(f"  {stype}: only {len(records)} records — skip")
+            continue
+        sample = records[:sample_size]
+        holdout = records[sample_size : sample_size + holdout_size] or sample[-1:]
+
+        typer.echo(f"  {stype}: inferring mapping (samples={len(sample)}, holdout={len(holdout)}) …")
+        proposal = infer_source_mapping(stype, sample, db)
+        if proposal is None:
+            typer.echo(f"    ✗ inference returned None (likely budget/api)")
+            continue
+
+        stats = validate_proposal(proposal, holdout)
+        typer.echo(
+            f"    validation: ents={stats['entities_total']} facts={stats['facts_total']} "
+            f"entity_rate={stats['entity_rate']:.2f} fact_rate={stats['fact_rate']:.2f}"
+        )
+
+        # Auto-approve any newly proposed entity/edge types so the trigger
+        # accepts the resulting facts during resolve. Without this, the
+        # mapping would write but the resolver would crash on first insert.
+        if auto_approve:
+            for new_e in proposal.new_entity_types or []:
+                db.table("entity_type_config").upsert(
+                    {
+                        "id": new_e,
+                        "config": {
+                            "description": f"Auto-approved by infer-source-mappings for {stype}",
+                            "auto_proposed": True,
+                        },
+                        "approval_status": "approved",
+                        "auto_proposed": True,
+                    },
+                    on_conflict="id",
+                ).execute()
+            for new_p in proposal.new_edge_types or []:
+                db.table("edge_type_config").upsert(
+                    {
+                        "id": new_p,
+                        "config": {
+                            "description": f"Auto-approved by infer-source-mappings for {stype}",
+                            "auto_proposed": True,
+                        },
+                        "approval_status": "approved",
+                        "auto_proposed": True,
+                    },
+                    on_conflict="id",
+                ).execute()
+
+        status = persist_proposal(
+            proposal,
+            db,
+            sample_ids=[r["id"] for r in sample],
+            validation_stats=stats,
+            auto_approve=auto_approve,
+        )
+        typer.echo(f"    → {status}")
+
+    typer.echo("done.")
+
+
 @cli.command("mcp-stdio")
 def cmd_mcp_stdio() -> None:
     """Run the MCP server over stdio (for Claude Desktop / mcp-cli)."""
@@ -776,7 +935,7 @@ def cmd_link_reports_to(
                     "confidence": 0.99,
                     "source_id": fact["id"],
                     "extraction_method": "rule",
-                    "derivation": "rule:reports_to_emp_id_resolve",
+                    "qualifiers": {"derivation": "rule:reports_to_emp_id_resolve"},
                 }
             ).execute()
             linked += 1
