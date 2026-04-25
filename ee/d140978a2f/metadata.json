@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "eed140978a2f",
+  "strategy": "manual-commit",
+  "branch": "Lasse",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "server/tests/test_graph_construction_paul.py",
+    "server/tests/test_ws4_query_api.py",
+    "server/tests/test_ws5_neo4j.py"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ee/d140978a2f/0/metadata.json",
+      "transcript": "/ee/d140978a2f/0/full.jsonl",
+      "content_hash": "/ee/d140978a2f/0/content_hash.txt",
+      "prompt": "/ee/d140978a2f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 86,
+    "cache_creation_tokens": 85893,
+    "cache_read_tokens": 14299946,
+    "output_tokens": 42973,
+    "api_call_count": 46
+  }
+}
