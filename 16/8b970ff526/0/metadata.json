@@ -1,0 +1,69 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "168b970ff526",
+  "session_id": "43003030-6411-41de-8c03-b4da450d5896",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T16:29:23.270136Z",
+  "branch": "Lasse",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "config/source_trust_weights.yaml",
+    "server/pyproject.toml",
+    "server/src/server/eval/__init__.py",
+    "server/src/server/eval/harness.py",
+    "server/src/server/eval/questions.yaml",
+    "server/src/server/eval/reporter.py",
+    "server/src/server/trust.py",
+    "server/tests/conftest.py",
+    "server/tests/test_ws0_foundation.py",
+    "server/tests/test_ws1_ingestion.py",
+    "server/tests/test_ws2_resolver.py",
+    "server/tests/test_ws3_pioneer.py",
+    "server/tests/test_ws5_neo4j.py",
+    "server/tests/test_ws6_frontend.py",
+    "server/tests/test_ws7_revenue.py",
+    "server/tests/test_ws8_eval_harness.py",
+    "server/tests/test_ws9_integration.py"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "b8b4caec8518",
+  "token_usage": {
+    "input_tokens": 360,
+    "cache_creation_tokens": 256548,
+    "cache_read_tokens": 21518701,
+    "output_tokens": 84873,
+    "api_call_count": 185
+  },
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T16:29:23.210605Z",
+    "agent_lines": 1139,
+    "agent_removed": 1410,
+    "human_added": 14,
+    "human_modified": 13,
+    "human_removed": 0,
+    "total_committed": 1166,
+    "total_lines_changed": 2576,
+    "agent_percentage": 98.95186335403726,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 134,
+      "agent_lines_removed": 27
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 134,
+      "agent_lines_removed": 27
+    }
+  ]
+}

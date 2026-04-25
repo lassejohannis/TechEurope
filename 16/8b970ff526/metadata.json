@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "168b970ff526",
+  "strategy": "manual-commit",
+  "branch": "Lasse",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "config/source_trust_weights.yaml",
+    "server/pyproject.toml",
+    "server/src/server/eval/__init__.py",
+    "server/src/server/eval/harness.py",
+    "server/src/server/eval/questions.yaml",
+    "server/src/server/eval/reporter.py",
+    "server/src/server/trust.py",
+    "server/tests/conftest.py",
+    "server/tests/test_ws0_foundation.py",
+    "server/tests/test_ws1_ingestion.py",
+    "server/tests/test_ws2_resolver.py",
+    "server/tests/test_ws3_pioneer.py",
+    "server/tests/test_ws5_neo4j.py",
+    "server/tests/test_ws6_frontend.py",
+    "server/tests/test_ws7_revenue.py",
+    "server/tests/test_ws8_eval_harness.py",
+    "server/tests/test_ws9_integration.py"
+  ],
+  "sessions": [
+    {
+      "metadata": "/16/8b970ff526/0/metadata.json",
+      "transcript": "/16/8b970ff526/0/full.jsonl",
+      "content_hash": "/16/8b970ff526/0/content_hash.txt",
+      "prompt": "/16/8b970ff526/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 360,
+    "cache_creation_tokens": 256548,
+    "cache_read_tokens": 21518701,
+    "output_tokens": 84873,
+    "api_call_count": 185
+  }
+}
