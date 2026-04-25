@@ -10,13 +10,13 @@ Workflow von vorne bis hinten. Stumpf. Details im `team-briefing-technical.md`.
 - Resume-PDF-Connector (optional)
 - Overflow-Connector für Q&A-Forum (optional)
 
-## 2. Virtual File System
+## 2. Virtual File System (Paul)
 - `vfs_path` in `entity.attrs` beim Resolver-Insert schreiben
 - Unique-Index auf `(entity_type, attrs->>'vfs_path')`
 - Slug-Mapping aus `entity_type_config` lesen statt hardcoded `_SLUG_TO_TYPE`
 - Glob-Search-Endpoint `/api/vfs/_glob`
 
-## 3. Entity Resolution
+## 3. Entity Resolution (Lasse)
 - T3 Embedding-API-Fix (`embed_text()` 404 auf text-embedding-004 → korrekter Endpoint)
 - T4 Logic-Fix in `cascade.py` (relationship_hint statt match)
 - Pre-Normalize in `embed_text()` (lowercase, Suffix-Strip, Whitespace-Collapse)
@@ -32,7 +32,7 @@ Workflow von vorne bis hinten. Stumpf. Details im `team-briefing-technical.md`.
 - Pioneer-Tier-3.5 scharf schalten sobald Modell ready
 - LLM-Fact-Extraction aus Email-Body (`gemini_structured.extract_email_facts`)
 
-## 4. Autonome Ontologie-Evolution
+## 4. Autonome Ontologie-Evolution (Paul)
 - Migration 008: type_config-Tabellen erweitern (auto_proposed, approval_status, proposed_by_source_id, similarity_to_nearest, from_type, to_type)
 - `propose.classify_or_propose_type(payload, kind)` Funktion
 - Embedding-Similarity-Reject (Distanz < 0.4 = zu ähnlich)
@@ -44,7 +44,7 @@ Workflow von vorne bis hinten. Stumpf. Details im `team-briefing-technical.md`.
 - FK-Constraints `entities.entity_type → entity_type_config` + `facts.predicate → edge_type_config`
 - Trigger der nur approved-Types akzeptiert
 
-## 5. Cross-Source Merge & Conflict Resolution
+## 5. Cross-Source Merge & Conflict Resolution (Lasse)
 - Migration 009: GIST-EXCLUDE durch partial-unique-index ersetzen + `detect_fact_conflict`-Trigger
 - `auto_resolve.py` mit 4-Tier-Cascade (Recency / Authority / Confidence / Cross-Confirm)
 - CLI `uv run server resolve-conflicts`
@@ -55,14 +55,14 @@ Workflow von vorne bis hinten. Stumpf. Details im `team-briefing-technical.md`.
 - Trust-Weight-Editor im Frontend (read-only)
 - 1-2 echte Demo-Konflikte vor-präparieren
 
-## 6. Hybrid Search
+## 6. Hybrid Search (Lasse)
 - Stage 1 unblocken (abhängig von Embedding-Fix oben)
 - Pioneer-Mention-Extraction in Stage 2 (Fallback Gemini Flash)
 - Intersect/Union-Heuristik (≥3+3 → intersect)
 - `as_of`-Param in `/api/search` und `search_memory`
 - Cross-Encoder-Rerank (optional)
 
-## 7. Graph Construction
+## 7. Graph Construction (Paul)
 - `participant_in`-Edges für Email-Threads (abhängig von communication-Entity)
 - `manages`-Edges aus `reports_to_emp_id`-Literal-Facts
 - `mentions`-Edges aus LLM-Email-Body-Extract
@@ -70,19 +70,19 @@ Workflow von vorne bis hinten. Stumpf. Details im `team-briefing-technical.md`.
 - `entities.fact_count` Cache-Spalte mit Trigger
 - `derivation text` Spalte in facts (z.B. "rule:email_domain")
 
-## 8. Temporal State
+## 8. Temporal State (Kathi)
 - `/api/entities/{id}?as_of=<ts>` Endpoint
 - `supersede_fact()`-Helper im App-Code
 - `POST /api/entities/{id}/timeline` (optional)
 - Demo-Daten: 1-2 historische Supersedes vor-präparieren
 
-## 9. Source Attribution
+## 9. Source Attribution (Kathi)
 - `source_id NOT NULL` Migration
 - `derivation` Spalte mit Backfill aus `extraction_method`
 - Multi-Source-Confirmation View `fact_evidence`
 - `trust_weight` in Provenance-Response
 
-## 10. Neo4j Projection
+## 10. Neo4j Projection (Paul)
 - `POST /admin/projection/replay` Endpoint
 - Initial-Replay live triggern (Aura ist leer)
 - Demo-Queries auf reale Entity-IDs anpassen (Inazuma statt Acme)
@@ -90,13 +90,13 @@ Workflow von vorne bis hinten. Stumpf. Details im `team-briefing-technical.md`.
 - Whitelist auf `/api/query/cypher` (read-only enforce)
 - `last_synced_event_id` Tracking + Health-Indicator
 
-## 11. Change Streams
+## 11. Change Streams (Kathi)
 - Frontend Streaming Ingestion Log Component
 - Filtered-Channel-Beispiele im UI
 - `entity_changes` Audit-Tabelle + Trigger
 - `docs/realtime-channels.md` für externe Konsumenten
 
-## 12. Update Propagation
+## 12. Update Propagation (Kathi)
 - `supersede_fact()`-Helper (siehe Temporal State)
 - CLI `uv run server reprocess` (re-derive needs_refresh facts)
 - Webhook-Endpoint `POST /api/admin/reingest`
@@ -119,7 +119,7 @@ Workflow von vorne bis hinten. Stumpf. Details im `team-briefing-technical.md`.
 - Loading-Skeletons + Error-Boundaries
 - Trust-Score-Pill als Hero-Element
 
-## 14. Schnittstelle für Software & AI
+## 14. Schnittstelle für Software & AI (Lasse)
 - `/api/entities/{id}?as_of=` (siehe Temporal State)
 - `/api/facts/{id}/validate`, `/flag`, `/edit`
 - `/api/graph/neighborhood/{entity_id}`
@@ -135,7 +135,7 @@ Workflow von vorne bis hinten. Stumpf. Details im `team-briefing-technical.md`.
 - Postman / Bruno Collection (optional)
 - MCP stdio-Transport zusätzlich zu SSE (optional)
 
-## 15. Eval Harness
+## 15. Eval Harness (Paul)
 - Resolver auf alle hr_records laufen lassen (check Raj Patel + Engineering Director)
 - `uv run server-eval` Run + HTML-Report (≥6/8 PASS)
 - Live-Test gegen `search_memory` MCP-Tool

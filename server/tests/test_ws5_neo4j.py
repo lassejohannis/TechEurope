@@ -136,16 +136,17 @@ class TestUpsertLogic:
         assert "MERGE" in src
         assert "CREATE" not in src.replace("CREATE CONSTRAINT", "")
 
-    def test_literal_facts_skipped(self):
-        """Facts with no object_id (scalar) must be skipped — not graph edges."""
+    def test_literal_fact_projection_rules_present(self):
+        """Literal facts are mapped only for explicit graph-construction predicates."""
         try:
             from server.sync.neo4j_projection import Neo4jProjection
         except ImportError:
             pytest.skip("neo4j not installed")
         import inspect
         src = inspect.getsource(Neo4jProjection._upsert_fact)
-        assert "object_id" in src
-        assert "return" in src.lower()  # early return for literal facts
+        assert "REPORTS_TO_EMP_ID" in src
+        assert "MENTIONS" in src
+        assert "MANAGES" in src
 
 
 # ---------------------------------------------------------------------------

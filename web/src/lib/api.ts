@@ -46,7 +46,7 @@ export function getEntity(entityId: string): Promise<EntityCard> {
 
 export function getFact(factId: string): Promise<ProvenanceHistory> {
   return apiFetch<ProvenanceHistory>(
-    `/api/facts/${encodeURIComponent(factId)}?with_provenance=true`,
+    `/api/facts/${encodeURIComponent(factId)}/provenance`,
   )
 }
 

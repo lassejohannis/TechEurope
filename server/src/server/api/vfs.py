@@ -23,32 +23,38 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from server.db import get_db
 from server.models import (
     ProposeFactRequest,
-    ProposeFactResponse, VfsListResponse, VfsNode,
+    ProposeFactResponse,
+    VfsListResponse,
+    VfsNode,
+    VfsPatchRequest,
+    VfsPatchResponse,
+)
+from server.vfs_paths import (
+    glob_to_ilike,
+    pluralize_entity_type,
+    segment_from_type,
+    type_from_segment,
 )
 
 router = APIRouter(prefix="/vfs", tags=["vfs"])
+
+_COLLECTION_ALIASES: dict[str, str] = {
+    "contacts": "person",
+}
 
 # ---------------------------------------------------------------------------
 # Path helpers
 # ---------------------------------------------------------------------------
 
-_SLUG_TO_TYPE = {
-    "companies": "company",
-    "persons": "person",
-    "contacts": "person",
-    "deals": "deal",
-    "documents": "document",
-    "communications": "communication",
-    "products": "product",
-}
-
-_TYPE_TO_SLUG = {v: k for k, v in _SLUG_TO_TYPE.items()}
-
 
 def _entity_to_vfs_node(e: dict, path: str) -> VfsNode:
     attrs = e.get("attrs") or {}
+    fallback_path = path
+    if not fallback_path:
+        seg = pluralize_entity_type(str(e.get("entity_type", "entity")))
+        fallback_path = f"/{seg}/{e.get('id')}"
     return VfsNode(
-        path=attrs.get("vfs_path", path),
+        path=attrs.get("vfs_path", fallback_path),
         type=e["entity_type"],
         entity_id=str(e["id"]),
         content={
@@ -67,6 +73,30 @@ def _entity_to_vfs_node(e: dict, path: str) -> VfsNode:
 
 def _path_segments(path: str) -> list[str]:
     return [s for s in path.strip("/").split("/") if s]
+
+
+# ---------------------------------------------------------------------------
+# GET /vfs/_glob — path-pattern search
+# ---------------------------------------------------------------------------
+
+@router.get("/_glob", response_model=VfsListResponse)
+def vfs_glob(
+    pattern: str = Query(..., description="Glob pattern, e.g. /companies/**/deals"),
+    limit: int = Query(default=200, ge=1, le=500),
+    db=Depends(get_db),
+):
+    ilike_pattern = glob_to_ilike(pattern)
+    res = (
+        db.table("entities")
+        .select("*")
+        .ilike("attrs->>vfs_path", ilike_pattern)
+        .is_("deleted_at", "null")
+        .limit(limit)
+        .execute()
+    )
+    rows = res.data or []
+    nodes = [_entity_to_vfs_node(e, "") for e in rows]
+    return VfsListResponse(path=pattern, children=nodes, total=len(nodes))
 
 
 # ---------------------------------------------------------------------------
@@ -96,19 +126,21 @@ def vfs_read(
         raise HTTPException(status_code=400, detail="Specify a type segment, e.g. /vfs/companies")
 
     type_key = segments[0]
-    entity_type = _SLUG_TO_TYPE.get(type_key)
-
-    if entity_type is None:
-        # Try as entity_type directly
-        entity_type = type_key
+    entity_type = _COLLECTION_ALIASES.get(type_key, type_from_segment(type_key))
 
     if len(segments) == 1:
         # List all entities of this type
-        q = db.table("entities").select("*").eq("entity_type", entity_type).limit(100)
+        q = db.table("entities").select("*").eq("entity_type", entity_type).is_("deleted_at", "null").limit(100)
         if glob:
-            q = q.ilike("canonical_name", glob.replace("*", "%"))
+            q = q.ilike("attrs->>vfs_path", glob_to_ilike(glob))
         res = q.execute()
-        nodes = [_entity_to_vfs_node(e, f"/{type_key}/{e['id']}") for e in (res.data or [])]
+        nodes = [
+            _entity_to_vfs_node(
+                e,
+                f"/{segment_from_type(str(e['entity_type']))}/{e['id']}",
+            )
+            for e in (res.data or [])
+        ]
         return VfsListResponse(path=f"/{path}", children=nodes, total=len(nodes))
 
     slug = segments[1]
@@ -140,7 +172,7 @@ def vfs_read(
 
     # Nested: /companies/{slug}/deals → traverse via facts
     child_type_key = segments[2]
-    child_type = _SLUG_TO_TYPE.get(child_type_key, child_type_key)
+    child_type = _COLLECTION_ALIASES.get(child_type_key, type_from_segment(child_type_key))
     entity_id = str(entity["id"])
 
     facts_res = db.table("facts").select("object_id, subject_id").or_(
@@ -210,6 +242,87 @@ def propose_fact(req: ProposeFactRequest, db=Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
+# PATCH /vfs/{path} — update individual attrs without touching facts
+# ---------------------------------------------------------------------------
+
+
+@router.patch("/{path:path}", response_model=VfsPatchResponse)
+def vfs_patch(path: str, req: VfsPatchRequest, db=Depends(get_db)):
+    """Merge attrs changes into an entity.
+
+    Keys with non-null values are set; keys with null values are removed.
+    Facts and the entity row's other fields are not touched.
+    """
+    segments = _path_segments(path)
+    if len(segments) < 2:
+        raise HTTPException(status_code=400, detail="Provide a specific entity path, e.g. /companies/acme")
+
+    type_key = segments[0]
+    entity_type = _COLLECTION_ALIASES.get(type_key, type_from_segment(type_key))
+    slug = segments[1]
+
+    try:
+        uuid.UUID(slug)
+        e_res = db.table("entities").select("id, attrs").eq("id", slug).is_("deleted_at", "null").single().execute()
+    except ValueError:
+        e_res = db.table("entities").select("id, attrs").eq("entity_type", entity_type).ilike(
+            "canonical_name", f"%{slug.replace('-', ' ')}%"
+        ).is_("deleted_at", "null").limit(1).execute()
+        if e_res.data:
+            e_res.data = e_res.data[0]  # type: ignore[assignment]
+
+    if not e_res.data:
+        raise HTTPException(status_code=404, detail=f"Entity not found: /{path}")
+
+    entity_id = str(e_res.data["id"])
+    current_attrs = dict(e_res.data.get("attrs") or {})
+
+    updated: list[str] = []
+    removed: list[str] = []
+    new_attrs = dict(current_attrs)
+
+    for key, value in req.attrs.items():
+        if value is None:
+            if key in new_attrs:
+                del new_attrs[key]
+                removed.append(key)
+        else:
+            new_attrs[key] = value
+            updated.append(key)
+
+    if not updated and not removed:
+        raise HTTPException(status_code=422, detail="No attr changes provided")
+
+    now = datetime.now(tz=timezone.utc).isoformat()
+
+    sr_id = str(uuid.uuid4())
+    db.table("source_records").insert({
+        "id": sr_id,
+        "source_type": "human_patch",
+        "source_id": f"patch:{entity_id}",
+        "event_type": "attrs_patch",
+        "raw_content": req.reason or f"VFS patch: /{path}",
+        "timestamp": now,
+        "metadata": {
+            "method": "human_patch",
+            "path": path,
+            "updated": updated,
+            "removed": removed,
+        },
+    }).execute()
+
+    db.table("entities").update({"attrs": new_attrs}).eq("id", entity_id).execute()
+
+    return VfsPatchResponse(
+        path=f"/{path}",
+        entity_id=entity_id,
+        attrs_updated=updated,
+        attrs_removed=removed,
+        audit_record=sr_id,
+    )
+
+
+# ---------------------------------------------------------------------------
 # DELETE /vfs/{path} — mark all active facts for entity as invalid
 # ---------------------------------------------------------------------------
 
@@ -220,7 +333,7 @@ def vfs_delete(path: str, reason: str | None = Query(default=None), db=Depends(g
         raise HTTPException(status_code=400, detail="Provide a specific entity path to delete")
 
     type_key = segments[0]
-    entity_type = _SLUG_TO_TYPE.get(type_key, type_key)
+    entity_type = _COLLECTION_ALIASES.get(type_key, type_from_segment(type_key))
     slug = segments[1]
 
     # Resolve entity
@@ -252,11 +365,23 @@ def vfs_delete(path: str, reason: str | None = Query(default=None), db=Depends(g
         "metadata": {"method": "human_delete", "path": path},
     }).execute()
 
-    # Mark all active facts invalid
-    result = db.table("facts").update({
+    # Invalidate all live facts where entity is subject (outgoing edges)
+    out_res = db.table("facts").update({
         "valid_to": now,
         "status": "invalidated",
     }).eq("subject_id", entity_id).is_("valid_to", "null").execute()
 
-    invalidated = len(result.data) if result.data else 0
+    # Invalidate all live facts where entity is object (incoming edges)
+    in_res = db.table("facts").update({
+        "valid_to": now,
+        "status": "invalidated",
+    }).eq("object_id", entity_id).is_("valid_to", "null").execute()
+
+    # Soft-delete the entity row — fires Supabase Realtime UPDATE event so
+    # the Neo4j projection sees deleted_at and DETACH DELETEs the node.
+    db.table("entities").update({"deleted_at": now}).eq("id", entity_id).execute()
+
+    invalidated = (len(out_res.data) if out_res.data else 0) + (
+        len(in_res.data) if in_res.data else 0
+    )
     return {"deleted_path": f"/{path}", "facts_invalidated": invalidated, "audit_record": sr_id}

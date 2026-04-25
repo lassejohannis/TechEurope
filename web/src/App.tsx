@@ -3,6 +3,7 @@ import AppShell from '@/components/layout/AppShell'
 import BrowsePage from '@/pages/browse/BrowsePage'
 import SearchPage from '@/pages/search/SearchPage'
 import ReviewPage from '@/pages/review/ReviewPage'
+import WorkflowPage from '@/pages/workflow/WorkflowPage'
 
 const router = createBrowserRouter([
   {
@@ -15,6 +16,7 @@ const router = createBrowserRouter([
       { path: 'search', element: <SearchPage /> },
       { path: 'review', element: <ReviewPage /> },
       { path: 'review/:conflictId', element: <ReviewPage /> },
+      { path: 'workflow', element: <WorkflowPage /> },
     ],
   },
 ])
