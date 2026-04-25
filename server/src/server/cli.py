@@ -159,8 +159,15 @@ def _persist_entity(
     base_slug = slugify_name(candidate.canonical_name)
     base_path = f"/{entity_segment}/{base_slug}"
 
-    existing_res = db.table("entities").select("id, attrs").eq("id", eid).limit(1).execute()
+    existing_res = (
+        db.table("entities")
+        .select("id, attrs, embedding")
+        .eq("id", eid)
+        .limit(1)
+        .execute()
+    )
     existing = existing_res.data[0] if existing_res.data else None
+    has_embedding = bool(existing) and existing.get("embedding") is not None
 
     attrs = dict(candidate.attrs or {})
     existing_vfs_path = (
@@ -195,9 +202,9 @@ def _persist_entity(
         if v := candidate.attrs.get(hard_id_field):
             aliases.append(str(v).lower())
 
-    # Build Tier-A name embedding for semantic resolution + Hybrid Search.
-    # Best-effort: failure shouldn't block the entity insert.
-    embedding = _build_tier_a_embedding(candidate)
+    # Build Tier-A name embedding only if this entity is new — re-runs of
+    # resolve must not re-call Gemini for entities that already have one.
+    embedding = None if has_embedding else _build_tier_a_embedding(candidate)
 
     row: dict[str, object] = {
         "id": eid,
