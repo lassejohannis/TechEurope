@@ -42,9 +42,16 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  /* Font */
-  --font-sans: "Circular Std", "Inter", system-ui, -apple-system, sans-serif;
+  /* Fonts */
+  --font-heading: var(--font-sans);
+  --font-sans: "Geist Variable", "Circular Std", "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
+
+  /* Status colors */
+  --color-success: oklch(0.55 0.15 145);
+  --color-success-foreground: oklch(0.98 0 0);
+  --color-warning: oklch(0.72 0.15 80);
+  --color-warning-foreground: oklch(0.15 0 0);
 
   /* Tailwind color classes → CSS vars */
   --color-background:          var(--background);
@@ -65,6 +72,11 @@
   --color-border:              var(--border);
   --color-input:               var(--input);
   --color-ring:                var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
 
   /* Sidebar vars */
   --color-sidebar:                    var(--sidebar);
@@ -77,10 +89,13 @@
   --color-sidebar-ring:               var(--sidebar-ring);
 
   /* Radii */
-  --radius-sm: calc(var(--radius) * 0.75);
-  --radius-md: var(--radius);
-  --radius-lg: calc(var(--radius) * 1.5);
-  --radius-xl: calc(var(--radius) * 2);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 /* ── Qontext / Emidat brand tokens ──────────────────────────── */

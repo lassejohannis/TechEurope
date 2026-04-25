@@ -841,7 +841,7 @@ def cmd_infer_source_mappings(
         typer.echo(f"  {stype}: inferring mapping (samples={len(sample)}, holdout={len(holdout)}) …")
         proposal = infer_source_mapping(stype, sample, db)
         if proposal is None:
-            typer.echo(f"    ✗ inference returned None (likely budget/api)")
+            typer.echo("    ✗ inference returned None (likely budget/api)")
             continue
 
         stats = validate_proposal(proposal, holdout)
@@ -850,36 +850,65 @@ def cmd_infer_source_mappings(
             f"entity_rate={stats['entity_rate']:.2f} fact_rate={stats['fact_rate']:.2f}"
         )
 
-        # Auto-approve any newly proposed entity/edge types so the trigger
-        # accepts the resulting facts during resolve. Without this, the
-        # mapping would write but the resolver would crash on first insert.
+        # Auto-approve every type/predicate the mapping actually references.
+        # We can't trust `proposal.new_entity_types` / `new_edge_types` alone:
+        # the LLM frequently uses a predicate (e.g. `has_skill`) inside
+        # `facts[].predicate` without declaring it. Walk the config instead
+        # so the resolver can never hit a "type X not approved" trigger.
         if auto_approve:
-            for new_e in proposal.new_entity_types or []:
-                db.table("entity_type_config").upsert(
-                    {
-                        "id": new_e,
-                        "config": {
-                            "description": f"Auto-approved by infer-source-mappings for {stype}",
+            referenced_entity_types: set[str] = set()
+            referenced_edges: set[str] = set()
+            for spec in proposal.entities or []:
+                if spec.type:
+                    referenced_entity_types.add(spec.type)
+            for spec in proposal.facts or []:
+                if spec.subject_type:
+                    referenced_entity_types.add(spec.subject_type)
+                if spec.object_type:
+                    referenced_entity_types.add(spec.object_type)
+                if spec.predicate:
+                    referenced_edges.add(spec.predicate)
+            for self_declared in proposal.new_entity_types or []:
+                if self_declared:
+                    referenced_entity_types.add(self_declared)
+            for self_declared in proposal.new_edge_types or []:
+                if self_declared:
+                    referenced_edges.add(self_declared)
+
+            def _approve(table: str, ids: set[str]) -> None:
+                if not ids:
+                    return
+                # Don't override explicitly rejected rows — only flip pending /
+                # missing into approved.
+                existing = (
+                    db.table(table)
+                    .select("id, approval_status")
+                    .in_("id", list(ids))
+                    .execute()
+                )
+                rejected = {
+                    r["id"]
+                    for r in (existing.data or [])
+                    if r.get("approval_status") == "rejected"
+                }
+                for tid in ids:
+                    if tid in rejected:
+                        continue
+                    db.table(table).upsert(
+                        {
+                            "id": tid,
+                            "config": {
+                                "description": f"Auto-approved by infer-source-mappings for {stype}",
+                                "auto_proposed": True,
+                            },
+                            "approval_status": "approved",
                             "auto_proposed": True,
                         },
-                        "approval_status": "approved",
-                        "auto_proposed": True,
-                    },
-                    on_conflict="id",
-                ).execute()
-            for new_p in proposal.new_edge_types or []:
-                db.table("edge_type_config").upsert(
-                    {
-                        "id": new_p,
-                        "config": {
-                            "description": f"Auto-approved by infer-source-mappings for {stype}",
-                            "auto_proposed": True,
-                        },
-                        "approval_status": "approved",
-                        "auto_proposed": True,
-                    },
-                    on_conflict="id",
-                ).execute()
+                        on_conflict="id",
+                    ).execute()
+
+            _approve("entity_type_config", referenced_entity_types)
+            _approve("edge_type_config", referenced_edges)
 
         status = persist_proposal(
             proposal,

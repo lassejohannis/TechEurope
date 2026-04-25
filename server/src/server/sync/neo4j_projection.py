@@ -201,17 +201,18 @@ class Neo4jProjection:
             cypher = "MATCH (n:Entity {id:$id}) DETACH DELETE n"
             params = {"id": row["id"]}
         else:
+            # `attrs` (JSONB in Postgres) is serialized to a JSON string here
+            # because Neo4j node properties must be primitives or arrays of
+            # primitives. Consumers deserialize on read.
             cypher = """
                 MERGE (n:Entity {id:$id})
                 SET n.entity_type = $entity_type,
                     n.canonical_name = $canonical_name,
                     n.aliases = $aliases,
                     n.attrs = $attrs,
+                    n.emp_id = $emp_id,
                     n.last_synced = datetime()
             """
-            # Neo4j node properties must be primitives or arrays of primitives.
-            # `attrs` (JSONB in Postgres) is serialized to a JSON string here;
-            # consumers deserialize on read.
             params = {
                 "id": row["id"],
                 "entity_type": row.get("entity_type"),
@@ -221,10 +222,7 @@ class Neo4jProjection:
                 "emp_id": (row.get("attrs") or {}).get("emp_id"),
             }
         async with self.driver.session(database=self.cfg.neo4j_database) as s:
-            await s.run(
-                cypher + "\nSET n.emp_id = $emp_id",
-                params,
-            )
+            await s.run(cypher, params)
 
     async def _upsert_fact(self, evt: EventType, row: dict[str, Any]) -> None:
         """
