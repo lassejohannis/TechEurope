@@ -1,88 +1,87 @@
-"""BaseConnector — shared contract for all ingestion connectors.
-
-Every connector is stateless, pulls raw data, normalizes to SourceRecord,
-and pushes to Supabase. No business logic lives here.
-"""
-
 from __future__ import annotations
 
 import hashlib
 import json
-import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator
+from typing import Any, Dict, Iterator, List
 
-logger = logging.getLogger(__name__)
+from supabase import Client
+
+from server.ingestion_models import SourceRecord
+from .diff import mark_needs_refresh
 
 
-@dataclass
-class SourceRecord:
-    """Normalized unit of ingestion — maps 1:1 to the source_records DB table."""
+def sha256_hex(data: str) -> str:
+    return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
-    id: str                    # deterministic: "{source_type}:{sha256_prefix}"
-    source_type: str           # "email" | "crm_contact" | "hr_record" | "it_ticket" | "document" | ...
-    source_uri: str            # file path or API endpoint
-    source_native_id: str      # original ID from the source system
-    payload: dict              # full parsed content (stored as jsonb)
-    content_hash: str          # sha256 of canonical payload — drives idempotency
-    extraction_status: str = "pending"
-    metadata: dict = field(default_factory=dict)
 
-    @staticmethod
-    def make_id(source_type: str, content_hash: str) -> str:
-        return f"{source_type}:{content_hash[:24]}"
-
-    @staticmethod
-    def hash_payload(payload: dict) -> str:
-        canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False)
-        return hashlib.sha256(canonical.encode()).hexdigest()
+def canonical_json(obj: Any) -> str:
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
 class BaseConnector(ABC):
-    """Stateless connector interface. Implement fetch() + normalize()."""
-
-    source_type: str  # must be set on each subclass
+    source_type: str
 
     @abstractmethod
-    def fetch(self, path: Path) -> Iterator[dict]:
-        """Yield raw records from the data source."""
+    def discover(self, path: Path) -> Iterator[dict]:
+        """Yield raw records discovered under path (file or directory)."""
 
     @abstractmethod
     def normalize(self, raw: dict) -> SourceRecord:
-        """Convert a raw record to a SourceRecord."""
+        """Convert raw dict into a normalized SourceRecord (id, hashes set)."""
 
-    def ingest(self, path: Path) -> Iterator[SourceRecord]:
-        """Full pipeline: fetch → normalize → yield SourceRecord."""
-        for raw in self.fetch(path):
-            try:
-                yield self.normalize(raw)
-            except Exception as exc:
-                logger.warning("Skipping record in %s: %s", path, exc)
+    _IN_CHUNK = 50  # PostgREST URL limit: keep IN clauses small
 
-    def persist(self, records: Iterator[SourceRecord], db) -> dict:
-        """Upsert all records into Supabase. Returns stats dict."""
-        inserted = updated = skipped = 0
-        for rec in records:
-            row = {
-                "id": rec.id,
-                "source_type": rec.source_type,
-                "source_uri": rec.source_uri,
-                "source_native_id": rec.source_native_id,
-                "payload": rec.payload,
-                "content_hash": rec.content_hash,
-                "extraction_status": rec.extraction_status,
-            }
-            existing = db.table("source_records").select("id,content_hash").eq("id", rec.id).execute()
-            if existing.data:
-                if existing.data[0]["content_hash"] == rec.content_hash:
-                    skipped += 1
-                else:
-                    db.table("source_records").update(row).eq("id", rec.id).execute()
-                    updated += 1
-            else:
-                db.table("source_records").insert(row).execute()
-                inserted += 1
+    def _upsert_batch(self, supabase: Client, rows: List[Dict[str, Any]]) -> int:
+        if not rows:
+            return 0
+        ids = [r["id"] for r in rows]
+        # fetch existing hashes in chunks to stay within URL length limits
+        existing: List[Dict[str, Any]] = []
+        for i in range(0, len(ids), self._IN_CHUNK):
+            chunk = ids[i : i + self._IN_CHUNK]
+            existing += (
+                supabase.table("source_records")
+                .select("id, content_hash")
+                .in_("id", chunk)
+                .execute()
+                .data
+            )
+        existing_map = {r["id"]: r["content_hash"] for r in existing}
+        to_write = [r for r in rows if existing_map.get(r["id"]) != r["content_hash"]]
+        if not to_write:
+            return 0
+        # use upsert on changed/new rows only
+        supabase.table("source_records").upsert(to_write, on_conflict="id").execute()
+        # Mark dependent facts for refresh (best-effort)
+        try:
+            mark_needs_refresh(supabase, [r["id"] for r in to_write])
+        except Exception:
+            pass
+        return len(to_write)
 
-        return {"inserted": inserted, "updated": updated, "skipped": skipped}
+    def ingest(self, path: Path, supabase: Client, batch_size: int = 500) -> int:
+        """Batched UPSERT into source_records. Returns count of rows written.
+
+        Idempotent by content_hash: only new or changed rows are written.
+        """
+        buffer: List[Dict[str, Any]] = []
+        written = 0
+        for raw in self.discover(path):
+            record = self.normalize(raw)
+            row = record.model_dump(exclude_none=True)
+            buffer.append(row)
+            if len(buffer) >= batch_size:
+                written += self._upsert_batch(supabase, buffer)
+                buffer.clear()
+        if buffer:
+            written += self._upsert_batch(supabase, buffer)
+        return written
+
+    # Helpers for connectors
+    def make_id(self, native_id: str) -> str:
+        return f"{self.source_type}:{sha256_hex(native_id)}"
+
+    def make_content_hash(self, payload: dict) -> str:
+        return sha256_hex(canonical_json(payload))

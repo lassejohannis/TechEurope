@@ -1,29 +1,29 @@
-"""CLI entry: `uv run server` starts the FastAPI dev server.
+"""CLI entry.
 
-Sub-commands
-------------
-serve   — start the FastAPI dev server (default)
-ingest  — run a connector and upsert records into Supabase
-
-Examples
---------
-    uv run server serve
-    uv run server ingest --connector email \\
-        --path data/enterprise-bench/Enterprise_mail_system/emails.json
-    uv run server ingest --connector document \\
-        --path data/enterprise-bench/Policy_Documents --structured
-    uv run server ingest --connector hr \\
-        --path data/enterprise-bench/Human_Resources --dry-run
+Usage examples:
+  - `uv run server` → start FastAPI dev server
+  - `uv run server dev` → same as above
+  - `uv run server ingest --connector email --path data/enterprise-bench/`
+  - `uv run server status`
+  - `uv run server discover --connector all --path data/enterprise-bench` (dry-run)
 """
 
 from __future__ import annotations
 
-import sys
+import uvicorn
+import typer
+from pathlib import Path
+
+from server.config import settings
+from server.db import get_supabase
+from server.connectors import CONNECTOR_REGISTRY, get_connector  # side-effect import populates registry
 
 
-def _serve() -> None:
-    import uvicorn
-    from server.config import settings
+cli = typer.Typer(add_completion=False, no_args_is_help=False)
+
+
+@cli.command("dev")
+def cmd_dev() -> None:
     uvicorn.run(
         "server.main:app",
         host=settings.api_host,
@@ -32,112 +32,93 @@ def _serve() -> None:
     )
 
 
-def _ingest(
-    connector: str,
-    path: str,
-    *,
-    structured: bool = False,
-    dry_run: bool = False,
-    batch_size: int = 100,
-) -> None:
-    """Run a named connector and upsert results into Supabase."""
-    from pathlib import Path
-    from server.connectors import REGISTRY
-
-    if connector not in REGISTRY:
-        print(f"Unknown connector '{connector}'. Available: {', '.join(REGISTRY)}")
-        sys.exit(1)
-
-    target = Path(path)
-    if not target.exists():
-        print(f"Path not found: {target}")
-        sys.exit(1)
-
-    connector_cls = REGISTRY[connector]
-    # DocumentConnector accepts extract_structured kwarg; others ignore extra kwargs
-    try:
-        instance = connector_cls(extract_structured=structured)  # type: ignore[call-arg]
-    except TypeError:
-        instance = connector_cls()
-
-    records = list(instance.ingest(target))
-    print(f"[{connector}] {len(records)} records extracted from {target}")
-
-    if dry_run:
-        for r in records[:5]:
-            print(f"  {r.id}  {r.source_type}  {r.source_native_id}")
-        if len(records) > 5:
-            print(f"  … and {len(records) - 5} more")
-        print("[dry-run] nothing persisted")
+@cli.command("ingest")
+def cmd_ingest(
+    connector: str = typer.Option(..., help="Connector name or 'all'"),
+    path: Path = typer.Option(Path("data/enterprise-bench"), exists=False),
+    batch_size: int = typer.Option(500, help="Batch size for upserts"),
+):
+    supabase = get_supabase()
+    if connector == "all":
+        order = [
+            "email",
+            "crm",       # umbrella: customer, product, sale, client
+            "hr_record",
+            "invoice_pdf",
+            "it_ticket",
+            "document",
+        ]
+        total = 0
+        for name in order:
+            cls = CONNECTOR_REGISTRY.get(name) or get_connector(name)
+            inst = cls()
+            written = inst.ingest(path, supabase, batch_size=batch_size)
+            typer.echo(f"[{name}] written: {written}")
+            total += written
+        typer.echo(f"total written: {total}")
         return
+    cls = CONNECTOR_REGISTRY.get(connector) or get_connector(connector)
+    inst = cls()
+    written = inst.ingest(path, supabase, batch_size=batch_size)
+    typer.echo(f"[{connector}] written: {written}")
 
-    from server.db import get_supabase
-    db = get_supabase()
 
-    inserted = skipped = 0
-    batch: list[dict] = []
-
-    def _flush(batch: list[dict]) -> tuple[int, int]:
-        resp = (
-            db.table("source_records")
-            .upsert(batch, on_conflict="content_hash", ignore_duplicates=True)
+@cli.command("status")
+def cmd_status() -> None:
+    supabase = get_supabase()
+    types: dict[str, int] = {}
+    page, page_size = 0, 1000
+    while True:
+        res = (
+            supabase.table("source_records")
+            .select("source_type")
+            .range(page * page_size, (page + 1) * page_size - 1)
             .execute()
         )
-        ins = len(resp.data) if resp.data else 0
-        return ins, len(batch) - ins
+        for row in res.data:
+            t = row["source_type"]
+            types[t] = types.get(t, 0) + 1
+        if len(res.data) < page_size:
+            break
+        page += 1
+    for t, c in sorted(types.items()):
+        typer.echo(f"{t}: {c}")
+    typer.echo(f"total: {sum(types.values())}")
 
-    for rec in records:
-        batch.append({
-            "id": rec.id,
-            "source_type": rec.source_type,
-            "source_uri": rec.source_uri,
-            "source_native_id": rec.source_native_id,
-            "payload": rec.payload,
-            "content_hash": rec.content_hash,
-            "extraction_status": rec.extraction_status,
-            "metadata": rec.metadata,
-        })
-        if len(batch) >= batch_size:
-            i, s = _flush(batch)
-            inserted += i
-            skipped += s
-            batch = []
 
-    if batch:
-        i, s = _flush(batch)
-        inserted += i
-        skipped += s
+@cli.command("discover")
+def cmd_discover(
+    connector: str = typer.Option(..., help="Connector name or 'all'"),
+    path: Path = typer.Option(Path("data/enterprise-bench"), exists=False),
+    sample: int = typer.Option(3, help="Show first N normalized IDs as sample"),
+):
+    def run_one(name: str) -> None:
+        cls = CONNECTOR_REGISTRY.get(name) or get_connector(name)
+        inst = cls()
+        count = 0
+        samples: list[str] = []
+        for raw in inst.discover(path):
+            count += 1
+            if len(samples) < sample:
+                rec = inst.normalize(raw)
+                samples.append(f"{rec.id} :: {rec.content_hash[:12]}")
+        typer.echo(f"[{name}] discovered={count}")
+        for s in samples:
+            typer.echo(f"  - {s}")
 
-    print(f"[{connector}] inserted={inserted} skipped(duplicate)={skipped}")
+    if connector == "all":
+        for name in ["email", "crm", "hr_record", "invoice_pdf"]:
+            run_one(name)
+        return
+    run_one(connector)
 
 
 def main() -> None:
-    args = sys.argv[1:]
-
-    if not args or args[0] == "serve":
-        _serve()
-        return
-
-    if args[0] == "ingest":
-        import argparse
-        p = argparse.ArgumentParser(prog="server ingest")
-        p.add_argument("--connector", required=True, help="Connector name: email|crm|hr|itsm|document")
-        p.add_argument("--path", required=True, help="File or directory to ingest")
-        p.add_argument("--structured", action="store_true", help="Enable Gemini structured extraction (document connector only)")
-        p.add_argument("--dry-run", action="store_true", help="Print records without persisting")
-        p.add_argument("--batch-size", type=int, default=100, help="Upsert batch size (default 100)")
-        ns = p.parse_args(args[1:])
-        _ingest(
-            ns.connector,
-            ns.path,
-            structured=ns.structured,
-            dry_run=ns.dry_run,
-            batch_size=ns.batch_size,
-        )
-        return
-
-    print(f"Unknown sub-command '{args[0]}'. Usage: server [serve|ingest]")
-    sys.exit(1)
+    import sys
+    if len(sys.argv) == 1:
+        # backward-compatible default: start dev server
+        return cmd_dev()
+    cli()
 
 
 if __name__ == "__main__":

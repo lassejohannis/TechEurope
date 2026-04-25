@@ -25,10 +25,13 @@ def get_db():
     global _supabase
     if _supabase is None:
         from supabase import create_client
-        if not settings.supabase_url or not settings.supabase_service_key:
+        if not settings.supabase_url or not settings.supabase_secret_key:
             raise RuntimeError("SUPABASE_URL / SUPABASE_SERVICE_KEY not set")
-        _supabase = create_client(settings.supabase_url, settings.supabase_service_key)
+        _supabase = create_client(settings.supabase_url, settings.supabase_secret_key)
     return _supabase
+
+
+get_supabase = get_db  # backwards-compat alias used by connectors + cli
 
 
 # ---------------------------------------------------------------------------
