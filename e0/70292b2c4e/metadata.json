@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "e070292b2c4e",
+  "strategy": "manual-commit",
+  "branch": "Lasse",
+  "checkpoints_count": 14,
+  "files_touched": [
+    "server/src/server/cli.py",
+    "server/src/server/main.py",
+    "server/tests/test_ws4_query_api.py",
+    "server/tests/test_ws5_neo4j.py",
+    "web/src/components/entity/ConfidencePill.tsx",
+    "web/src/components/ui/scroll-area.tsx",
+    "web/src/lib/api.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e0/70292b2c4e/0/metadata.json",
+      "transcript": "/e0/70292b2c4e/0/full.jsonl",
+      "content_hash": "/e0/70292b2c4e/0/content_hash.txt",
+      "prompt": "/e0/70292b2c4e/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 465,
+    "cache_creation_tokens": 328037,
+    "cache_read_tokens": 32401861,
+    "output_tokens": 123240,
+    "api_call_count": 230
+  }
+}

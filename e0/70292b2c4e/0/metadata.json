@@ -1,0 +1,238 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "e070292b2c4e",
+  "session_id": "43003030-6411-41de-8c03-b4da450d5896",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T17:34:14.40821Z",
+  "branch": "Lasse",
+  "checkpoints_count": 14,
+  "files_touched": [
+    "server/src/server/cli.py",
+    "server/src/server/main.py",
+    "server/tests/test_ws4_query_api.py",
+    "server/tests/test_ws5_neo4j.py",
+    "web/src/components/entity/ConfidencePill.tsx",
+    "web/src/components/ui/scroll-area.tsx",
+    "web/src/lib/api.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "2c11344113ac",
+  "token_usage": {
+    "input_tokens": 465,
+    "cache_creation_tokens": 328037,
+    "cache_read_tokens": 32401861,
+    "output_tokens": 123240,
+    "api_call_count": 230
+  },
+  "session_metrics": {
+    "turn_count": 14
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T17:34:14.317941Z",
+    "agent_lines": 144,
+    "agent_removed": 8,
+    "human_added": 2342,
+    "human_modified": 38,
+    "human_removed": 0,
+    "total_committed": 2524,
+    "total_lines_changed": 2532,
+    "agent_percentage": 6.003159557661927,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 134,
+      "agent_lines_removed": 27
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 134,
+      "agent_lines_removed": 27
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 4183,
+      "agent_lines_removed": 30
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 21,
+      "user_lines_removed": 21,
+      "agent_lines_added": 4211,
+      "agent_lines_removed": 36,
+      "user_added_per_file": {
+        "data/training/comparison.json": 21
+      },
+      "user_removed_per_file": {
+        "data/training/comparison.json": 21
+      }
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 21,
+      "user_lines_removed": 21,
+      "agent_lines_added": 4211,
+      "agent_lines_removed": 36,
+      "user_added_per_file": {
+        "data/training/comparison.json": 21
+      },
+      "user_removed_per_file": {
+        "data/training/comparison.json": 21
+      }
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 21,
+      "user_lines_removed": 21,
+      "agent_lines_added": 4211,
+      "agent_lines_removed": 36,
+      "user_added_per_file": {
+        "data/training/comparison.json": 21
+      },
+      "user_removed_per_file": {
+        "data/training/comparison.json": 21
+      }
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 21,
+      "user_lines_removed": 21,
+      "agent_lines_added": 4211,
+      "agent_lines_removed": 36,
+      "user_added_per_file": {
+        "data/training/comparison.json": 21
+      },
+      "user_removed_per_file": {
+        "data/training/comparison.json": 21
+      }
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 21,
+      "user_lines_removed": 21,
+      "agent_lines_added": 4211,
+      "agent_lines_removed": 36,
+      "user_added_per_file": {
+        "data/training/comparison.json": 21
+      },
+      "user_removed_per_file": {
+        "data/training/comparison.json": 21
+      }
+    },
+    {
+      "checkpoint_number": 10,
+      "user_lines_added": 3363,
+      "user_lines_removed": 150,
+      "agent_lines_added": 4211,
+      "agent_lines_removed": 36,
+      "user_added_per_file": {
+        "data/training/comparison.json": 2988,
+        "server/migrations/003_align_schema_with_code.sql": 80,
+        "server/src/server/cli.py": 10,
+        "server/src/server/resolver/extract.py": 285
+      },
+      "user_removed_per_file": {
+        "data/training/comparison.json": 147,
+        "server/src/server/cli.py": 3
+      }
+    },
+    {
+      "checkpoint_number": 11,
+      "user_lines_added": 3386,
+      "user_lines_removed": 162,
+      "agent_lines_added": 4374,
+      "agent_lines_removed": 39,
+      "user_added_per_file": {
+        "data/training/comparison.json": 2988,
+        "server/migrations/003_align_schema_with_code.sql": 80,
+        "server/src/server/cli.py": 33,
+        "server/src/server/resolver/extract.py": 285
+      },
+      "user_removed_per_file": {
+        "data/training/comparison.json": 147,
+        "server/src/server/cli.py": 15
+      }
+    },
+    {
+      "checkpoint_number": 12,
+      "user_lines_added": 3353,
+      "user_lines_removed": 147,
+      "agent_lines_added": 4392,
+      "agent_lines_removed": 39,
+      "user_added_per_file": {
+        "data/training/comparison.json": 2988,
+        "server/migrations/003_align_schema_with_code.sql": 80,
+        "server/src/server/resolver/extract.py": 285
+      },
+      "user_removed_per_file": {
+        "data/training/comparison.json": 147
+      }
+    },
+    {
+      "checkpoint_number": 13,
+      "user_lines_added": 3422,
+      "user_lines_removed": 167,
+      "agent_lines_added": 4392,
+      "agent_lines_removed": 39,
+      "user_added_per_file": {
+        "data/training/comparison.json": 2988,
+        "server/migrations/003_align_schema_with_code.sql": 80,
+        "server/src/server/api/changes.py": 28,
+        "server/src/server/main.py": 2,
+        "server/src/server/resolver/extract.py": 296,
+        "server/tests/test_ws4_query_api.py": 6,
+        "server/tests/test_ws5_neo4j.py": 6,
+        "web/src/components/entity/ConfidencePill.tsx": 13,
+        "web/src/lib/api.ts": 3
+      },
+      "user_removed_per_file": {
+        "data/training/comparison.json": 147,
+        "server/tests/test_ws4_query_api.py": 2,
+        "server/tests/test_ws5_neo4j.py": 2,
+        "web/src/components/entity/ConfidencePill.tsx": 11,
+        "web/src/components/ui/scroll-area.tsx": 1,
+        "web/src/lib/api.ts": 4
+      }
+    },
+    {
+      "checkpoint_number": 14,
+      "user_lines_added": 3392,
+      "user_lines_removed": 147,
+      "agent_lines_added": 4422,
+      "agent_lines_removed": 59,
+      "user_added_per_file": {
+        "data/training/comparison.json": 2988,
+        "server/migrations/003_align_schema_with_code.sql": 80,
+        "server/src/server/api/changes.py": 28,
+        "server/src/server/resolver/extract.py": 296
+      },
+      "user_removed_per_file": {
+        "data/training/comparison.json": 147
+      }
+    },
+    {
+      "checkpoint_number": 15,
+      "user_lines_added": 3392,
+      "user_lines_removed": 147,
+      "agent_lines_added": 4828,
+      "agent_lines_removed": 59,
+      "user_added_per_file": {
+        "data/training/comparison.json": 2988,
+        "server/migrations/003_align_schema_with_code.sql": 80,
+        "server/src/server/api/changes.py": 28,
+        "server/src/server/resolver/extract.py": 296
+      },
+      "user_removed_per_file": {
+        "data/training/comparison.json": 147
+      }
+    }
+  ]
+}
