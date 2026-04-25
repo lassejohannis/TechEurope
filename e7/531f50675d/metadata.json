@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "e7531f50675d",
+  "strategy": "manual-commit",
+  "branch": "Lasse",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "server/src/server/cli.py"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e7/531f50675d/0/metadata.json",
+      "transcript": "/e7/531f50675d/0/full.jsonl",
+      "content_hash": "/e7/531f50675d/0/content_hash.txt",
+      "prompt": "/e7/531f50675d/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 37,
+    "cache_creation_tokens": 30465,
+    "cache_read_tokens": 6573091,
+    "output_tokens": 13963,
+    "api_call_count": 17
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "e7531f50675d",
+  "session_id": "43003030-6411-41de-8c03-b4da450d5896",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T21:30:10.14074Z",
+  "branch": "Lasse",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "server/src/server/cli.py"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "ecc647ae9689",
+  "checkpoint_transcript_start": 1296,
+  "transcript_lines_at_start": 1296,
+  "token_usage": {
+    "input_tokens": 37,
+    "cache_creation_tokens": 30465,
+    "cache_read_tokens": 6573091,
+    "output_tokens": 13963,
+    "api_call_count": 17
+  },
+  "session_metrics": {
+    "turn_count": 37
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T21:30:10.011338Z",
+    "agent_lines": 93,
+    "agent_removed": 7,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 2,
+    "total_committed": 93,
+    "total_lines_changed": 102,
+    "agent_percentage": 98.0392156862745,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 161,
+      "user_lines_removed": 2,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "server/src/server/cli.py": 161
+      },
+      "user_removed_per_file": {
+        "server/src/server/cli.py": 2
+      }
+    }
+  ]
+}
