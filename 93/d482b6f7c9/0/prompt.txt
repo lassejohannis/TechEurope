@@ -135,3 +135,7 @@ Kannst du einmal testen mit was für einem account ich pushe, ich glaube da ist 
 ---
 
 Kannst du einmal einen mit main mergen und dann einen test push auf main machen
+
+---
+
+nochmal alles auf alsse und main pushen
