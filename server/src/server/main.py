@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from server.api.admin import router as admin_router
+from server.api.changes import router as changes_router
 from server.api.cypher import router as cypher_demo_router
 from server.api.cypher_proxy import router as cypher_proxy_router
 from server.api.entities import router as entities_router
@@ -99,6 +100,7 @@ app.include_router(search_router, prefix="/api")
 app.include_router(vfs_router, prefix="/api")
 app.include_router(cypher_proxy_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
+app.include_router(changes_router)  # already has /api/changes prefix
 
 # WS-5: live Aura demo endpoints under /query/cypher (own prefix in router)
 app.include_router(cypher_demo_router)

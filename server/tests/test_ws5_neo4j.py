@@ -25,7 +25,9 @@ def _client():
 
 
 class TestCypherProxy:
-    def test_503_without_neo4j_configured(self):
+    def test_503_without_neo4j_configured(self, monkeypatch):
+        monkeypatch.setattr("server.config.settings.neo4j_uri", "")
+        monkeypatch.setattr("server.config.settings.neo4j_password", "")
         app, c = _client()
         try:
             r = c.post("/api/query/cypher", json={"query": "MATCH (n) RETURN n LIMIT 1"})
@@ -34,7 +36,9 @@ class TestCypherProxy:
         finally:
             app.dependency_overrides.clear()
 
-    def test_named_queries_returns_neo4j_ready_false(self):
+    def test_named_queries_returns_neo4j_ready_false(self, monkeypatch):
+        monkeypatch.setattr("server.config.settings.neo4j_uri", "")
+        monkeypatch.setattr("server.config.settings.neo4j_password", "")
         app, c = _client()
         try:
             r = c.get("/api/query/cypher/named")
