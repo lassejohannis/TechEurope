@@ -17,7 +17,9 @@ from server.api.cypher_proxy import router as cypher_proxy_router
 from server.api.entities import router as entities_router
 from server.api.facts import router as facts_router
 from server.api.search import router as search_router
+from server.api.traverse import router as traverse_router
 from server.api.vfs import router as vfs_router
+from server.api.webhooks import router as webhooks_router
 from server.config import settings
 from server.sync.neo4j_projection import Neo4jProjection, SyncConfig
 
@@ -95,8 +97,10 @@ app.add_middleware(
 app.include_router(entities_router, prefix="/api")
 app.include_router(facts_router, prefix="/api")
 app.include_router(search_router, prefix="/api")
+app.include_router(traverse_router, prefix="/api")
 app.include_router(vfs_router, prefix="/api")
 app.include_router(cypher_proxy_router, prefix="/api")
+app.include_router(webhooks_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 
 # WS-5: live Aura demo endpoints under /query/cypher (own prefix in router)
