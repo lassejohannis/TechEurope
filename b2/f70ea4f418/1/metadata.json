@@ -1,0 +1,149 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "b2f70ea4f418",
+  "session_id": "43003030-6411-41de-8c03-b4da450d5896",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T19:53:26.82595Z",
+  "branch": "Lasse",
+  "checkpoints_count": 10,
+  "files_touched": [
+    "server/src/server/cli.py",
+    "server/src/server/db.py",
+    "server/src/server/extractors/gemini_structured.py",
+    "server/src/server/main.py",
+    "server/src/server/resolver/cascade.py",
+    "server/src/server/resolver/embed.py",
+    "server/src/server/resolver/extract.py",
+    "server/src/server/resolver/types/communication.py",
+    "server/src/server/resolver/types/document.py"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "9466cec25a3a",
+  "token_usage": {
+    "input_tokens": 593,
+    "cache_creation_tokens": 388395,
+    "cache_read_tokens": 53565728,
+    "output_tokens": 163396,
+    "api_call_count": 298
+  },
+  "session_metrics": {
+    "turn_count": 27
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T19:53:26.708502Z",
+    "agent_lines": 551,
+    "agent_removed": 52,
+    "human_added": 1438,
+    "human_modified": 29,
+    "human_removed": 0,
+    "total_committed": 2018,
+    "total_lines_changed": 2225,
+    "agent_percentage": 27.101123595505616,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 9152,
+      "agent_lines_removed": 67
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 9504,
+      "agent_lines_removed": 67
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 59,
+      "user_lines_removed": 0,
+      "agent_lines_added": 9581,
+      "agent_lines_removed": 86,
+      "user_added_per_file": {
+        "server/src/server/cli.py": 59
+      }
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 44,
+      "user_lines_removed": 8,
+      "agent_lines_added": 9660,
+      "agent_lines_removed": 91,
+      "user_added_per_file": {
+        "server/src/server/cli.py": 44
+      },
+      "user_removed_per_file": {
+        "server/src/server/cli.py": 8
+      }
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 169,
+      "user_lines_removed": 21,
+      "agent_lines_added": 9915,
+      "agent_lines_removed": 102,
+      "user_added_per_file": {
+        "server/src/server/cli.py": 5,
+        "server/src/server/extractors/gemini_structured.py": 77,
+        "server/src/server/resolver/cascade.py": 26,
+        "server/src/server/resolver/extract.py": 61
+      },
+      "user_removed_per_file": {
+        "server/src/server/extractors/gemini_structured.py": 1,
+        "server/src/server/resolver/cascade.py": 4,
+        "server/src/server/resolver/extract.py": 16
+      }
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 10231,
+      "agent_lines_removed": 129
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 11099,
+      "agent_lines_removed": 134
+    },
+    {
+      "checkpoint_number": 10,
+      "user_lines_added": 144,
+      "user_lines_removed": 2,
+      "agent_lines_added": 11688,
+      "agent_lines_removed": 153,
+      "user_added_per_file": {
+        "docs/api/qontext-bruno/recent-changes.bru": 13,
+        "server/tests/test_api_layer.py": 127,
+        "web/package.json": 4
+      },
+      "user_removed_per_file": {
+        "web/package.json": 2
+      }
+    },
+    {
+      "checkpoint_number": 11,
+      "user_lines_added": 79,
+      "user_lines_removed": 0,
+      "agent_lines_added": 13198,
+      "agent_lines_removed": 310,
+      "user_added_per_file": {
+        "server/migrations/010_cross_confirmation_view.sql": 20,
+        "web/src/pages/review/TrustWeightsPanel.tsx": 59
+      }
+    }
+  ]
+}
