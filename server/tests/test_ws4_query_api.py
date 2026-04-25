@@ -361,11 +361,12 @@ class TestSearchWithRealData:
 
 class TestVfsWithRealData:
     def test_path_segments(self):
-        from server.api.vfs import _path_segments, _SLUG_TO_TYPE
+        from server.api.vfs import _COLLECTION_ALIASES, _path_segments
+        from server.vfs_paths import type_from_segment
         assert _path_segments("/companies/inazuma") == ["companies", "inazuma"]
         assert _path_segments("contacts/raj-patel/deals") == ["contacts", "raj-patel", "deals"]
-        assert _SLUG_TO_TYPE["companies"] == "company"
-        assert _SLUG_TO_TYPE["contacts"] == "person"
+        assert type_from_segment("companies") == "company"
+        assert _COLLECTION_ALIASES["contacts"] == "person"
 
     def test_vfs_node_from_raj_patel(self, raj_entity):
         from server.api.vfs import _entity_to_vfs_node

@@ -49,10 +49,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
         try:
             await projection.start()
-            await projection.replay_all()
+            # replay_all can take 30s+ for large datasets — run in background so
+            # the server starts accepting requests immediately.
+            asyncio.create_task(projection.replay_all(), name="neo4j-replay")
             listen_task = asyncio.create_task(projection.listen(), name="neo4j-listen")
             app.state.projection = projection
-            logger.info("WS-5 Neo4j projection active")
+            logger.info("WS-5 Neo4j projection active (replay running in background)")
         except Exception as exc:
             logger.exception("Neo4j projection failed to start (%s) — Postgres-only", exc)
             if projection:
