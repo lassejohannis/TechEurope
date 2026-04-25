@@ -3,7 +3,7 @@
   "checkpoint_id": "e070292b2c4e",
   "strategy": "manual-commit",
   "branch": "Lasse",
-  "checkpoints_count": 14,
+  "checkpoints_count": 16,
   "files_touched": [
     "server/src/server/cli.py",
     "server/src/server/main.py",
@@ -19,13 +19,19 @@
       "transcript": "/e0/70292b2c4e/0/full.jsonl",
       "content_hash": "/e0/70292b2c4e/0/content_hash.txt",
       "prompt": "/e0/70292b2c4e/0/prompt.txt"
+    },
+    {
+      "metadata": "/e0/70292b2c4e/1/metadata.json",
+      "transcript": "/e0/70292b2c4e/1/full.jsonl",
+      "content_hash": "/e0/70292b2c4e/1/content_hash.txt",
+      "prompt": "/e0/70292b2c4e/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 465,
-    "cache_creation_tokens": 328037,
-    "cache_read_tokens": 32401861,
-    "output_tokens": 123240,
-    "api_call_count": 230
+    "input_tokens": 613,
+    "cache_creation_tokens": 447719,
+    "cache_read_tokens": 82233870,
+    "output_tokens": 187613,
+    "api_call_count": 353
   }
 }
