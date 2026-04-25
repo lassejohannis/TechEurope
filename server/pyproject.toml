@@ -1,0 +1,38 @@
+[project]
+name = "tech-europe-server"
+version = "0.1.0"
+description = "Core Context Layer + Revenue Intelligence App backend (Tech Europe Hack 2026, Qontext track)"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "python-dotenv>=1.0",
+    "supabase>=2.10",
+    "google-genai>=1.0",
+    "mcp>=1.2",
+    "httpx>=0.27",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+]
+
+[project.scripts]
+server = "server.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.10.10,<0.11.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "server"
+module-root = "src"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
