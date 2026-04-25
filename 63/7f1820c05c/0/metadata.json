@@ -1,0 +1,155 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "637f1820c05c",
+  "session_id": "43003030-6411-41de-8c03-b4da450d5896",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T15:17:47.17284Z",
+  "branch": "Lasse",
+  "checkpoints_count": 11,
+  "files_touched": [
+    "server/.env.example",
+    "server/pyproject.toml",
+    "server/src/server/__init__.py",
+    "server/src/server/api/__init__.py",
+    "server/src/server/api/cypher.py",
+    "server/src/server/config.py",
+    "server/src/server/main.py",
+    "server/src/server/sync/neo4j_projection.py",
+    "server/tests/__init__.py",
+    "server/tests/conftest.py",
+    "server/tests/test_neo4j_projection.py",
+    "server/uv.lock"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "2657e116587a",
+  "token_usage": {
+    "input_tokens": 289,
+    "cache_creation_tokens": 207691,
+    "cache_read_tokens": 13633387,
+    "output_tokens": 61128,
+    "api_call_count": 144
+  },
+  "session_metrics": {
+    "turn_count": 17
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T15:17:47.129153Z",
+    "agent_lines": 552,
+    "agent_removed": 38,
+    "human_added": 5,
+    "human_modified": 2,
+    "human_removed": 0,
+    "total_committed": 559,
+    "total_lines_changed": 597,
+    "agent_percentage": 98.82747068676717,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 109,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/agents/entire-search.md": 25,
+        ".claude/settings.json": 84
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 1,
+      "user_lines_removed": 0,
+      "agent_lines_added": 206,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "server/pyproject.toml": 1
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 6,
+      "user_lines_removed": 2,
+      "agent_lines_added": 1421,
+      "agent_lines_removed": 27,
+      "user_added_per_file": {
+        "server/.env.example": 3,
+        "server/src/server/config.py": 3
+      },
+      "user_removed_per_file": {
+        "server/.env.example": 1,
+        "server/src/server/config.py": 1
+      }
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1511,
+      "agent_lines_removed": 31
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1511,
+      "agent_lines_removed": 31
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 180,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1511,
+      "agent_lines_removed": 31,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1,
+        "data/training/pioneer_training.jsonl": 179
+      }
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 285,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1511,
+      "agent_lines_removed": 31,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1,
+        "data/training/pioneer_training.jsonl": 284
+      }
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 300,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1511,
+      "agent_lines_removed": 31,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1,
+        "data/training/pioneer_training.jsonl": 299
+      }
+    },
+    {
+      "checkpoint_number": 10,
+      "user_lines_added": 300,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1511,
+      "agent_lines_removed": 31,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1,
+        "data/training/pioneer_training.jsonl": 299
+      }
+    },
+    {
+      "checkpoint_number": 11,
+      "user_lines_added": 300,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1511,
+      "agent_lines_removed": 31,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1,
+        "data/training/pioneer_training.jsonl": 299
+      }
+    }
+  ]
+}

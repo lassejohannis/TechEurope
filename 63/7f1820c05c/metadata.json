@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "637f1820c05c",
+  "strategy": "manual-commit",
+  "branch": "Lasse",
+  "checkpoints_count": 11,
+  "files_touched": [
+    "server/.env.example",
+    "server/pyproject.toml",
+    "server/src/server/__init__.py",
+    "server/src/server/api/__init__.py",
+    "server/src/server/api/cypher.py",
+    "server/src/server/config.py",
+    "server/src/server/main.py",
+    "server/src/server/sync/neo4j_projection.py",
+    "server/tests/__init__.py",
+    "server/tests/conftest.py",
+    "server/tests/test_neo4j_projection.py",
+    "server/uv.lock"
+  ],
+  "sessions": [
+    {
+      "metadata": "/63/7f1820c05c/0/metadata.json",
+      "transcript": "/63/7f1820c05c/0/full.jsonl",
+      "content_hash": "/63/7f1820c05c/0/content_hash.txt",
+      "prompt": "/63/7f1820c05c/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 289,
+    "cache_creation_tokens": 207691,
+    "cache_read_tokens": 13633387,
+    "output_tokens": 61128,
+    "api_call_count": 144
+  }
+}
