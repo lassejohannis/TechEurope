@@ -1,0 +1,22 @@
+meta {
+  name: Create webhook
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/admin/webhooks
+  body: json
+}
+
+headers {
+  Authorization: Bearer {{token}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "url": "https://webhook.site/your-uuid",
+    "event_types": ["fact.created", "entity.merged"]
+  }
+}

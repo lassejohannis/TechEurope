@@ -1,7 +1,8 @@
 import { GitMerge } from 'lucide-react'
-import { ConflictCard } from '@/components/conflict/ConflictCard'
-import { useFact } from '@/hooks/useFact'
+
 import { Skeleton } from '@/components/ui/skeleton'
+import { Badge } from '@/components/ui/badge'
+import { useEntityPairInbox, useFactConflictInbox } from '@/hooks/useConflicts'
 
 interface Props {
   conflictId: string | null
@@ -13,7 +14,7 @@ function LoadingSkeleton() {
   return (
     <div className="flex flex-col gap-4 p-4">
       <Skeleton className="h-4 w-40" />
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <Skeleton className="h-32" />
         <Skeleton className="h-32" />
       </div>
@@ -21,8 +22,17 @@ function LoadingSkeleton() {
   )
 }
 
+function formatObject(fact: { object_id: string | null; object_literal: unknown }): string {
+  if (fact.object_id) return fact.object_id
+  if (fact.object_literal && typeof fact.object_literal === 'object') {
+    return JSON.stringify(fact.object_literal)
+  }
+  return String(fact.object_literal ?? '—')
+}
+
 export default function ConflictDetail({ conflictId, selectedClaimIndex, onSelectClaim }: Props) {
-  const { data, isLoading } = useFact(conflictId)
+  const facts = useFactConflictInbox('pending')
+  const pairs = useEntityPairInbox('pending')
 
   if (!conflictId) {
     return (
@@ -35,68 +45,122 @@ export default function ConflictDetail({ conflictId, selectedClaimIndex, onSelec
     )
   }
 
-  if (isLoading) return <LoadingSkeleton />
+  if (facts.isPending || pairs.isPending) return <LoadingSkeleton />
 
-  // When backend is down, show a placeholder with the conflict ID
-  const primaryFact = data?.fact
-  const conflicts = data?.conflicts ?? []
-  const allFacts = primaryFact ? [primaryFact, ...conflicts] : []
+  // ID prefix tells us which inbox we're looking at
+  const isPair = conflictId.startsWith('pair:')
+  const isFactConflict = conflictId.startsWith('fact:')
+  const rawId = conflictId.replace(/^(pair|fact):/, '')
 
-  if (allFacts.length === 0) {
+  if (isPair) {
+    const item = pairs.data?.items.find((i) => i.id === rawId)
+    if (!item) {
+      return (
+        <div className="p-4 text-sm text-muted-foreground">Pair not found.</div>
+      )
+    }
     return (
       <div className="flex flex-col gap-4 p-4">
-        <p className="text-sm text-muted-foreground">
-          Backend not yet available. Conflict details will show here once the API is live.
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Possible duplicate entities
+          </p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Two entities likely refer to the same real-world thing.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-3">
+          {[item.entity_1, item.entity_2].map((e, i) => {
+            if (!e) return null
+            const isSelected = selectedClaimIndex === i
+            return (
+              <button
+                key={e.id}
+                onClick={() => onSelectClaim(i)}
+                className={`rounded-lg border p-3 text-left transition-colors ${
+                  isSelected ? 'border-primary bg-muted/40' : 'hover:bg-muted/30'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">{e.canonical_name}</p>
+                  <Badge variant="secondary" className="text-xs">{e.entity_type}</Badge>
+                </div>
+                <p className="mt-1 font-mono text-xs text-muted-foreground break-all">{e.id}</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Score: {String(item.resolution_signals?.score ?? '—')}
+                </p>
+              </button>
+            )
+          })}
+        </div>
+        <p className="font-mono text-xs text-muted-foreground break-all">
+          resolution: {item.id}
         </p>
-        <p className="font-mono text-xs text-muted-foreground break-all">{conflictId}</p>
+      </div>
+    )
+  }
+
+  if (isFactConflict) {
+    const item = facts.data?.items.find((i) => i.id === rawId)
+    if (!item) {
+      return (
+        <div className="p-4 text-sm text-muted-foreground">Conflict not found.</div>
+      )
+    }
+    return (
+      <div className="flex flex-col gap-4 p-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Competing claims
+          </p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Predicate:{' '}
+            <span className="font-medium capitalize">
+              {item.facts[0]?.predicate.replace(/_/g, ' ') ?? '—'}
+            </span>
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-3">
+          {item.facts.map((f, i) => {
+            const isSelected = selectedClaimIndex === i
+            return (
+              <button
+                key={f.id}
+                onClick={() => onSelectClaim(i)}
+                className={`rounded-lg border p-3 text-left transition-colors ${
+                  isSelected ? 'border-primary bg-muted/40' : 'hover:bg-muted/30'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium">Claim {String.fromCharCode(65 + i)}</p>
+                  <Badge variant="outline" className="text-xs">
+                    confidence {(f.confidence * 100).toFixed(0)}%
+                  </Badge>
+                </div>
+                <p className="mt-2 text-sm">→ {formatObject(f)}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant="secondary" className="text-xs">
+                    {f.source?.source_type ?? 'unknown source'}
+                  </Badge>
+                  <span>{new Date(f.recorded_at).toLocaleDateString()}</span>
+                </div>
+                <p className="mt-1 font-mono text-[10px] text-muted-foreground break-all">{f.id}</p>
+              </button>
+            )
+          })}
+        </div>
+        {item.rationale && (
+          <p className="rounded-md border border-muted bg-muted/30 p-2 text-xs italic text-muted-foreground">
+            {item.rationale}
+          </p>
+        )}
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Competing claims
-        </p>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Predicate:{' '}
-          <span className="font-medium capitalize">
-            {(primaryFact ?? allFacts[0]).predicate.replace(/_/g, ' ')}
-          </span>
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3">
-        {allFacts.map((fact, i) => (
-          <ConflictCard
-            key={fact.id}
-            label={`Claim ${String.fromCharCode(65 + i)}`}
-            fact={fact}
-            isSelected={selectedClaimIndex === i}
-            onSelect={() => onSelectClaim(i)}
-          />
-        ))}
-      </div>
-
-      {data?.provenance && data.provenance.length > 0 && (
-        <div className="flex flex-col gap-1.5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Provenance
-          </p>
-          {data.provenance.map((p) => (
-            <div key={p.source_record_id} className="rounded-md border p-2 text-xs">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-mono text-muted-foreground truncate">{p.source_record_id}</span>
-                <span className="shrink-0 capitalize text-muted-foreground">{p.extractor}</span>
-              </div>
-              {p.evidence_snippet && (
-                <p className="mt-1 text-muted-foreground italic">"{p.evidence_snippet}"</p>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+    <div className="p-4 text-sm text-muted-foreground">
+      Unknown conflict id: {conflictId}
     </div>
   )
 }

@@ -1,0 +1,252 @@
+{
+  "versions": {
+    "v1": "d79f2191-9bcd-46b0-9d78-b13aacc1f1d8",
+    "v3": "6f7451f9-cfac-48e8-b5e6-0bb970a8b45b"
+  },
+  "rows": [
+    {
+      "chunk_id": "chat:31b10dd88a8f41f1",
+      "text_preview": "{\"conversation_id\": \"4e0f2859-7369-4e8a-bf08-26dd13243d4e\", \"sender_emp_id\": \"emp_0618\", \"recipient_emp_id\": \"emp_1119\", \"date\": \"2021-05-01\", \"text\": \"Emp1: Go",
+      "v1": {
+        "entities": 11,
+        "facts": 8,
+        "latency_ms": 733,
+        "shared_entities": 4,
+        "shared_predicates": 0,
+        "extra_entities": 7
+      },
+      "v3": {
+        "entities": 14,
+        "facts": 8,
+        "latency_ms": 706,
+        "shared_entities": 4,
+        "shared_predicates": 0,
+        "extra_entities": 10
+      }
+    },
+    {
+      "chunk_id": "chat:fd023ef4c8340c55",
+      "text_preview": "{\"conversation_id\": \"a25b2491-0de6-4679-a1e5-9fb6bae7ca79\", \"sender_emp_id\": \"emp_0218\", \"recipient_emp_id\": \"emp_1048\", \"date\": \"2018-01-01\", \"text\": \"Emp1: Go",
+      "v1": {
+        "entities": 11,
+        "facts": 1,
+        "latency_ms": 731,
+        "shared_entities": 5,
+        "shared_predicates": 0,
+        "extra_entities": 6
+      },
+      "v3": {
+        "entities": 14,
+        "facts": 0,
+        "latency_ms": 581,
+        "shared_entities": 6,
+        "shared_predicates": 0,
+        "extra_entities": 8
+      }
+    },
+    {
+      "chunk_id": "chat:00210419f576f69a",
+      "text_preview": "{\"conversation_id\": \"ec6b0a12-169c-40c9-a848-2b0f732c127d\", \"sender_emp_id\": \"emp_0231\", \"recipient_emp_id\": \"emp_1108\", \"date\": \"2015-07-09\", \"text\": \"Emp1: Hi",
+      "v1": {
+        "entities": 9,
+        "facts": 5,
+        "latency_ms": 706,
+        "shared_entities": 2,
+        "shared_predicates": 1,
+        "extra_entities": 7
+      },
+      "v3": {
+        "entities": 8,
+        "facts": 5,
+        "latency_ms": 584,
+        "shared_entities": 1,
+        "shared_predicates": 1,
+        "extra_entities": 7
+      }
+    },
+    {
+      "chunk_id": "chat:326f511319a24ec9",
+      "text_preview": "{\"conversation_id\": \"184508e2-1e4d-44c6-b893-2e763ee01122\", \"sender_emp_id\": \"emp_0397\", \"recipient_emp_id\": \"emp_0465\", \"date\": \"2020-02-08\", \"text\": \"Emp1: Go",
+      "v1": {
+        "entities": 16,
+        "facts": 0,
+        "latency_ms": 564,
+        "shared_entities": 5,
+        "shared_predicates": 0,
+        "extra_entities": 11
+      },
+      "v3": {
+        "entities": 13,
+        "facts": 0,
+        "latency_ms": 697,
+        "shared_entities": 3,
+        "shared_predicates": 0,
+        "extra_entities": 10
+      }
+    },
+    {
+      "chunk_id": "chat:0267aaf980c465de",
+      "text_preview": "{\"conversation_id\": \"c48f9fd0-faa7-4fe9-aa31-ecb7d20ec6c5\", \"sender_emp_id\": \"emp_0677\", \"recipient_emp_id\": \"emp_0436\", \"date\": \"2016-06-06\", \"text\": \"Emp1: Ar",
+      "v1": {
+        "entities": 9,
+        "facts": 6,
+        "latency_ms": 561,
+        "shared_entities": 4,
+        "shared_predicates": 1,
+        "extra_entities": 5
+      },
+      "v3": {
+        "entities": 11,
+        "facts": 7,
+        "latency_ms": 1011,
+        "shared_entities": 5,
+        "shared_predicates": 1,
+        "extra_entities": 6
+      }
+    },
+    {
+      "chunk_id": "chat:6a0d7834ac5c689d",
+      "text_preview": "{\"conversation_id\": \"4ad01df5-ae6b-400d-bc44-40caba4dc090\", \"sender_emp_id\": \"emp_0465\", \"recipient_emp_id\": \"emp_0462\", \"date\": \"2020-06-02\", \"text\": \"Emp1: Go",
+      "v1": {
+        "entities": 11,
+        "facts": 5,
+        "latency_ms": 658,
+        "shared_entities": 6,
+        "shared_predicates": 0,
+        "extra_entities": 5
+      },
+      "v3": {
+        "entities": 11,
+        "facts": 4,
+        "latency_ms": 595,
+        "shared_entities": 6,
+        "shared_predicates": 0,
+        "extra_entities": 5
+      }
+    },
+    {
+      "chunk_id": "chat:48690ac794836c72",
+      "text_preview": "{\"conversation_id\": \"3806f3e7-616c-41f5-b4cc-1ce614cf0dda\", \"sender_emp_id\": \"emp_0380\", \"recipient_emp_id\": \"emp_0700\", \"date\": \"2020-02-22\", \"text\": \"Emp1: Go",
+      "v1": {
+        "entities": 12,
+        "facts": 1,
+        "latency_ms": 576,
+        "shared_entities": 5,
+        "shared_predicates": 0,
+        "extra_entities": 7
+      },
+      "v3": {
+        "entities": 14,
+        "facts": 0,
+        "latency_ms": 603,
+        "shared_entities": 6,
+        "shared_predicates": 0,
+        "extra_entities": 8
+      }
+    },
+    {
+      "chunk_id": "chat:bbd4b097aca18724",
+      "text_preview": "{\"conversation_id\": \"a7c71043-72ce-41b1-8cb4-ab076f1fa772\", \"sender_emp_id\": \"emp_0569\", \"recipient_emp_id\": \"emp_0555\", \"date\": \"2017-03-05\", \"text\": \"Emp1: Go",
+      "v1": {
+        "entities": 9,
+        "facts": 4,
+        "latency_ms": 554,
+        "shared_entities": 6,
+        "shared_predicates": 0,
+        "extra_entities": 3
+      },
+      "v3": {
+        "entities": 11,
+        "facts": 3,
+        "latency_ms": 533,
+        "shared_entities": 6,
+        "shared_predicates": 0,
+        "extra_entities": 5
+      }
+    },
+    {
+      "chunk_id": "chat:3b584ed318b01957",
+      "text_preview": "{\"conversation_id\": \"414c93d3-e92e-44c3-aa56-dc56d71e67a2\", \"sender_emp_id\": \"emp_0686\", \"recipient_emp_id\": \"emp_0247\", \"date\": \"2020-04-04\", \"text\": \"**Rahul ",
+      "v1": {
+        "entities": 13,
+        "facts": 11,
+        "latency_ms": 589,
+        "shared_entities": 4,
+        "shared_predicates": 1,
+        "extra_entities": 9
+      },
+      "v3": {
+        "entities": 11,
+        "facts": 10,
+        "latency_ms": 592,
+        "shared_entities": 4,
+        "shared_predicates": 1,
+        "extra_entities": 7
+      }
+    },
+    {
+      "chunk_id": "chat:acc85543165e6cf3",
+      "text_preview": "{\"conversation_id\": \"c59a04f9-36f9-4eb6-b647-bd912de27f8b\", \"sender_emp_id\": \"emp_1032\", \"recipient_emp_id\": \"emp_0121\", \"date\": \"2016-07-28\", \"text\": \"Emp1: Go",
+      "v1": {
+        "entities": 13,
+        "facts": 0,
+        "latency_ms": 569,
+        "shared_entities": 4,
+        "shared_predicates": 0,
+        "extra_entities": 9
+      },
+      "v3": {
+        "entities": 12,
+        "facts": 0,
+        "latency_ms": 499,
+        "shared_entities": 4,
+        "shared_predicates": 0,
+        "extra_entities": 8
+      }
+    }
+  ],
+  "summary": {
+    "v1": {
+      "latency_ms": [
+        733,
+        731,
+        706,
+        564,
+        561,
+        658,
+        576,
+        554,
+        589,
+        569
+      ],
+      "entities": 114,
+      "facts": 41,
+      "errors": 0,
+      "shared_entities": 45,
+      "shared_predicates": 3,
+      "gold_entities_total": 90,
+      "gold_predicates_total": 141
+    },
+    "v3": {
+      "latency_ms": [
+        706,
+        581,
+        584,
+        697,
+        1011,
+        595,
+        603,
+        533,
+        592,
+        499
+      ],
+      "entities": 119,
+      "facts": 37,
+      "errors": 0,
+      "shared_entities": 45,
+      "shared_predicates": 3,
+      "gold_entities_total": 90,
+      "gold_predicates_total": 141
+    }
+  }
+}
