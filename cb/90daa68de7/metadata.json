@@ -3,12 +3,20 @@
   "checkpoint_id": "cb90daa68de7",
   "strategy": "manual-commit",
   "branch": "Lasse",
-  "checkpoints_count": 2,
+  "checkpoints_count": 3,
   "files_touched": [
+    "data/training/comparison.json",
+    "data/training/eval_holdout.jsonl",
+    "data/training/eval_v2.json",
     "data/training/pioneer_ner_v4.jsonl",
     "data/training/pioneer_ner_v4_holdout.jsonl",
+    "data/training/pioneer_versions.json",
+    "server/scripts/compare_pioneer_versions.py",
     "server/scripts/convert_to_pioneer_ner.py",
-    "server/src/server/cli.py"
+    "server/scripts/eval_extractors.py",
+    "server/scripts/pioneer_pipeline.py",
+    "server/src/server/cli.py",
+    "server/src/server/extractors/prompt.py"
   ],
   "sessions": [
     {
@@ -16,13 +24,19 @@
       "transcript": "/cb/90daa68de7/0/full.jsonl",
       "content_hash": "/cb/90daa68de7/0/content_hash.txt",
       "prompt": "/cb/90daa68de7/0/prompt.txt"
+    },
+    {
+      "metadata": "/cb/90daa68de7/1/metadata.json",
+      "transcript": "/cb/90daa68de7/1/full.jsonl",
+      "content_hash": "/cb/90daa68de7/1/content_hash.txt",
+      "prompt": "/cb/90daa68de7/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 425,
-    "cache_creation_tokens": 537973,
-    "cache_read_tokens": 48642586,
-    "output_tokens": 148162,
-    "api_call_count": 228
+    "input_tokens": 1076,
+    "cache_creation_tokens": 968095,
+    "cache_read_tokens": 112163275,
+    "output_tokens": 330740,
+    "api_call_count": 554
   }
 }

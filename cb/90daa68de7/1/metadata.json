@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "cb90daa68de7",
+  "session_id": "43003030-6411-41de-8c03-b4da450d5896",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T20:58:00.987258Z",
+  "branch": "Lasse",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "data/training/comparison.json",
+    "data/training/eval_holdout.jsonl",
+    "data/training/eval_v2.json",
+    "data/training/pioneer_ner_v4.jsonl",
+    "data/training/pioneer_ner_v4_holdout.jsonl",
+    "data/training/pioneer_versions.json",
+    "server/scripts/compare_pioneer_versions.py",
+    "server/scripts/convert_to_pioneer_ner.py",
+    "server/scripts/eval_extractors.py",
+    "server/scripts/pioneer_pipeline.py",
+    "server/src/server/extractors/prompt.py"
+  ],
+  "agent": "Claude Code",
+  "model": "",
+  "turn_id": "31c65e673b53",
+  "token_usage": {
+    "input_tokens": 651,
+    "cache_creation_tokens": 430122,
+    "cache_read_tokens": 63520689,
+    "output_tokens": 182578,
+    "api_call_count": 326
+  },
+  "session_metrics": {
+    "turn_count": 33
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T20:58:00.872595Z",
+    "agent_lines": 9783,
+    "agent_removed": 0,
+    "human_added": 177,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 9960,
+    "total_lines_changed": 9960,
+    "agent_percentage": 98.22289156626506,
+    "metric_version": 2
+  }
+}
