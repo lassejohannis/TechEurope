@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -54,6 +55,9 @@ class Neo4jProjection:
         self.supabase: SupabaseClient | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._channels: list[Any] = []
+        self._synced_entities: int = 0
+        self._synced_facts: int = 0
+        self._last_synced_at: str | None = None
 
     async def start(self) -> None:
         self.driver = AsyncGraphDatabase.driver(
@@ -80,13 +84,18 @@ class Neo4jProjection:
             await self.driver.close()
 
     async def healthcheck(self) -> dict[str, Any]:
-        """Cheap probe used by `/query/cypher/_health`."""
+        """Driver ping + sync counters — used by `/admin/projection/health`."""
         if not self.driver:
             return {"status": "down", "reason": "driver not started"}
         try:
             async with self.driver.session(database=self.cfg.neo4j_database) as s:
-                rec = await (await s.run("RETURN 1 AS ok")).single()
-                return {"status": "up", "ok": rec["ok"] if rec else None}
+                await (await s.run("RETURN 1")).consume()
+            return {
+                "status": "up",
+                "synced_entities": self._synced_entities,
+                "synced_facts": self._synced_facts,
+                "last_synced_at": self._last_synced_at,
+            }
         except Exception as exc:
             return {"status": "down", "reason": str(exc)}
 
@@ -155,12 +164,20 @@ class Neo4jProjection:
         if row is None:
             return
         await self._apply_with_retry(self._upsert_entity, evt, row)
+        self._synced_entities += 1
+        self._touch_synced_at()
 
     async def _on_fact_event(self, payload: dict[str, Any]) -> None:
         evt, row = self._extract_event(payload)
         if row is None:
             return
         await self._apply_with_retry(self._upsert_fact, evt, row)
+        self._synced_facts += 1
+        self._touch_synced_at()
+
+    def _touch_synced_at(self) -> None:
+        from datetime import datetime, timezone
+        self._last_synced_at = datetime.now(tz=timezone.utc).isoformat()
 
     @staticmethod
     def _extract_event(payload: dict[str, Any]) -> tuple[EventType, dict[str, Any] | None]:
@@ -180,7 +197,7 @@ class Neo4jProjection:
 
     async def _upsert_entity(self, evt: EventType, row: dict[str, Any]) -> None:
         assert self.driver
-        if evt == "DELETE":
+        if evt == "DELETE" or (evt == "UPDATE" and row.get("deleted_at")):
             cypher = "MATCH (n:Entity {id:$id}) DETACH DELETE n"
             params = {"id": row["id"]}
         else:
@@ -201,50 +218,103 @@ class Neo4jProjection:
                 "canonical_name": row.get("canonical_name"),
                 "aliases": row.get("aliases") or [],
                 "attrs": json.dumps(row.get("attrs") or {}),
+                "emp_id": (row.get("attrs") or {}).get("emp_id"),
             }
         async with self.driver.session(database=self.cfg.neo4j_database) as s:
-            await s.run(cypher, params)
+            await s.run(
+                cypher + "\nSET n.emp_id = $emp_id",
+                params,
+            )
 
     async def _upsert_fact(self, evt: EventType, row: dict[str, Any]) -> None:
         """
         Map a reified Fact to a typed edge between two entities.
 
-        Literal-valued facts (object_id IS NULL, object_literal IS NOT NULL)
-        are skipped on the graph side — they live as node properties via
-        a future enrichment step. For 48h scope: only entity-to-entity facts.
+        Literal-valued facts are projected for selected predicates (e.g.
+        reports_to_emp_id -> :MANAGES, mentions -> :MENTIONS) when they can
+        be resolved against existing entity properties.
         """
         assert self.driver
-        if row.get("object_id") is None:
-            return  # literal fact, not a graph edge
-
         if evt == "DELETE":
-            cypher = "MATCH ()-[r:FACT {fact_id:$fact_id}]-() DELETE r"
+            cypher = "MATCH ()-[r {fact_id:$fact_id}]-() DELETE r"
             params = {"fact_id": row["id"]}
-        else:
-            # Edge type from predicate (sanitized for Cypher).
-            # Predicates are governed by `edge_type_config` ontology table.
-            predicate = (row.get("predicate") or "RELATED_TO").upper()
+            async with self.driver.session(database=self.cfg.neo4j_database) as s:
+                await s.run(cypher, params)
+            return
+
+        subject_id = row.get("subject_id")
+        object_id = row.get("object_id")
+        predicate = (row.get("predicate") or "RELATED_TO").upper()
+
+        # Avoid graph self-loops for semantic facts (data-level check also exists in SQL).
+        if object_id and subject_id and subject_id == object_id:
+            logger.debug("skip self-loop fact %s (%s)", row.get("id"), predicate)
+            return
+
+        if object_id:
+            edge_type = self._edge_label(predicate)
             cypher = f"""
                 MATCH (s:Entity {{id:$subject_id}})
                 MATCH (o:Entity {{id:$object_id}})
-                MERGE (s)-[r:{predicate} {{fact_id:$fact_id}}]->(o)
+                MERGE (s)-[r:{edge_type} {{fact_id:$fact_id}}]->(o)
                 SET r.confidence = $confidence,
                     r.valid_from = $valid_from,
                     r.valid_to = $valid_to,
                     r.source_record_id = $source_record_id,
+                    r.derivation = $derivation,
                     r.last_synced = datetime()
             """
             params = {
                 "fact_id": row["id"],
-                "subject_id": row["subject_id"],
-                "object_id": row["object_id"],
+                "subject_id": subject_id,
+                "object_id": object_id,
                 "confidence": row.get("confidence"),
                 "valid_from": row.get("valid_from"),
                 "valid_to": row.get("valid_to"),
                 "source_record_id": row.get("source_id"),
+                "derivation": row.get("derivation"),
             }
+            async with self.driver.session(database=self.cfg.neo4j_database) as s:
+                await s.run(cypher, params)
+            return
+
+        if predicate == "REPORTS_TO_EMP_ID":
+            # mentions facts always carry object_id (handled above); only
+            # reports_to_emp_id is stored as a literal at ingest time.
+            manager_emp_id = str(row.get("object_literal") or "").strip()
+            if not manager_emp_id:
+                return
+            cypher = """
+                MATCH (s:Entity {id:$subject_id})
+                MATCH (m:Entity {entity_type:'person', emp_id:$manager_emp_id})
+                MERGE (m)-[r:MANAGES {fact_id:$fact_id}]->(s)
+                SET r.confidence = $confidence,
+                    r.valid_from = $valid_from,
+                    r.valid_to = $valid_to,
+                    r.source_record_id = $source_record_id,
+                    r.derivation = $derivation,
+                    r.last_synced = datetime()
+            """
+            params = {
+                "fact_id": row["id"],
+                "subject_id": subject_id,
+                "manager_emp_id": manager_emp_id,
+                "confidence": row.get("confidence"),
+                "valid_from": row.get("valid_from"),
+                "valid_to": row.get("valid_to"),
+                "source_record_id": row.get("source_id"),
+                "derivation": row.get("derivation"),
+            }
+        else:
+            return
         async with self.driver.session(database=self.cfg.neo4j_database) as s:
             await s.run(cypher, params)
+
+    @staticmethod
+    def _edge_label(predicate: str) -> str:
+        cleaned = re.sub(r"[^A-Z0-9_]", "_", predicate.upper())
+        cleaned = re.sub(r"_+", "_", cleaned).strip("_")
+        return cleaned or "RELATED_TO"
 
     # ------------------------------------------------------------------
     # Retry + replay
@@ -324,15 +394,28 @@ class Neo4jProjection:
 # ----------------------------------------------------------------------
 
 DEMO_QUERIES: dict[str, str] = {
-    "acme_3hop_neighborhood": """
-        MATCH path = (a:Entity {id:'customer:acme-gmbh'})-[*1..3]-(n:Entity)
-        RETURN n.canonical_name AS name,
-               n.entity_type AS type,
-               length(path) AS hops,
-               [r IN relationships(path) | type(r)] AS path_types
-        ORDER BY hops
-        LIMIT 25
+    # Pitch Wow-Query: org network + cross-source evidence in one shot
+    "inazuma_org_network": """
+        MATCH (mgr:Entity {entity_type:'person'})-[:MANAGES]->(report:Entity {entity_type:'person'})
+        OPTIONAL MATCH (mgr)-[:WORKS_AT]->(co:Entity {entity_type:'company'})
+        RETURN mgr.canonical_name AS manager,
+               co.canonical_name  AS company,
+               collect(report.canonical_name) AS direct_reports,
+               count(report) AS report_count
+        ORDER BY report_count DESC
+        LIMIT 15
     """,
+    # 3-hop neighborhood around Inazuma — shows cross-source graph traversal
+    "inazuma_3hop_neighborhood": """
+        MATCH path = (a:Entity {id:'company:inazuma'})-[*1..3]-(n:Entity)
+        RETURN n.canonical_name AS name,
+               n.entity_type   AS type,
+               length(path)    AS hops,
+               [r IN relationships(path) | type(r)] AS path_types
+        ORDER BY hops, type
+        LIMIT 30
+    """,
+    # Shortest path between two persons (pass from_id / to_id as params)
     "shortest_path_persons": """
         MATCH (a:Entity {entity_type:'person', id:$from_id}),
               (b:Entity {entity_type:'person', id:$to_id}),
@@ -340,14 +423,24 @@ DEMO_QUERIES: dict[str, str] = {
         RETURN [n IN nodes(path) | n.canonical_name] AS path,
                length(path) AS hops
     """,
-    "champions_with_open_threads": """
-        MATCH (p:Entity {entity_type:'person'})-[:CHAMPION_OF]->(c:Entity {entity_type:'company'})
-        MATCH (p)-[:PARTICIPANT_IN]->(comm:Entity {entity_type:'communication'})
-        WHERE comm.last_activity_days > 14
-        RETURN c.canonical_name AS company,
-               p.canonical_name AS champion,
-               count(comm) AS stale_threads
-        ORDER BY stale_threads DESC
+    # Most connected hub — useful for finding key brokers across sources
+    "top_connected_entities": """
+        MATCH (n:Entity)-[r]-()
+        WITH n, count(r) AS degree
+        ORDER BY degree DESC LIMIT 20
+        RETURN n.canonical_name AS name,
+               n.entity_type   AS type,
+               degree
+    """,
+    # Email-thread participants — shows participant_in edges from email connector
+    "email_thread_participants": """
+        MATCH (p:Entity {entity_type:'person'})-[:PARTICIPANT_IN]->(c:Entity {entity_type:'communication'})
+        WITH c, collect(p.canonical_name) AS participants, count(p) AS participant_count
+        WHERE participant_count > 1
+        RETURN c.canonical_name AS thread,
+               participants,
+               participant_count
+        ORDER BY participant_count DESC
         LIMIT 10
     """,
 }
