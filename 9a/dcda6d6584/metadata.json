@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "9adcda6d6584",
+  "strategy": "manual-commit",
+  "branch": "Lasse",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "CLAUDE.md",
+    "data/training/gliner2_holdout.jsonl",
+    "data/training/gliner2_training.jsonl",
+    "data/training/pioneer_training.jsonl",
+    "server/scripts/compare_extractors.py",
+    "server/scripts/convert_to_gliner2.py",
+    "server/scripts/gen_pioneer_training.py",
+    "server/src/server/extractors/__init__.py",
+    "server/src/server/extractors/gemini.py",
+    "server/src/server/extractors/pioneer.py",
+    "server/src/server/extractors/schemas.py"
+  ],
+  "sessions": [
+    {
+      "metadata": "/9a/dcda6d6584/0/metadata.json",
+      "transcript": "/9a/dcda6d6584/0/full.jsonl",
+      "content_hash": "/9a/dcda6d6584/0/content_hash.txt",
+      "prompt": "/9a/dcda6d6584/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 318,
+    "cache_creation_tokens": 340425,
+    "cache_read_tokens": 30406319,
+    "output_tokens": 106374,
+    "api_call_count": 198
+  }
+}
