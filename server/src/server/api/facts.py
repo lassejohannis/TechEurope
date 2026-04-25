@@ -10,6 +10,11 @@ from server.models import FactResponse, ProvenanceResponse, SourceReference, Evi
 router = APIRouter(prefix="/facts", tags=["facts"])
 
 
+def _is_single_row_not_found(exc: Exception) -> bool:
+    text = str(exc)
+    return "PGRST116" in text or "multiple (or no) rows returned" in text
+
+
 def _source_ref_from_record(sr: dict) -> SourceReference:
     meta = sr.get("metadata") or {}
     return SourceReference(
@@ -23,10 +28,15 @@ def _source_ref_from_record(sr: dict) -> SourceReference:
 
 @router.get("/{fact_id}/provenance", response_model=ProvenanceResponse)
 def get_provenance(fact_id: str, db=Depends(get_db)):
-    fact_res = db.table("facts").select("*, source_records(*)").eq("id", fact_id).single().execute()
-    if not fact_res.data:
+    try:
+        fact_res = db.table("facts").select("*, source_records(*)").eq("id", fact_id).single().execute()
+        f = fact_res.data
+    except Exception as exc:
+        if _is_single_row_not_found(exc):
+            raise HTTPException(status_code=404, detail="Fact not found") from exc
+        raise
+    if not f:
         raise HTTPException(status_code=404, detail="Fact not found")
-    f = fact_res.data
 
     sr_list = f.pop("source_records", None)
     sr = sr_list[0] if isinstance(sr_list, list) and sr_list else sr_list
@@ -59,22 +69,26 @@ def get_provenance(fact_id: str, db=Depends(get_db)):
 
     superseded_by = None
     if f.get("superseded_by"):
-        sup_res = db.table("facts").select("*").eq("id", f["superseded_by"]).single().execute()
-        if sup_res.data:
+        try:
+            sup_res = db.table("facts").select("*").eq("id", f["superseded_by"]).single().execute()
             s = sup_res.data
-            superseded_by = FactResponse(
-                id=str(s["id"]),
-                subject_id=str(s["subject_id"]),
-                predicate=s["predicate"],
-                object_id=str(s["object_id"]) if s.get("object_id") else None,
-                object_literal=s.get("object_literal"),
-                confidence=float(s.get("confidence", 0)),
-                derivation=s.get("derivation", "unknown"),
-                valid_from=s["valid_from"],
-                valid_to=s.get("valid_to"),
-                recorded_at=s["recorded_at"],
-                source_id=str(s["source_id"]),
-            )
+            if s:
+                superseded_by = FactResponse(
+                    id=str(s["id"]),
+                    subject_id=str(s["subject_id"]),
+                    predicate=s["predicate"],
+                    object_id=str(s["object_id"]) if s.get("object_id") else None,
+                    object_literal=s.get("object_literal"),
+                    confidence=float(s.get("confidence", 0)),
+                    derivation=s.get("derivation", "unknown"),
+                    valid_from=s["valid_from"],
+                    valid_to=s.get("valid_to"),
+                    recorded_at=s["recorded_at"],
+                    source_id=str(s["source_id"]),
+                )
+        except Exception as exc:
+            if not _is_single_row_not_found(exc):
+                raise
 
     return ProvenanceResponse(
         fact=fact_resp,

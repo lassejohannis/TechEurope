@@ -12,6 +12,11 @@ from server.models import EntityResponse, FactResponse, EvidenceItem
 router = APIRouter(prefix="/entities", tags=["entities"])
 
 
+def _is_single_row_not_found(exc: Exception) -> bool:
+    text = str(exc)
+    return "PGRST116" in text or "multiple (or no) rows returned" in text
+
+
 def _build_entity(entity_row: dict, facts: list[dict], trust_row: dict | None) -> EntityResponse:
     fact_responses = []
     for f in facts:
@@ -58,7 +63,12 @@ def get_entity(
     as_of: datetime | None = Query(default=None, description="Time-travel: state at this timestamp"),
     db=Depends(get_db),
 ):
-    entity_res = db.table("entities").select("*").eq("id", entity_id).single().execute()
+    try:
+        entity_res = db.table("entities").select("*").eq("id", entity_id).single().execute()
+    except Exception as exc:
+        if _is_single_row_not_found(exc):
+            raise HTTPException(status_code=404, detail="Entity not found") from exc
+        raise
     if not entity_res.data:
         raise HTTPException(status_code=404, detail="Entity not found")
     entity_row = entity_res.data
@@ -78,7 +88,13 @@ def get_entity(
         sr = f.pop("source_records", None)
         f["source_record"] = sr[0] if isinstance(sr, list) and sr else sr
 
-    trust_res = db.table("entity_trust").select("*").eq("id", entity_id).single().execute()
-    trust_row = trust_res.data
+    try:
+        trust_res = db.table("entity_trust").select("*").eq("id", entity_id).single().execute()
+        trust_row = trust_res.data
+    except Exception as exc:
+        if _is_single_row_not_found(exc):
+            trust_row = None
+        else:
+            raise
 
     return _build_entity(entity_row, facts, trust_row)

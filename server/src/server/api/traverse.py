@@ -198,7 +198,14 @@ def traverse(req: TraverseRequest, db=Depends(get_db)):
 
     start_ids = _find_start_entities(db, req.start)
     if not start_ids:
-        raise HTTPException(status_code=404, detail="No entities found for the given start criteria")
+        return TraverseResponse(
+            start_entity_ids=[],
+            nodes=[],
+            edges=[],
+            total_nodes=0,
+            total_edges=0,
+            depth_reached=0,
+        )
 
     visited: set[str] = set(start_ids)
     all_edges: list[TraverseEdge] = []
