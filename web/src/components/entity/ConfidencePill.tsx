@@ -12,17 +12,19 @@ export function ConfidencePill({ confidence, className }: Props) {
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          className={cn(
-            'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium tabular-nums',
-            confidenceClass(confidence),
-            className,
-          )}
-        >
-          {pct}%
-        </span>
-      </TooltipTrigger>
+      <TooltipTrigger
+        render={
+          <span
+            className={cn(
+              'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium tabular-nums',
+              confidenceClass(confidence),
+              className,
+            )}
+          >
+            {pct}%
+          </span>
+        }
+      />
       <TooltipContent>
         Confidence: {level} ({confidence.toFixed(3)})
       </TooltipContent>
