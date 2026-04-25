@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "8f881eef204d",
+  "session_id": "60294954-bc73-44f3-a951-6633f66d8e32",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T13:54:33.036034Z",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "docs/team-setup.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "f51eced16999",
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 40770,
+    "cache_read_tokens": 173638,
+    "output_tokens": 1148,
+    "api_call_count": 7
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T13:54:33.029925Z",
+    "agent_lines": 8,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 2,
+    "total_committed": 8,
+    "total_lines_changed": 10,
+    "agent_percentage": 80,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 112,
+      "user_lines_removed": 2,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/agents/entire-search.md": 25,
+        ".claude/settings.json": 84,
+        "docs/team-setup.md": 3
+      },
+      "user_removed_per_file": {
+        "docs/team-setup.md": 2
+      }
+    }
+  ]
+}
