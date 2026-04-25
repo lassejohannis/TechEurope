@@ -25,8 +25,10 @@ from server.api.facts import router as facts_router
 from server.api.graph import router as graph_router
 from server.api.resolutions import router as resolutions_router
 from server.api.search import router as search_router
+from server.api.traverse import router as traverse_router
 from server.api.vfs import router as vfs_router
 from server.api.webhooks import router as webhooks_router
+from server.api.webhooks_outbound import router as webhooks_outbound_router
 from server.auth import get_principal
 from server.config import settings
 from server.sync.neo4j_projection import Neo4jProjection, SyncConfig
@@ -68,10 +70,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
         try:
             await projection.start()
-            await projection.replay_all()
+            # replay_all can take 30s+ for large datasets — run in background so
+            # the server starts accepting requests immediately.
+            asyncio.create_task(projection.replay_all(), name="neo4j-replay")
             listen_task = asyncio.create_task(projection.listen(), name="neo4j-listen")
             app.state.projection = projection
-            logger.info("WS-5 Neo4j projection active")
+            logger.info("WS-5 Neo4j projection active (replay running in background)")
         except Exception as exc:
             logger.exception("Neo4j projection failed to start (%s) — Postgres-only", exc)
             if projection:
@@ -148,11 +152,13 @@ _auth_dep = [Depends(get_principal)]
 app.include_router(entities_router, prefix="/api", dependencies=_auth_dep)
 app.include_router(facts_router, prefix="/api", dependencies=_auth_dep)
 app.include_router(search_router, prefix="/api", dependencies=_auth_dep)
+app.include_router(traverse_router, prefix="/api", dependencies=_auth_dep)
 app.include_router(vfs_router, prefix="/api", dependencies=_auth_dep)
 app.include_router(graph_router, prefix="/api", dependencies=_auth_dep)
 app.include_router(cypher_proxy_router, prefix="/api", dependencies=_auth_dep)
 app.include_router(admin_router, prefix="/api", dependencies=_auth_dep)
-app.include_router(webhooks_router, prefix="/api", dependencies=_auth_dep)
+app.include_router(webhooks_router, prefix="/api", dependencies=_auth_dep)  # inbound source-change
+app.include_router(webhooks_outbound_router, prefix="/api", dependencies=_auth_dep)  # outbound /admin/webhooks
 app.include_router(changes_router, dependencies=_auth_dep)  # already has /api/changes prefix
 app.include_router(resolutions_router, dependencies=_auth_dep)  # /api/resolutions + /api/fact-resolutions + /api/trust-weights
 

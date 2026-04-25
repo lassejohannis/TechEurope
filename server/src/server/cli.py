@@ -11,7 +11,6 @@ Usage examples:
 
 from __future__ import annotations
 
-import re
 import uuid
 from pathlib import Path
 
@@ -24,6 +23,7 @@ from server.connectors import (  # side-effect import populates registry
     get_connector,
 )
 from server.db import get_supabase
+from server.vfs_paths import segment_from_type, slugify_name
 
 
 cli = typer.Typer(add_completion=False, no_args_is_help=False)
@@ -131,7 +131,7 @@ def _entity_id(entity_type: str, canonical_name: str) -> str:
     Lets the resolver upsert the same logical entity idempotently across
     multiple source_records that mention it.
     """
-    slug = re.sub(r"[^a-z0-9]+", "-", canonical_name.lower()).strip("-") or "unnamed"
+    slug = slugify_name(canonical_name)
     return f"{entity_type}:{slug}"
 
 
@@ -153,6 +153,41 @@ def _persist_entity(
         return matched_id
 
     eid = _entity_id(candidate.entity_type, candidate.canonical_name)
+    entity_segment = segment_from_type(candidate.entity_type)
+    base_slug = slugify_name(candidate.canonical_name)
+    base_path = f"/{entity_segment}/{base_slug}"
+
+    existing_res = db.table("entities").select("id, attrs").eq("id", eid).limit(1).execute()
+    existing = existing_res.data[0] if existing_res.data else None
+
+    attrs = dict(candidate.attrs or {})
+    existing_vfs_path = (
+        (existing.get("attrs") or {}).get("vfs_path")
+        if isinstance(existing, dict)
+        else None
+    )
+
+    if isinstance(existing_vfs_path, str) and existing_vfs_path.strip():
+        attrs["vfs_path"] = existing_vfs_path.strip()
+    else:
+        suffix = 1
+        vfs_path = base_path
+        while True:
+            path_res = (
+                db.table("entities")
+                .select("id")
+                .eq("entity_type", candidate.entity_type)
+                .filter("attrs->>vfs_path", "eq", vfs_path)
+                .limit(1)
+                .execute()
+            )
+            taken = bool(path_res.data) and str(path_res.data[0]["id"]) != eid
+            if not taken:
+                attrs["vfs_path"] = vfs_path
+                break
+            suffix += 1
+            vfs_path = f"{base_path}-{suffix}"
+
     aliases = list({candidate.canonical_name})
     for hard_id_field in ("email", "emp_id", "tax_id", "domain", "product_id"):
         if v := candidate.attrs.get(hard_id_field):
@@ -251,6 +286,7 @@ def _persist_fact(
                 "confidence": pf.confidence,
                 "source_id": source_id,
                 "extraction_method": pf.extraction_method,
+                "derivation": pf.derivation,
             }
         ).execute()
         return True
@@ -568,6 +604,88 @@ def cmd_mcp_stdio() -> None:
     from server.mcp.stdio import run
 
     run()
+
+
+@cli.command("link-reports-to")
+def cmd_link_reports_to(
+    dry_run: bool = typer.Option(False, help="Print matches without writing"),
+) -> None:
+    """Resolve reports_to_emp_id literal facts → manages entity-to-entity facts in Postgres.
+
+    Run after all HR records have been resolved:
+      uv run server resolve --source-type hr_record
+    """
+    db = get_supabase()
+
+    res = (
+        db.table("facts")
+        .select("id, subject_id, object_literal")
+        .eq("predicate", "reports_to_emp_id")
+        .is_("valid_to", "null")
+        .eq("status", "live")
+        .execute()
+    )
+    literal_facts = res.data or []
+    typer.echo(f"found {len(literal_facts)} reports_to_emp_id facts")
+
+    linked = skipped = already_exists = 0
+    for fact in literal_facts:
+        employee_id = fact["subject_id"]
+        manager_emp_id = str(fact.get("object_literal") or "").strip()
+        if not manager_emp_id:
+            skipped += 1
+            continue
+
+        mgr_res = (
+            db.table("entities")
+            .select("id, canonical_name")
+            .eq("entity_type", "person")
+            .filter("attrs->>emp_id", "eq", manager_emp_id)
+            .limit(1)
+            .execute()
+        )
+        if not mgr_res.data:
+            mgr_res = (
+                db.table("entities")
+                .select("id, canonical_name")
+                .eq("entity_type", "person")
+                .contains("aliases", [manager_emp_id.lower()])
+                .limit(1)
+                .execute()
+            )
+        if not mgr_res.data:
+            skipped += 1
+            continue
+
+        manager_id = mgr_res.data[0]["id"]
+        manager_name = mgr_res.data[0]["canonical_name"]
+
+        if dry_run:
+            typer.echo(f"  {manager_name} manages → {employee_id}")
+            linked += 1
+            continue
+
+        try:
+            db.table("facts").insert(
+                {
+                    "id": str(uuid.uuid4()),
+                    "subject_id": manager_id,
+                    "predicate": "manages",
+                    "object_id": employee_id,
+                    "confidence": 0.99,
+                    "source_id": fact["id"],
+                    "extraction_method": "rule",
+                    "derivation": "rule:reports_to_emp_id_resolve",
+                }
+            ).execute()
+            linked += 1
+        except Exception as exc:
+            if "no_temporal_overlap" in str(exc) or "23P01" in str(exc):
+                already_exists += 1
+            else:
+                typer.echo(f"  error {manager_id} → {employee_id}: {exc}")
+
+    typer.echo(f"linked: {linked}  already_exists: {already_exists}  skipped: {skipped}")
 
 
 def main() -> None:

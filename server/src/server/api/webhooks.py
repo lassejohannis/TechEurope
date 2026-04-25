@@ -1,82 +1,150 @@
-"""Outbound webhooks — admin CRUD."""
+"""POST /webhooks/source-change — Source-Change Webhook (Req 10.1).
+
+Receives change events from external systems or the internal FS-watcher.
+Marks dependent facts as needs_refresh=true for lazy re-derivation on next read.
+
+Callers:
+  - Internal polling loop (mock connectors watching data/ directory)
+  - External push from future real connectors (CRM, HR system, etc.)
+  - Manual re-ingest triggers via CLI or admin UI
+
+Change detection logic:
+  - "created"  → source not yet in DB; no-op (ingest first via POST /ingest)
+  - "updated"  → compare content_hash; mark active facts needs_refresh if hash changed
+  - "deleted"  → log deletion; DB cascade constraint handles fact cleanup
+
+Returns 202 Accepted in all cases — senders should not retry based on fact-count.
+"""
 
 from __future__ import annotations
 
-import secrets
+import logging
 import uuid
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field, HttpUrl
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
-from server.auth import Principal, require_scope
 from server.db import get_db
 
-router = APIRouter(prefix="/admin/webhooks", tags=["admin", "webhooks"])
-
-ALLOWED_EVENTS = {"fact.created", "fact.superseded", "entity.created", "entity.merged"}
-
-
-class WebhookCreateRequest(BaseModel):
-    url: HttpUrl
-    event_types: list[str] = Field(..., min_length=1)
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 
-class WebhookResponse(BaseModel):
-    id: str
-    url: str
-    event_types: list[str]
-    secret: str | None = None
-    active: bool
-    created_at: str | None = None
+# ---------------------------------------------------------------------------
+# Models
+# ---------------------------------------------------------------------------
+
+class SourceChangePayload(BaseModel):
+    source_id: str
+    source_type: str
+    change_type: Literal["created", "updated", "deleted"]
+    content_hash: str | None = None
+    metadata: dict[str, Any] = {}
 
 
-@router.post("", response_model=WebhookResponse, status_code=201)
-def create_webhook(
-    req: WebhookCreateRequest,
-    db=Depends(get_db),
-    principal: Principal = Depends(require_scope("admin")),
-):
-    bad = set(req.event_types) - ALLOWED_EVENTS
-    if bad:
-        raise HTTPException(status_code=400, detail=f"Unsupported event_types: {sorted(bad)}")
-
-    wh_id = uuid.uuid4().hex[:16]
-    secret = secrets.token_urlsafe(32)
-    row = {
-        "id": wh_id,
-        "url": str(req.url),
-        "secret": secret,
-        "event_types": req.event_types,
-        "created_by": principal.subject,
-        "active": True,
-    }
-    db.table("webhooks").insert(row).execute()
-    # Return secret ONCE so the operator can save it.
-    return WebhookResponse(
-        id=wh_id, url=str(req.url), event_types=req.event_types,
-        secret=secret, active=True,
-    )
+class SourceChangeReceipt(BaseModel):
+    event_id: str
+    received_at: datetime
+    status: Literal["accepted", "noop"]
+    source_id: str
+    needs_refresh_count: int
+    message: str
 
 
-@router.get("", response_model=list[WebhookResponse])
-def list_webhooks(
-    db=Depends(get_db),
-    principal: Principal = Depends(require_scope("admin")),
-):
-    res = db.table("webhooks").select(
-        "id, url, event_types, active, created_at"
-    ).order("created_at", desc=True).execute()
-    return [WebhookResponse(**r) for r in (res.data or [])]
+# ---------------------------------------------------------------------------
+# Endpoint
+# ---------------------------------------------------------------------------
 
+@router.post("/source-change", response_model=SourceChangeReceipt, status_code=202)
+def source_change_webhook(payload: SourceChangePayload, db=Depends(get_db)):
+    """Accept a source-change event and schedule dependent facts for re-derivation.
 
-@router.delete("/{webhook_id}", status_code=200)
-def delete_webhook(
-    webhook_id: str,
-    db=Depends(get_db),
-    principal: Principal = Depends(require_scope("admin")),
-) -> dict[str, Any]:
-    res = db.table("webhooks").delete().eq("id", webhook_id).execute()
-    if not res.data:
-        raise HTTPException(status_code=404, detail="Webhook not found")
-    return {"deleted": webhook_id}
+    Always returns 202 — callers must not use HTTP status to judge fact-level outcomes.
+    """
+    event_id = str(uuid.uuid4())
+    received_at = datetime.now(tz=timezone.utc)
+
+    try:
+        sr_res = (
+            db.table("source_records")
+            .select("id, content_hash")
+            .eq("source_id", payload.source_id)
+            .execute()
+        )
+        source_rows = sr_res.data or []
+
+        if not source_rows:
+            logger.info("Webhook: source %s not in DB yet (change_type=%s)", payload.source_id, payload.change_type)
+            return SourceChangeReceipt(
+                event_id=event_id,
+                received_at=received_at,
+                status="noop",
+                source_id=payload.source_id,
+                needs_refresh_count=0,
+                message="Source not found in DB — ingest first via POST /ingest",
+            )
+
+        if payload.change_type == "deleted":
+            logger.info("Webhook: deleted %s — DB cascade will handle facts", payload.source_id)
+            return SourceChangeReceipt(
+                event_id=event_id,
+                received_at=received_at,
+                status="accepted",
+                source_id=payload.source_id,
+                needs_refresh_count=0,
+                message="Deletion noted; ON DELETE CASCADE handles dependent facts",
+            )
+
+        # "created" or "updated": mark active facts needs_refresh where hash changed
+        needs_refresh_count = 0
+        for row in source_rows:
+            sr_id = str(row["id"])
+            existing_hash = row.get("content_hash")
+
+            if payload.content_hash and existing_hash and payload.content_hash == existing_hash:
+                logger.debug("Webhook: hash unchanged for %s — no refresh needed", sr_id)
+                continue
+
+            res = (
+                db.table("facts")
+                .update({"needs_refresh": True})
+                .eq("source_id", sr_id)
+                .is_("valid_to", "null")
+                .execute()
+            )
+            refreshed = len(res.data or [])
+            needs_refresh_count += refreshed
+            logger.info("Webhook: marked %d facts needs_refresh for source_record %s", refreshed, sr_id)
+
+            if payload.content_hash and payload.content_hash != existing_hash:
+                db.table("source_records").update(
+                    {"content_hash": payload.content_hash}
+                ).eq("id", sr_id).execute()
+
+        message = (
+            f"Marked {needs_refresh_count} active facts for re-derivation"
+            if needs_refresh_count > 0
+            else "No active facts required refresh (hash unchanged or no facts found)"
+        )
+
+        return SourceChangeReceipt(
+            event_id=event_id,
+            received_at=received_at,
+            status="accepted",
+            source_id=payload.source_id,
+            needs_refresh_count=needs_refresh_count,
+            message=message,
+        )
+
+    except Exception as exc:
+        logger.exception("Webhook processing error: %s", exc)
+        return SourceChangeReceipt(
+            event_id=event_id,
+            received_at=received_at,
+            status="accepted",
+            source_id=payload.source_id,
+            needs_refresh_count=0,
+            message=f"Event received but processing error: {exc!s}",
+        )

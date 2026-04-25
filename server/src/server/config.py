@@ -61,9 +61,28 @@ class Settings(BaseSettings):
     def neo4j_enabled(self) -> bool:
         return bool(self.neo4j_uri and self.neo4j_password)
 
+    @property
+    def neo4j_username(self) -> str:
+        """Backward-compatible alias for code still expecting neo4j_username."""
+        return self.neo4j_user
+
     # Pioneer (WS-3 — optional, cascade falls back to Gemini when not set)
     pioneer_api_key: str = ""
     pioneer_model_id: str = ""
+
+    # ── API layer (#14 Schnittstelle für Software & AI) ────────────────────
+    supabase_jwt_secret: str = Field(
+        default="",
+        validation_alias=AliasChoices("SUPABASE_JWT_SECRET", "JWT_SECRET"),
+    )
+    api_auth_disabled: bool = True
+    rate_limit_default: str = "60/minute"
+    rate_limit_authenticated: str = "600/minute"
+    webhook_secret_pepper: str = ""
+    postgres_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_URL", "SUPABASE_DB_URL"),
+    )
 
 
 settings = Settings()

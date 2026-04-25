@@ -5,13 +5,14 @@ hr_record, sale, product) and emits ``CandidateEntity`` lists plus pending
 fact descriptors. Pending facts use *names* as placeholders for subject/object;
 the caller resolves names to entity IDs after entities have been written.
 
-The extractors below cover the deterministic-first cases (hard IDs in payload).
-LLM-based extraction (free-form fact mining from email body) is out of scope
-for this module — that's WS-3's job via `server.extractors.gemini`.
+The extractors below cover deterministic-first cases (hard IDs in payload)
+and lightweight email-body mention extraction that can be upgraded to WS-3 LLM
+pipelines without changing the pending-fact contract.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -31,6 +32,7 @@ class PendingFact:
     object_literal: Any | None = None
     confidence: float = 0.95
     extraction_method: str = "rule"
+    derivation: str = "unknown"
 
 
 def _domain_from_email(email: str) -> str | None:
@@ -45,6 +47,23 @@ def _company_from_business_name(name: str | None) -> str | None:
     return name.strip()
 
 
+def _extract_name_mentions(text: str) -> list[str]:
+    """Return person name mentions from free text.
+
+    Tries Gemini structured extraction first; falls back to regex when the API
+    key is absent or the call fails.
+    """
+    if not text:
+        return []
+    try:
+        from server.extractors.gemini import extract_mentions
+        return extract_mentions(text)
+    except Exception:
+        pass
+    mentions = re.findall(r"\b([A-Z][a-z]{1,}(?:\s+[A-Z][a-z]{1,})+)\b", text)
+    return list(dict.fromkeys(m.strip() for m in mentions if m.strip()))
+
+
 # ---------------------------------------------------------------------------
 # Per-source-type extractors
 # ---------------------------------------------------------------------------
@@ -53,6 +72,10 @@ def _company_from_business_name(name: str | None) -> str | None:
 def _extract_email(
     payload: dict[str, Any], llm_extract: bool = False
 ) -> tuple[list[CandidateEntity], list[PendingFact]]:
+    email_id = str(payload.get("email_id") or payload.get("id") or "").strip()
+    thread_id = str(payload.get("thread_id") or "").strip()
+    subject = (payload.get("subject") or "").strip()
+    body = str(payload.get("body") or "")
     sender_name = (payload.get("sender_name") or "").strip()
     sender_email = (payload.get("sender_email") or "").strip().lower()
     sender_emp_id = payload.get("sender_emp_id")
@@ -94,7 +117,26 @@ def _extract_email(
             )
         )
 
-    # Facts: works_at(person → company by domain)
+    communication_name: str | None = None
+    comm_attrs: dict[str, Any] = {}
+    if thread_id:
+        communication_name = f"Thread {thread_id}"
+        comm_attrs["thread_id"] = thread_id
+    elif email_id:
+        communication_name = f"Email {email_id}"
+        comm_attrs["email_id"] = email_id
+    if communication_name:
+        if subject:
+            comm_attrs["subject"] = subject
+        entities.append(
+            CandidateEntity(
+                entity_type="communication",
+                canonical_name=communication_name,
+                attrs=comm_attrs,
+            )
+        )
+
+    # Facts: works_at(person → company by domain), participant_in(person → communication)
     for name, email in ((sender_name, sender_email), (recipient_name, recipient_email)):
         if not name or not email:
             continue
@@ -107,6 +149,41 @@ def _extract_email(
                     predicate="works_at",
                     object_key=("company", company_name),
                     confidence=0.85,
+                    derivation="rule:email_domain",
+                )
+            )
+        if communication_name:
+            facts.append(
+                PendingFact(
+                    subject_key=("person", name),
+                    predicate="participant_in",
+                    object_key=("communication", communication_name),
+                    confidence=0.95,
+                    derivation="rule:email_thread",
+                )
+            )
+
+    if communication_name and body:
+        participants = {sender_name.lower(), recipient_name.lower()}
+        mention_names = _extract_name_mentions(body)
+        for mention in mention_names:
+            if mention.lower() in participants:
+                continue
+            entities.append(
+                CandidateEntity(
+                    entity_type="person",
+                    canonical_name=mention,
+                    attrs={},
+                )
+            )
+            facts.append(
+                PendingFact(
+                    subject_key=("communication", communication_name),
+                    predicate="mentions",
+                    object_key=("person", mention),
+                    confidence=0.70,
+                    extraction_method="gemini",
+                    derivation="llm:email_body_extract",
                 )
             )
 
@@ -345,6 +422,7 @@ def _extract_client_or_customer(
                     predicate="works_at",
                     object_key=("company", business_name),
                     confidence=0.92,
+                    derivation="rule:contact_company_link",
                 )
             )
 
@@ -393,6 +471,7 @@ def _extract_hr_record(payload: dict[str, Any]) -> tuple[list[CandidateEntity], 
                 predicate="works_at",
                 object_key=("company", canonical_company),
                 confidence=0.95,
+                derivation="rule:hr_email_domain",
             )
         )
 
@@ -405,6 +484,7 @@ def _extract_hr_record(payload: dict[str, Any]) -> tuple[list[CandidateEntity], 
                 predicate="reports_to_emp_id",
                 object_literal=str(reports_to),
                 confidence=0.99,
+                derivation="rule:hr_reports_to_literal",
             )
         )
 
@@ -439,6 +519,7 @@ def _extract_sale(payload: dict[str, Any]) -> tuple[list[CandidateEntity], list[
                 predicate="purchased",
                 object_key=("product", product_name),
                 confidence=0.98,
+                derivation="rule:sale_record",
             )
         )
     return entities, facts

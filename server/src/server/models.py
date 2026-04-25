@@ -154,6 +154,19 @@ class ProposeFactResponse(BaseModel):
     status: str = "created"
 
 
+class VfsPatchRequest(BaseModel):
+    attrs: dict[str, Any]
+    reason: str | None = None
+
+
+class VfsPatchResponse(BaseModel):
+    path: str
+    entity_id: str
+    attrs_updated: list[str]
+    attrs_removed: list[str]
+    audit_record: str
+
+
 # ---------------------------------------------------------------------------
 # Resolution / Ambiguity inbox (API)
 # ---------------------------------------------------------------------------
@@ -328,6 +341,8 @@ __all__ = [
     "SearchResponse",
     "ProposeFactRequest",
     "ProposeFactResponse",
+    "VfsPatchRequest",
+    "VfsPatchResponse",
     "ResolutionResponse",
     "ResolutionDecision",
     "ChangeEvent",
