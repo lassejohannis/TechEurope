@@ -1,0 +1,61 @@
+# Eval-Harness Questions — based on EnterpriseBench (Inazuma dataset)
+# Each question is answerable from the ingested data.
+# Runner checks: entity found, predicate present, confidence >= min, source cited.
+
+- question: "Who is the Engineering Director at Inazuma?"
+  expected_entity: "Raj Patel"
+  expected_facts:
+    - predicate: "job_title"
+      object: "Engineering Director"
+  expected_sources: ["hr:employees"]
+  confidence_min: 0.8
+
+- question: "What is Raj Patel's email address?"
+  expected_entity: "Raj Patel"
+  expected_facts:
+    - predicate: "email"
+      object: "raj.patel@inazuma.com"
+  expected_sources: ["hr:employees"]
+  confidence_min: 0.9
+
+- question: "What department does Raj Patel work in?"
+  expected_entity: "Raj Patel"
+  expected_facts:
+    - predicate: "department"
+      object: "Engineering"
+  expected_sources: ["hr:employees"]
+  confidence_min: 0.8
+
+- question: "Who reports to Raj Patel?"
+  expected_entity: "Raj Patel"
+  expected_facts:
+    - predicate: "manages"
+      object: "emp_0106"
+  expected_sources: ["hr:employees"]
+  confidence_min: 0.75
+
+- question: "What open IT tickets exist for the Engineering department?"
+  expected_entity: null
+  expected_facts: []
+  expected_sources: ["itsm:it_tickets"]
+  confidence_min: 0.7
+
+- question: "Which customers have made the most purchases?"
+  expected_entity: null
+  expected_facts: []
+  expected_sources: ["crm:sales"]
+  confidence_min: 0.7
+
+- question: "What is Raj Patel's employee ID?"
+  expected_entity: "Raj Patel"
+  expected_facts:
+    - predicate: "emp_id"
+      object: "emp_0431"
+  expected_sources: ["hr:employees"]
+  confidence_min: 0.9
+
+- question: "How many employees work at Inazuma?"
+  expected_entity: null
+  expected_facts: []
+  expected_sources: ["hr:employees"]
+  confidence_min: 0.7

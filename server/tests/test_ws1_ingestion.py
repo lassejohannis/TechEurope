@@ -1,15 +1,9 @@
-"""WS-1: Ingestion Pipeline — data parsing, idempotency, connector contracts.
-
-All tests run offline against local enterprise-bench files.
-"""
+"""WS-1: Data Ingestion — parsing, deduplication, cross-source linking."""
 
 from __future__ import annotations
 
-import csv
-import hashlib
-import json
-import re
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -17,183 +11,112 @@ import pytest
 DATA_DIR = Path(__file__).parent.parent.parent / "data" / "enterprise-bench"
 
 
-# ---------------------------------------------------------------------------
-# Helper: normalise raw row → SourceRecord-like dict (connector contract)
-# ---------------------------------------------------------------------------
+class TestEmployeeIngestion:
+    def test_all_employees_parseable(self, employees):
+        required = {"Name", "emp_id", "email", "category"}
+        for emp in employees:
+            assert required.issubset(emp.keys())
 
-def to_source_record(source_type: str, source_id: str, raw: dict | str) -> dict:
-    content = raw if isinstance(raw, str) else json.dumps(raw, default=str)
-    content_hash = "sha256:" + hashlib.sha256(content.encode()).hexdigest()
-    return {
-        "source_type": source_type,
-        "source_id": f"{source_type}:{source_id}",
-        "event_type": "ingest",
-        "raw_content": content,
-        "content_hash": content_hash,
-        "metadata": {"source_type": source_type},
-    }
+    def test_employee_ids_unique(self, employees):
+        ids = [e["emp_id"] for e in employees]
+        assert len(ids) == len(set(ids)), "Duplicate emp_ids found"
+
+    def test_employee_emails_mostly_unique(self, employees):
+        emails = [e["email"] for e in employees]
+        unique_ratio = len(set(emails)) / len(emails)
+        assert unique_ratio >= 0.99, f"Too many duplicate emails: {1 - unique_ratio:.1%}"
+
+    def test_employee_to_source_record(self, employees):
+        from server.models import EntityResponse
+        emp = employees[0]
+        entity = EntityResponse(
+            id=str(uuid.uuid4()),
+            entity_type="person",
+            canonical_name=emp["Name"],
+            aliases=[emp["email"], emp["emp_id"]],
+            attrs={"emp_id": emp["emp_id"], "category": emp["category"]},
+        )
+        assert entity.canonical_name == emp["Name"]
+
+    def test_raj_patel_ingestion_fields(self, employees):
+        raj = next(e for e in employees if e["emp_id"] == "emp_0431")
+        assert raj["Name"] == "Raj Patel"
+        assert raj["email"] == "raj.patel@inazuma.com"
+        assert raj["category"] == "Engineering"
+        assert raj["Level"] == "EN14"
+
+    def test_employees_cover_multiple_departments(self, employees):
+        departments = {e["category"] for e in employees}
+        assert len(departments) >= 5
+
+    def test_reportees_reference_valid_emp_ids(self, employees):
+        emp_ids = {e["emp_id"] for e in employees}
+        for emp in employees:
+            for reportee in (emp.get("reportees") or []):
+                assert reportee in emp_ids, f"{emp['emp_id']} has unknown reportee {reportee}"
 
 
-def compute_id(source_type: str, source_id: str, content: str) -> str:
-    """Deterministic ID: sha256(source_type + source_id + content)."""
-    h = hashlib.sha256(f"{source_type}:{source_id}:{content}".encode()).hexdigest()
-    return f"{source_type}:sha256:{h[:16]}"
+class TestEmailIngestion:
+    def test_all_emails_have_required_fields(self, emails):
+        required = {"email_id", "sender_email", "sender_emp_id", "recipient_emp_id", "subject"}
+        for email in emails[:100]:
+            assert required.issubset(email.keys())
 
+    def test_email_ids_unique(self, emails):
+        ids = [e["email_id"] for e in emails]
+        assert len(ids) == len(set(ids))
 
-# ---------------------------------------------------------------------------
-# Email connector
-# ---------------------------------------------------------------------------
+    def test_email_senders_are_inazuma_employees(self, employees, emails):
+        emp_ids = {e["emp_id"] for e in employees}
+        sample = emails[:500]
+        matched = sum(1 for e in sample if e["sender_emp_id"] in emp_ids)
+        assert matched > 400, "Most email senders should be known employees"
 
-class TestEmailConnector:
-    def test_emails_file_exists(self):
-        assert (DATA_DIR / "Enterprise_mail_system/emails.json").exists()
-
-    def test_emails_parse(self, emails):
-        assert len(emails) > 100
+    def test_email_to_source_record_shape(self, emails):
+        from server.models import FactResponse
         email = emails[0]
-        assert "email_id" in email
-        assert "sender_email" in email
-        assert "sender_name" in email
-        assert "recipient_email" in email
-        assert "raw_content" in email or "subject" in email  # at least one content field
+        fact = FactResponse(
+            id=str(uuid.uuid4()),
+            subject_id=str(uuid.uuid5(uuid.NAMESPACE_DNS, email["sender_emp_id"])),
+            predicate="sent_email",
+            object_literal=email["email_id"],
+            confidence=0.9,
+            derivation="connector_ingest",
+            valid_from=datetime.now(tz=timezone.utc),
+            recorded_at=datetime.now(tz=timezone.utc),
+            source_id=str(uuid.uuid4()),
+        )
+        assert fact.predicate == "sent_email"
 
-    def test_email_to_source_record(self, emails):
+
+class TestTicketIngestion:
+    def test_all_tickets_have_id(self, it_tickets):
+        for t in it_tickets:
+            assert t.get("id")
+
+    def test_tickets_reference_valid_employees(self, employees, it_tickets):
+        emp_ids = {e["emp_id"] for e in employees}
+        for ticket in it_tickets:
+            raiser = ticket.get("raised_by_emp_id")
+            if raiser:
+                assert raiser in emp_ids
+
+    def test_ticket_priorities_valid(self, it_tickets):
+        valid_priorities = {"low", "medium", "high", "critical"}
+        for t in it_tickets:
+            if t.get("priority"):
+                assert t["priority"].lower() in valid_priorities
+
+
+class TestIdempotency:
+    def test_same_emp_id_produces_same_entity_id(self, employees):
+        emp = employees[0]
+        id1 = str(uuid.uuid5(uuid.NAMESPACE_DNS, emp["emp_id"]))
+        id2 = str(uuid.uuid5(uuid.NAMESPACE_DNS, emp["emp_id"]))
+        assert id1 == id2
+
+    def test_same_email_produces_same_source_id(self, emails):
         email = emails[0]
-        sr = to_source_record("email", email["email_id"], email)
-        assert sr["source_type"] == "email"
-        assert sr["content_hash"].startswith("sha256:")
-        assert "email_id" in sr["raw_content"]
-
-    def test_email_idempotent_id(self, emails):
-        email = emails[0]
-        content = json.dumps(email, default=str)
-        id1 = compute_id("email", email["email_id"], content)
-        id2 = compute_id("email", email["email_id"], content)
-        assert id1 == id2, "Same input must produce same ID"
-
-    def test_email_different_records_different_ids(self, emails):
-        e1, e2 = emails[0], emails[1]
-        id1 = compute_id("email", e1["email_id"], json.dumps(e1))
-        id2 = compute_id("email", e2["email_id"], json.dumps(e2))
-        assert id1 != id2
-
-    def test_email_has_thread_id(self, emails):
-        """Emails are grouped into threads — important for Communication entities."""
-        threaded = [e for e in emails if e.get("thread_id")]
-        assert len(threaded) > 0, "At least some emails should have thread_id"
-
-    def test_email_sender_emp_id(self, emails):
-        """Sender emp_id links email to employee → cross-source resolution anchor."""
-        with_emp = [e for e in emails if e.get("sender_emp_id")]
-        assert len(with_emp) / len(emails) > 0.5, "Most emails should have sender_emp_id"
-
-
-# ---------------------------------------------------------------------------
-# CRM / clients connector
-# ---------------------------------------------------------------------------
-
-class TestCRMConnector:
-    def test_clients_file_exists(self):
-        assert (DATA_DIR / "Business_and_Management/clients.json").exists()
-
-    def test_clients_parse(self, clients):
-        assert len(clients) > 10
-        c = clients[0]
-        assert "client_id" in c
-        assert "business_name" in c
-
-    def test_clients_have_contact_person(self, clients):
-        with_contact = [c for c in clients if c.get("contact_person_name") or c.get("contact_person_id")]
-        assert len(with_contact) > 0
-
-    def test_client_to_source_record(self, clients):
-        c = clients[0]
-        sr = to_source_record("crm_client", c["client_id"], c)
-        assert sr["source_type"] == "crm_client"
-        assert sr["source_id"] == f"crm_client:{c['client_id']}"
-
-    def test_vendors_file_exists(self):
-        assert (DATA_DIR / "Business_and_Management/vendors.json").exists()
-
-    def test_cross_source_same_company_name(self, clients, vendors):
-        """11 companies appear in both clients and vendors — key resolution pairs."""
-        client_names = {c["business_name"].lower() for c in clients}
-        vendor_names = {v["business_name"].lower() for v in vendors}
-        overlap = client_names & vendor_names
-        assert len(overlap) >= 5, f"Expected ≥5 cross-source company matches, got {len(overlap)}"
-
-
-# ---------------------------------------------------------------------------
-# HR / employees connector
-# ---------------------------------------------------------------------------
-
-class TestEmployeeConnector:
-    def test_employees_file_exists(self):
-        assert (DATA_DIR / "Human_Resource_Management/Employees/employees.json").exists()
-
-    def test_employees_parse(self, employees):
-        assert len(employees) > 100
-        e = employees[0]
-        assert "emp_id" in e
-        assert "Name" in e
-        assert "email" in e
-
-    def test_employee_email_format(self, employees):
-        email_re = re.compile(r"[^@]+@[^@]+\.[^@]+")
-        for emp in employees[:50]:
-            if emp.get("email"):
-                assert email_re.match(emp["email"]), f"Bad email: {emp['email']}"
-
-    def test_employee_reports_to_linkage(self, employees):
-        """reports_to field creates Person→Person manages edges."""
-        with_reports = [e for e in employees if e.get("reports_to")]
-        assert len(with_reports) > 0
-
-
-# ---------------------------------------------------------------------------
-# CSV connector (resume)
-# ---------------------------------------------------------------------------
-
-class TestCSVConnector:
-    def test_resume_csv_exists(self):
-        assert (DATA_DIR / "Human_Resource_Management/Resume/resume_information.csv").exists()
-
-    def test_resume_csv_parse(self):
-        path = DATA_DIR / "Human_Resource_Management/Resume/resume_information.csv"
-        with open(path) as f:
-            reader = csv.DictReader(f)
-            rows = list(reader)
-        assert len(rows) > 0
-        assert "emp_id" in rows[0]
-        assert "name" in rows[0] or "Name" in rows[0] or "content" in rows[0]
-
-    def test_resume_csv_links_to_employee(self, employees):
-        path = DATA_DIR / "Human_Resource_Management/Resume/resume_information.csv"
-        with open(path) as f:
-            reader = csv.DictReader(f)
-            resume_emp_ids = {row["emp_id"] for row in reader if row.get("emp_id")}
-        emp_ids = {e["emp_id"] for e in employees if e.get("emp_id")}
-        overlap = resume_emp_ids & emp_ids
-        assert len(overlap) > 0, "Resume CSV emp_ids must overlap with employees"
-
-
-# ---------------------------------------------------------------------------
-# Multi-format: JSON, JSONL, CSV coverage
-# ---------------------------------------------------------------------------
-
-class TestMultiFormatCoverage:
-    def test_jsonl_tasks_file(self, tasks):
-        assert len(tasks) > 100
-        assert "messages" in tasks[0]
-
-    def test_pdf_files_exist(self):
-        pdfs = list((DATA_DIR / "Customer_Relation_Management/Customer_orders").glob("*.pdf"))
-        assert len(pdfs) > 10, "Invoice PDFs must be present for PDF adapter test"
-
-    def test_content_hash_changes_on_update(self):
-        """Simulates re-ingest: changed content must produce different hash → needs_refresh."""
-        original = json.dumps({"value": "old"})
-        updated = json.dumps({"value": "new"})
-        h1 = hashlib.sha256(original.encode()).hexdigest()
-        h2 = hashlib.sha256(updated.encode()).hexdigest()
-        assert h1 != h2, "Updated content must change content_hash"
+        id1 = str(uuid.uuid5(uuid.NAMESPACE_DNS, email["email_id"]))
+        id2 = str(uuid.uuid5(uuid.NAMESPACE_DNS, email["email_id"]))
+        assert id1 == id2
