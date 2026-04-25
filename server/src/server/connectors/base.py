@@ -9,6 +9,7 @@ from typing import Any, Dict, Iterator, List
 from supabase import Client
 
 from server.models import SourceRecord
+from .diff import mark_needs_refresh
 
 
 def sha256_hex(data: str) -> str:
@@ -48,6 +49,11 @@ class BaseConnector(ABC):
             return 0
         # use upsert on changed/new rows only
         supabase.table("source_records").upsert(to_write, on_conflict="id").execute()
+        # Mark dependent facts for refresh (best-effort)
+        try:
+            mark_needs_refresh(supabase, [r["id"] for r in to_write])
+        except Exception:
+            pass
         return len(to_write)
 
     def ingest(self, path: Path, supabase: Client, batch_size: int = 500) -> int:
@@ -74,4 +80,3 @@ class BaseConnector(ABC):
 
     def make_content_hash(self, payload: dict) -> str:
         return sha256_hex(canonical_json(payload))
-

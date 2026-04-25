@@ -232,3 +232,18 @@ drop trigger if exists edge_type_config_touch on edge_type_config;
 create trigger edge_type_config_touch before update on edge_type_config for each row execute function touch_updated_at();
 
 -- End of 001_init.sql
+
+-- WS-1.6: helper to mark dependent facts for refresh when sources change
+create or replace function mark_facts_needs_refresh(updated_source_ids text[])
+returns integer
+language sql
+as $$
+    with upd as (
+        update facts
+        set status = 'needs_refresh'
+        where derived_from && updated_source_ids
+          and status <> 'needs_refresh'
+        returning 1
+    )
+    select coalesce(count(*), 0)::int from upd;
+$$;
