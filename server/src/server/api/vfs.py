@@ -187,7 +187,7 @@ def vfs_read(
     # --- Direct path lookup via attrs.vfs_path ---
     direct = db.table("entities").select("*").eq(
         "attrs->>vfs_path", f"/{path}"
-    ).limit(1).execute()
+    ).is_("deleted_at", "null").limit(1).execute()
     if direct.data:
         e = direct.data[0]
         return _entity_to_vfs_node(e, f"/{path}")
@@ -218,7 +218,7 @@ def vfs_read(
     e_res = None
     try:
         uuid.UUID(slug)
-        e_res = db.table("entities").select("*").eq("id", slug).eq("entity_type", entity_type).single().execute()
+        e_res = db.table("entities").select("*").eq("id", slug).eq("entity_type", entity_type).is_("deleted_at", "null").single().execute()
     except ValueError:
         pass
 
@@ -402,7 +402,7 @@ def vfs_delete(path: str, reason: str | None = Query(default=None), db=Depends(g
     # Resolve entity
     try:
         uuid.UUID(slug)
-        e_res = db.table("entities").select("id").eq("id", slug).single().execute()
+        e_res = db.table("entities").select("id").eq("id", slug).is_("deleted_at", "null").single().execute()
     except ValueError:
         e_res = db.table("entities").select("id").eq("entity_type", entity_type).ilike(
             "canonical_name", f"%{slug.replace('-', ' ')}%"
