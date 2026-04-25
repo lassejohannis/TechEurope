@@ -72,6 +72,16 @@ def cmd_ingest(
     typer.echo(f"[{connector}] written: {written}")
 
 
+@cli.command("gemini-stats")
+def cmd_gemini_stats() -> None:
+    """Print process-wide Gemini call/cap/cooldown stats."""
+    import json as _json
+
+    from server.gemini_budget import get_budget
+
+    typer.echo(_json.dumps(get_budget().stats(), indent=2, default=str))
+
+
 @cli.command("status")
 def cmd_status() -> None:
     supabase = get_supabase()
