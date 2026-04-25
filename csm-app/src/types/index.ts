@@ -83,6 +83,21 @@ export interface AccountHealth {
   computed_at: string
 }
 
+export interface AccountInsight {
+  id: string
+  icon_key: 'ticket' | 'sentiment' | 'stakeholder' | 'renewal' | 'engagement' | 'expansion'
+  headline: string
+  secondary?: string
+}
+
+export interface AccountExecutiveSummary {
+  status_label: 'At Risk' | 'Needs Attention' | 'Healthy' | 'Expanding'
+  why: string
+  impact: string
+  next_action: string
+  cta_type: 'recovery-email' | 'stakeholder-intro' | 'escalation' | 'none'
+}
+
 export interface AccountCard {
   entity: Entity
   facts: Fact[]
@@ -90,6 +105,33 @@ export interface AccountCard {
   open_tickets: Ticket[]
   recent_communications: Communication[]
   health: AccountHealth
+  stakeholder_change_detected: boolean
+  new_stakeholders: Array<{ name: string; first_seen: string }>
+  executive_summary: AccountExecutiveSummary
+}
+
+export interface EmailDraft {
+  account_id: string
+  contact_id: string
+  to: string
+  subject: string
+  body: string
+  generated_at: string
+  variation: number
+}
+
+export interface EscalationBriefing {
+  account_id: string
+  health_summary: string
+  evidence_bullets: string[]
+  suggested_owners: Array<{ name: string; action: string }>
+  generated_at: string
+}
+
+export interface CardSummary {
+  item_id: string
+  summary: string
+  generated_at: string
 }
 
 export const SIGNAL_TYPES = [
@@ -104,6 +146,10 @@ export interface BriefingItem {
   account_name: string
   priority: 'red' | 'yellow' | 'green'
   signal_type: SignalType
+  segment: 'Enterprise' | 'Mid-Market' | 'SMB'
+  revenue_impact: string      // display string, e.g. "€180k ARR at risk"
+  revenue_impact_eur: number  // sort key — absolute EUR value regardless of risk vs opportunity
+  renewal_date: string | null // ISO date string; null if renewal not near-term
   headline: string
   detail: string
   recommended_action: string

@@ -11,17 +11,15 @@ type TimelineEntry =
   | { kind: 'communication'; date: string; item: Communication }
   | { kind: 'ticket'; date: string; item: TicketType }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
-}
-
-function truncate(text: string, maxLen: number) {
-  if (text.length <= maxLen) return text
-  return text.slice(0, maxLen) + '…'
+function relativeDate(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const days = Math.floor(diff / 86_400_000)
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return `${days}d ago`
+  if (days < 30) return `${Math.floor(days / 7)}w ago`
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`
+  return `${Math.floor(days / 365)}y ago`
 }
 
 export default function Timeline({ communications, tickets }: TimelineProps) {
@@ -39,28 +37,19 @@ export default function Timeline({ communications, tickets }: TimelineProps) {
       {entries.map((entry) => {
         if (entry.kind === 'communication') {
           const comm = entry.item
-          const dotClass = comm.source_type === 'email' ? 'email' : 'crm'
+          const srcClass = comm.source_type === 'email' ? 'email' : 'chat'
+          const srcLabel = comm.source_type === 'email' ? comm.from_address : `${comm.from_address} (chat)`
 
           return (
-            <div key={comm.id} className="timeline-item">
-              <div className={`timeline-dot ${dotClass}`}>
-                {comm.source_type === 'email' ? (
-                  <Mail size={13} />
-                ) : (
-                  <MessageSquare size={13} />
-                )}
-              </div>
-              <div className="timeline-content">
-                <div className="timeline-title">{comm.subject}</div>
-                <div className="timeline-snippet">
-                  {truncate(comm.body_snippet, 100)}
-                </div>
-                <div className="timeline-meta">
-                  <span>{comm.from_address}</span>
-                  <span>{formatDate(comm.date)}</span>
-                  {/* Sentiment is read from API data — never computed here */}
-                  <SentimentChip sentiment={comm.sentiment} />
-                </div>
+            <div key={comm.id} className="timeline-row">
+              <span className={`timeline-src-icon ${srcClass}`} title={srcLabel}>
+                {comm.source_type === 'email' ? <Mail size={12} /> : <MessageSquare size={12} />}
+              </span>
+              <span className="timeline-row-title">{comm.subject}</span>
+              {/* Sentiment is read from API data — never computed here */}
+              <SentimentChip sentiment={comm.sentiment} />
+              <div className="timeline-row-right">
+                <span className="timeline-reldate">{relativeDate(comm.date)}</span>
               </div>
             </div>
           )
@@ -68,25 +57,15 @@ export default function Timeline({ communications, tickets }: TimelineProps) {
 
         const ticket = entry.item
         return (
-          <div key={ticket.id} className="timeline-item">
-            <div className="timeline-dot ticket">
-              <Ticket size={13} />
-            </div>
-            <div className="timeline-content">
-              <div className="timeline-title">
-                <span className="mono" style={{ fontSize: 11, marginRight: 6, color: 'var(--text-tertiary)' }}>
-                  {ticket.external_id}
-                </span>
-                {ticket.title}
-              </div>
-              <div className="timeline-meta">
-                <span className={`ticket-status ${ticket.status}`}>
-                  {ticket.status.replace('_', ' ')}
-                </span>
-                <span>Updated {formatDate(ticket.updated_at)}</span>
-                {/* Sentiment is read from API data — never computed here */}
-                <SentimentChip sentiment={ticket.sentiment} />
-              </div>
+          <div key={ticket.id} className="timeline-row">
+            <span className="timeline-src-icon ticket" title={`${ticket.external_id} · ${ticket.status.replace('_', ' ')}`}>
+              <Ticket size={12} />
+            </span>
+            <span className="timeline-row-title">{ticket.title}</span>
+            {/* Sentiment is read from API data — never computed here */}
+            <SentimentChip sentiment={ticket.sentiment} />
+            <div className="timeline-row-right">
+              <span className="timeline-reldate">{relativeDate(ticket.updated_at)}</span>
             </div>
           </div>
         )
