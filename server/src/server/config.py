@@ -17,14 +17,26 @@ class Settings(BaseSettings):
     api_port: int = 8000
     api_cors_origins: list[str] = ["http://localhost:5173"]
 
-    # Supabase
+    # Supabase (new API key naming: publishable replaces anon, secret replaces service_role)
     supabase_url: str = ""
-    supabase_anon_key: str = ""
-    supabase_service_key: str = ""
+    supabase_publishable_key: str = ""
+    supabase_secret_key: str = ""
 
     # Gemini (Google DeepMind partner)
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.0-flash-exp"
+    gemini_model: str = "gemini-2.5-flash"
+
+    # Neo4j (read-only projection — WS-5)
+    # Empty `neo4j_uri` disables the projection worker; the app stays Postgres-only.
+    # `neo4j_username` matches the Aura .env convention.
+    neo4j_uri: str = ""
+    neo4j_username: str = "neo4j"
+    neo4j_password: str = ""
+    neo4j_database: str = "neo4j"
+
+    @property
+    def neo4j_enabled(self) -> bool:
+        return bool(self.neo4j_uri and self.neo4j_password)
 
 
 settings = Settings()
