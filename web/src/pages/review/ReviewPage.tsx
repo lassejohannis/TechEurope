@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
+
 import ThreeColumnLayout from '@/components/layout/ThreeColumnLayout'
-import ConflictInbox from './ConflictInbox'
 import ConflictDetail from './ConflictDetail'
+import ConflictInbox from './ConflictInbox'
 import DecisionPanel from './DecisionPanel'
+import TrustWeightsPanel from './TrustWeightsPanel'
 
 export default function ReviewPage() {
   const { conflictId } = useParams<{ conflictId: string }>()
@@ -21,7 +23,15 @@ export default function ReviewPage() {
         />
       }
       right={
-        <DecisionPanel conflictId={activeId} selectedClaimIndex={selectedClaimIndex} />
+        <div className="flex h-full flex-col">
+          <div className="flex-1 overflow-y-auto">
+            <DecisionPanel
+              conflictId={activeId}
+              selectedClaimIndex={selectedClaimIndex}
+            />
+          </div>
+          <TrustWeightsPanel />
+        </div>
       }
     />
   )

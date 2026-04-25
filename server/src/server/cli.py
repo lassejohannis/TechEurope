@@ -158,18 +158,65 @@ def _persist_entity(
         if v := candidate.attrs.get(hard_id_field):
             aliases.append(str(v).lower())
 
-    db.table("entities").upsert(
-        {
-            "id": eid,
-            "entity_type": candidate.entity_type,
-            "canonical_name": candidate.canonical_name,
-            "aliases": aliases,
-            "attrs": candidate.attrs,
-            "provenance": [candidate.source_id] if candidate.source_id else [],
-        },
-        on_conflict="id",
-    ).execute()
+    # Build Tier-A name embedding for semantic resolution + Hybrid Search.
+    # Best-effort: failure shouldn't block the entity insert.
+    embedding = _build_tier_a_embedding(candidate)
+
+    row: dict[str, object] = {
+        "id": eid,
+        "entity_type": candidate.entity_type,
+        "canonical_name": candidate.canonical_name,
+        "aliases": aliases,
+        "attrs": candidate.attrs,
+        "provenance": [candidate.source_id] if candidate.source_id else [],
+    }
+    if embedding is not None:
+        row["embedding"] = embedding
+
+    db.table("entities").upsert(row, on_conflict="id").execute()
     return eid
+
+
+def _build_tier_a_embedding(candidate) -> list[float] | None:
+    """Use the per-type build_search_text helper + embed_text to mint Tier A."""
+    from server.db import embed_text
+    from server.resolver.cascade import _get_type_module
+
+    type_mod = _get_type_module(candidate.entity_type)
+    if type_mod is not None and hasattr(type_mod, "build_search_text"):
+        text = type_mod.build_search_text(candidate.canonical_name, candidate.attrs)
+    else:
+        text = candidate.canonical_name
+    return embed_text(text)
+
+
+def _persist_relationship_fact(
+    db,
+    subject_id: str,
+    predicate: str,
+    object_id: str,
+    source_id: str,
+    confidence: float,
+) -> bool:
+    """Write a Tier-4 relationship-hint fact directly (subject + object known)."""
+    try:
+        db.table("facts").insert(
+            {
+                "id": str(uuid.uuid4()),
+                "subject_id": subject_id,
+                "predicate": predicate,
+                "object_id": object_id,
+                "object_literal": None,
+                "confidence": confidence,
+                "source_id": source_id,
+                "extraction_method": "rule",
+            }
+        ).execute()
+        return True
+    except Exception as exc:
+        if "no_temporal_overlap" in str(exc) or "23P01" in str(exc):
+            return False
+        raise
 
 
 def _persist_fact(
@@ -223,6 +270,7 @@ def cmd_resolve(
     source_type: str | None = typer.Option(None, help="Filter by source_type"),
     offset: int = typer.Option(0, help="Skip the first N records"),
     verbose: bool = typer.Option(False, help="Log every entity decision"),
+    llm_extract: bool = typer.Option(False, help="Mine email bodies via Gemini for relationship facts"),
 ) -> None:
     """Walk source_records → resolve → upsert entities + facts.
 
@@ -252,28 +300,42 @@ def cmd_resolve(
 
     for rec in records:
         stats["records"] += 1
-        candidates, pending_facts = extract_candidates(rec)
+        candidates, pending_facts = extract_candidates(rec, llm_extract=llm_extract)
         stats["candidates"] += len(candidates)
 
         # Resolve every candidate, building name → id map for facts.
         name_to_id: dict[tuple[str, str], str] = {}
         for cand in candidates:
             result = cascade_resolve(cand, db)
-            # Tier-4 "context" matches are relationship hints (e.g. email-domain
-            # → employer) — they must NOT collapse a person entity into a
-            # company. Only same-type tiers are safe to merge by ID.
-            same_type_match = result.matched_id if result.tier in (
-                "hard_id", "alias", "embedding", "pioneer"
-            ) else None
-            entity_id = _persist_entity(db, cand, same_type_match)
-            name_to_id[(cand.entity_type, cand.canonical_name)] = entity_id
+            # Cascade returns matched_id for same-type merges (T1/T2/T3/T3.5).
+            # For inbox-action results matched_id points to the *other side*
+            # of the pending pair — the candidate itself must still be persisted
+            # as a new entity so a human can decide if they're duplicates.
+            if result.action == "inbox":
+                entity_id = _persist_entity(db, cand, None)  # force new
+                name_to_id[(cand.entity_type, cand.canonical_name)] = entity_id
+                from server.resolver.cascade import write_pending_inbox
 
-            if same_type_match:
-                stats["entities_merged"] += 1
-            elif result.action == "inbox":
+                write_pending_inbox(cand, result, db)
                 stats["entities_inboxed"] += 1
             else:
-                stats["entities_created"] += 1
+                entity_id = _persist_entity(db, cand, result.matched_id)
+                name_to_id[(cand.entity_type, cand.canonical_name)] = entity_id
+
+                if result.matched_id:
+                    stats["entities_merged"] += 1
+                else:
+                    stats["entities_created"] += 1
+
+            # T4 cross-type hint → write an extra fact directly (e.g. works_at
+            # when a person's email domain matches an existing company).
+            if result.relationship_hint:
+                predicate, _target_type, target_id = result.relationship_hint
+                if _persist_relationship_fact(
+                    db, entity_id, predicate, target_id, rec["id"], result.confidence
+                ):
+                    stats.setdefault("relationship_hints", 0)
+                    stats["relationship_hints"] += 1
 
             if verbose:
                 typer.echo(
@@ -289,6 +351,223 @@ def cmd_resolve(
     typer.echo("done:")
     for k, v in stats.items():
         typer.echo(f"  {k}: {v}")
+
+
+@cli.command("resolve-conflicts")
+def cmd_resolve_conflicts(
+    limit: int = typer.Option(200, help="Max pending fact_resolutions to process"),
+) -> None:
+    """Walk pending fact_resolutions and apply the 4-tier auto-resolution cascade.
+
+    Tiers: cross-confirmation → authority (trust_weight × confidence) →
+    confidence → recency. Whichever tier produces a clear winner wins; the
+    rest stay 'pending' for the human inbox.
+    """
+    from server.resolver.auto_resolve import auto_resolve_disputed_facts
+
+    db = get_supabase()
+    stats = auto_resolve_disputed_facts(db, limit=limit)
+    typer.echo("done:")
+    for k, v in stats.items():
+        typer.echo(f"  {k}: {v}")
+
+
+@cli.command("backfill-embeddings")
+def cmd_backfill_embeddings(
+    tier: str = typer.Option("A", help="A = name embedding, B = inference embedding"),
+    limit: int = typer.Option(500, help="Max entities to process this run"),
+    batch: int = typer.Option(50, help="Batch size for embedding API calls"),
+) -> None:
+    """Backfill embeddings for entities that don't have one yet.
+
+    Tier A: name + key-attrs embedding (cheap, used by Hybrid Search Stage 1).
+    Tier B: inference text from neighbouring facts (expensive, hot entities only).
+    """
+    from server.db import embed_text
+    from server.resolver.cascade import _get_type_module
+
+    if tier not in ("A", "B"):
+        raise typer.BadParameter("tier must be 'A' or 'B'")
+
+    db = get_supabase()
+    column = "embedding" if tier == "A" else "inference_embedding"
+    res = (
+        db.table("entities")
+        .select("id, entity_type, canonical_name, attrs")
+        .is_(column, "null")
+        .limit(limit)
+        .execute()
+    )
+    rows = res.data or []
+    typer.echo(f"backfilling {len(rows)} entities (tier={tier}) …")
+
+    written = 0
+    skipped = 0
+    for i, row in enumerate(rows, 1):
+        if tier == "A":
+            type_mod = _get_type_module(row["entity_type"])
+            if type_mod is not None and hasattr(type_mod, "build_search_text"):
+                text = type_mod.build_search_text(row["canonical_name"], row.get("attrs") or {})
+            else:
+                text = row["canonical_name"]
+        else:
+            from server.resolver.embed import build_inference_text
+            text = build_inference_text(row["id"], db)
+
+        vec = embed_text(text)
+        if vec is None:
+            skipped += 1
+            continue
+
+        update: dict[str, object] = {column: vec}
+        if tier == "B":
+            update["inference_needs_refresh"] = False
+        db.table("entities").update(update).eq("id", row["id"]).execute()
+        written += 1
+
+        if i % batch == 0:
+            typer.echo(f"  {i}/{len(rows)} (written={written}, skipped={skipped})")
+
+    typer.echo(f"done: written={written}, skipped={skipped}")
+
+
+@cli.command("reembed")
+def cmd_reembed(
+    tier: str = typer.Option("B", help="A = name, B = inference (default)"),
+    limit: int = typer.Option(200, help="Max entities per run"),
+    fact_threshold: int = typer.Option(3, help="Tier B only: min fact-count to qualify as 'hot'"),
+) -> None:
+    """Re-embed entities flagged inference_needs_refresh=true.
+
+    Tier B is the default; Tier A re-embed is rare (only when normalize logic
+    changes). Idempotent — picks the next batch of stale entities each run.
+    """
+    from server.db import embed_text
+    from server.resolver.cascade import _get_type_module
+    from server.resolver.embed import build_inference_text
+
+    if tier not in ("A", "B"):
+        raise typer.BadParameter("tier must be 'A' or 'B'")
+
+    db = get_supabase()
+    if tier == "B":
+        # Hot-entity filter: run an RPC-free heuristic by counting facts in Python.
+        res = (
+            db.table("entities")
+            .select("id, entity_type, canonical_name, attrs")
+            .eq("inference_needs_refresh", True)
+            .limit(limit)
+            .execute()
+        )
+        candidates = res.data or []
+        # Filter to hot entities (>= fact_threshold facts as subject).
+        hot = []
+        for row in candidates:
+            count_res = (
+                db.table("facts")
+                .select("id", count="exact")
+                .eq("subject_id", row["id"])
+                .is_("valid_to", "null")
+                .execute()
+            )
+            if (count_res.count or 0) >= fact_threshold:
+                hot.append(row)
+        rows = hot
+    else:
+        res = (
+            db.table("entities")
+            .select("id, entity_type, canonical_name, attrs")
+            .is_("embedding", "null")
+            .limit(limit)
+            .execute()
+        )
+        rows = res.data or []
+
+    typer.echo(f"reembedding {len(rows)} entities (tier={tier}) …")
+    written = skipped = 0
+    for i, row in enumerate(rows, 1):
+        if tier == "B":
+            text = build_inference_text(row["id"], db)
+        else:
+            type_mod = _get_type_module(row["entity_type"])
+            if type_mod is not None and hasattr(type_mod, "build_search_text"):
+                text = type_mod.build_search_text(row["canonical_name"], row.get("attrs") or {})
+            else:
+                text = row["canonical_name"]
+
+        vec = embed_text(text)
+        if vec is None:
+            skipped += 1
+            continue
+
+        col = "inference_embedding" if tier == "B" else "embedding"
+        update: dict[str, object] = {col: vec}
+        if tier == "B":
+            update["inference_needs_refresh"] = False
+        db.table("entities").update(update).eq("id", row["id"]).execute()
+        written += 1
+
+        if i % 25 == 0:
+            typer.echo(f"  {i}/{len(rows)}")
+
+    typer.echo(f"done: written={written}, skipped={skipped}")
+
+
+# ---------------------------------------------------------------------------
+# Agent tokens (WS-API #14)
+# ---------------------------------------------------------------------------
+
+token_cli = typer.Typer(help="Manage agent_tokens for MCP / programmatic API access")
+cli.add_typer(token_cli, name="token")
+
+
+@token_cli.command("issue")
+def cmd_token_issue(
+    name: str = typer.Argument(..., help="Human-readable label for this token"),
+    scopes: str = typer.Option("read", help="Comma-separated scopes: read,write,admin"),
+) -> None:
+    from server.auth.tokens import issue_token
+
+    scope_list = [s.strip() for s in scopes.split(",") if s.strip()]
+    token_id, full_token = issue_token(name, scope_list)
+    typer.echo(f"id:     {token_id}")
+    typer.echo(f"scopes: {','.join(scope_list)}")
+    typer.echo(f"token:  {full_token}")
+    typer.echo("⚠  Save this token now — it won't be shown again.")
+
+
+@token_cli.command("list")
+def cmd_token_list() -> None:
+    from server.auth.tokens import list_tokens
+
+    rows = list_tokens()
+    if not rows:
+        typer.echo("(no tokens)")
+        return
+    for r in rows:
+        status = "revoked" if r.get("revoked_at") else "active"
+        typer.echo(
+            f"{r['id']}  [{status}]  {r['name']}  scopes={','.join(r.get('scopes') or [])}"
+        )
+
+
+@token_cli.command("revoke")
+def cmd_token_revoke(token_id: str) -> None:
+    from server.auth.tokens import revoke_token
+
+    if revoke_token(token_id):
+        typer.echo(f"revoked {token_id}")
+    else:
+        typer.echo(f"no such token: {token_id}", err=True)
+        raise typer.Exit(code=1)
+
+
+@cli.command("mcp-stdio")
+def cmd_mcp_stdio() -> None:
+    """Run the MCP server over stdio (for Claude Desktop / mcp-cli)."""
+    from server.mcp.stdio import run
+
+    run()
 
 
 def main() -> None:

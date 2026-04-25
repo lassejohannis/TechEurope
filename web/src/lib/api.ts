@@ -91,6 +91,99 @@ export function resolveConflict(
   })
 }
 
+// ── Conflict Inbox ──────────────────────────────────────────────────────────
+
+export interface EntityPairInboxItem {
+  id: string
+  entity_id_1: string
+  entity_id_2: string
+  status: string
+  resolution_signals: Record<string, unknown>
+  decided_at: string | null
+  decided_by: string | null
+  created_at: string
+  entity_1: { id: string; entity_type: string; canonical_name: string; attrs: Record<string, unknown> } | null
+  entity_2: { id: string; entity_type: string; canonical_name: string; attrs: Record<string, unknown> } | null
+}
+
+export interface FactConflictInboxItem {
+  id: string
+  conflict_facts: string[]
+  status: string
+  decision: string | null
+  chosen_fact_id: string | null
+  rationale: string | null
+  resolved_at: string | null
+  resolved_by: string | null
+  facts: Array<{
+    id: string
+    subject_id: string
+    predicate: string
+    object_id: string | null
+    object_literal: unknown
+    confidence: number
+    source_id: string
+    valid_from: string
+    recorded_at: string
+    status: string
+    source: { id: string; source_type: string; source_uri: string | null } | null
+  }>
+}
+
+export interface InboxResponse<T> {
+  items: T[]
+  total: number
+}
+
+export function listEntityPairResolutions(
+  status: 'pending' | 'merged' | 'rejected' = 'pending',
+  limit = 50,
+): Promise<InboxResponse<EntityPairInboxItem>> {
+  return apiFetch(`/api/resolutions?status=${status}&limit=${limit}`)
+}
+
+export function listFactResolutions(
+  status: 'pending' | 'auto_resolved' | 'human_resolved' | 'rejected' = 'pending',
+  limit = 50,
+): Promise<InboxResponse<FactConflictInboxItem>> {
+  return apiFetch(`/api/fact-resolutions?status=${status}&limit=${limit}`)
+}
+
+export function decideEntityPair(
+  resolutionId: string,
+  body: {
+    decision: 'pick_one' | 'merge' | 'reject'
+    chosen_entity_id?: string
+    decided_by?: string
+    note?: string
+  },
+): Promise<{ status: string; winner_id: string | null }> {
+  return apiFetch(`/api/resolutions/${encodeURIComponent(resolutionId)}/decide`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function decideFactConflict(
+  resolutionId: string,
+  body: {
+    decision: 'pick_one' | 'merge' | 'both_with_qualifier' | 'reject_all'
+    chosen_fact_id?: string
+    qualifier_added?: Record<string, unknown>
+    decided_by?: string
+    note?: string
+  },
+): Promise<{ status: string; chosen_fact_id: string | null }> {
+  return apiFetch(`/api/fact-resolutions/${encodeURIComponent(resolutionId)}/decide`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function getTrustWeights(): Promise<{ weights: Record<string, number> }> {
+  return apiFetch('/api/trust-weights')
+}
+
 export function editProperty(
   entityId: string,
   factId: string,

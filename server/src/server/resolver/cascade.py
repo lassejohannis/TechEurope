@@ -48,6 +48,9 @@ class ResolutionResult:
     tier: str  # "hard_id" | "alias" | "embedding" | "pioneer" | "context" | "inbox" | "new"
     signals: dict[str, Any] = field(default_factory=dict)
     action: str = "new"  # "merge" | "inbox" | "new"
+    # Cross-type relationship hint (Tier 4 emits these instead of merging into
+    # a different-typed entity). Format: (predicate, target_entity_type, target_id).
+    relationship_hint: tuple[str, str, str] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -55,8 +58,14 @@ class ResolutionResult:
 # ---------------------------------------------------------------------------
 
 def _get_type_module(entity_type: str):
-    from server.resolver.types import person, company, product
-    return {"person": person, "company": company, "product": product}.get(entity_type)
+    from server.resolver.types import communication, company, document, person, product
+    return {
+        "person": person,
+        "company": company,
+        "product": product,
+        "document": document,
+        "communication": communication,
+    }.get(entity_type)
 
 
 # ---------------------------------------------------------------------------
@@ -209,6 +218,12 @@ def _tier35_pioneer(candidate: CandidateEntity) -> ResolutionResult | None:
 
 
 def _tier4_context(candidate: CandidateEntity, db: Any) -> ResolutionResult | None:
+    """Cross-type relationship hint, NOT an entity match.
+
+    A person whose email domain matches an existing company is *employed there*
+    — they are not the same entity. So T4 returns ``matched_id=None`` plus a
+    ``relationship_hint`` that the caller persists as a Fact (e.g. works_at).
+    """
     type_mod = _get_type_module(candidate.entity_type)
     if type_mod is None:
         return None
@@ -219,19 +234,25 @@ def _tier4_context(candidate: CandidateEntity, db: Any) -> ResolutionResult | No
         try:
             res = (
                 db.table("entities")
-                .select("id, canonical_name")
+                .select("id, canonical_name, entity_type")
                 .eq("entity_type", "company")
                 .filter("attrs->>domain", "eq", domain)
                 .limit(1)
                 .execute()
             )
-            if res.data:
+            if res.data and candidate.entity_type != "company":
+                target = res.data[0]
+                # works_at is the canonical person→company hint; other types
+                # could carry different predicates later, keep mapping local.
+                predicate = "works_at" if candidate.entity_type == "person" else "related_to"
                 return ResolutionResult(
-                    matched_id=str(res.data[0]["id"]),
+                    matched_id=None,
                     confidence=0.85,
                     tier="context",
-                    signals={"heuristic": "email_domain", "domain": domain},
-                    action="merge",
+                    signals={"heuristic": "email_domain", "domain": domain,
+                             "matched_company_id": str(target["id"])},
+                    action="new",  # candidate is still a new entity of its own type
+                    relationship_hint=(predicate, str(target["entity_type"]), str(target["id"])),
                 )
         except Exception as e:
             logger.debug("Tier 4 context error: %s", e)
@@ -239,12 +260,33 @@ def _tier4_context(candidate: CandidateEntity, db: Any) -> ResolutionResult | No
     return None
 
 
+def _candidate_id(candidate: CandidateEntity) -> str:
+    """Deterministic ID for a candidate — must match cli._entity_id."""
+    import re
+
+    slug = re.sub(r"[^a-z0-9]+", "-", candidate.canonical_name.lower()).strip("-") or "unnamed"
+    return f"{candidate.entity_type}:{slug}"
+
+
+def write_pending_inbox(candidate: CandidateEntity, embedding_result: ResolutionResult, db: Any) -> None:
+    """Public entry: caller invokes after the candidate has been persisted."""
+    _write_inbox(candidate, embedding_result, db)
+
+
 def _write_inbox(candidate: CandidateEntity, embedding_result: ResolutionResult, db: Any) -> None:
+    """Write a pending entity-pair to the ambiguity inbox.
+
+    entity_id_2 is the deterministic ID the candidate *will* have once persisted,
+    so the FK to entities resolves cleanly. The candidate must exist before the
+    inbox row becomes user-visible — caller's responsibility (cli.cmd_resolve
+    persists the candidate first via _persist_entity).
+    """
+    candidate_eid = _candidate_id(candidate)
     try:
         db.table("resolutions").insert({
             "id": str(uuid.uuid4()),
             "entity_id_1": embedding_result.matched_id,
-            "entity_id_2": str(uuid.uuid4()),  # placeholder for the not-yet-created entity
+            "entity_id_2": candidate_eid,
             "status": "pending",
             "resolution_signals": {
                 "score": embedding_result.confidence,
@@ -311,10 +353,11 @@ def resolve(candidate: CandidateEntity, db: Any = None) -> ResolutionResult:
             logger.info("T4 context  %s → %s (%.2f)", candidate.canonical_name, result.matched_id, result.confidence)
             return result
 
-    # Tier 5: Ambiguity inbox for deferred embedding candidates
+    # Tier 5: Ambiguity inbox for deferred embedding candidates.
+    # We DON'T write the inbox row here because the candidate hasn't been
+    # persisted yet (FK constraint on resolutions.entity_id_2 → entities.id
+    # would fail). Caller invokes write_pending_inbox(...) after persisting.
     if embedding_candidate is not None:
-        if db is not None:
-            _write_inbox(candidate, embedding_candidate, db)
         logger.info("T5 inbox    %s → %s (%.2f)", candidate.canonical_name, embedding_candidate.matched_id, embedding_candidate.confidence)
         return ResolutionResult(
             matched_id=embedding_candidate.matched_id,
