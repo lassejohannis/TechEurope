@@ -97,3 +97,7 @@ Lass uns das hier angehen, durchsuche aber erstmal das Projekt, ich glaube das d
 ---
 
 Können wir während ein anderer Chat noch sachen abarbeitet einmal die neuen sachen aus main ziehen und hier reinmergen?
+
+---
+
+Du bist jetzt der einzige Chat der läuft. Ich möchte, dass du alles sauber merged. Wenn wir alles gemerged haben sollten alle todos abgearbeitet sein und zusammen in einer branch sein
