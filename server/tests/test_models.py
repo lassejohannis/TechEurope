@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from server.models import (
+from server.ingestion_models import (
     SourceRecord,
     Entity,
     Fact,

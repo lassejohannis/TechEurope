@@ -62,3 +62,19 @@ def load_all(directory: Path | None = None) -> list[str]:
     for path in sorted(dirpath.glob("*.yaml")):
         loaded.append(path.name)
     return loaded
+
+
+def load_ontologies(db: Any) -> list[str]:
+    """Load all ontology YAMLs and upsert into DB. Returns list of filenames loaded.
+
+    Called by admin_router POST /admin/reload-ontologies.
+    """
+    dirpath = get_ontology_dir()
+    if not dirpath:
+        return []
+    loaded: list[str] = []
+    for path in sorted(dirpath.glob("*.yaml")):
+        ontology = load_yaml(path)
+        upsert_to_db(db, ontology)
+        loaded.append(path.name)
+    return loaded

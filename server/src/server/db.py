@@ -26,13 +26,13 @@ def get_db():
     if _supabase is None:
         from supabase import create_client
 
-        if not settings.supabase_url or not settings.supabase_service_key:
-            raise RuntimeError("SUPABASE_URL / SUPABASE_SERVICE_KEY not set")
-        _supabase = create_client(settings.supabase_url, settings.supabase_service_key)
+        if not settings.supabase_url or not settings.supabase_secret_key:
+            raise RuntimeError("SUPABASE_URL / SUPABASE_SECRET_KEY not set")
+        _supabase = create_client(settings.supabase_url, settings.supabase_secret_key)
     return _supabase
 
 
-# Alias used by ontology loader and other modules from origin/kathi.
+# Alias used by ontology loader, connectors, and CLI scripts.
 get_supabase = get_db
 
 

@@ -71,6 +71,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if projection:
             await projection.stop()
 
+
 app = FastAPI(
     title="Tech Europe — Context Engine",
     version="0.2.0",
@@ -145,30 +146,3 @@ def health() -> HealthResponse:
 @app.get("/api/hello")
 def hello() -> dict[str, str]:
     return {"message": "Hello from FastAPI — backend is reachable."}
-
-
-@app.post("/admin/reload-ontologies")
-@app.post("/api/admin/reload-ontologies")
-async def reload_ontologies() -> dict[str, object]:
-    """Load ontology YAMLs from config/ontologies and upsert them to DB.
-
-    Returns the list of YAML files processed. If Supabase credentials are not
-    configured, performs a dry-run and returns only the filenames.
-    """
-    loaded = load_all()
-    mode = "dry-run"
-    try:
-        client = get_supabase()
-        # Upsert each YAML into the config tables
-        dirpath = get_ontology_dir()
-        for name in loaded:
-            if not dirpath:
-                break
-            path = dirpath / name
-            ontology = load_yaml(path)
-            upsert_to_db(client, ontology)
-        mode = "applied"
-    except Exception:  # no creds or client error → dry run only
-        # We remain quiet for missing creds to keep endpoint usable in dev
-        mode = "dry-run"
-    return {"loaded": loaded, "mode": mode}
