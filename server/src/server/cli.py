@@ -334,7 +334,12 @@ def cmd_resolve(
         "facts": 0,
     }
 
+    from server.gemini_budget import get_budget
+
     for rec in records:
+        if get_budget().in_cooldown():
+            typer.echo("gemini cooldown active — stopping early")
+            break
         stats["records"] += 1
         candidates, pending_facts = extract_candidates(rec, llm_extract=llm_extract)
         stats["candidates"] += len(candidates)
@@ -420,6 +425,7 @@ def cmd_backfill_embeddings(
     Tier B: inference text from neighbouring facts (expensive, hot entities only).
     """
     from server.db import embed_text
+    from server.gemini_budget import get_budget
     from server.resolver.cascade import _get_type_module
 
     if tier not in ("A", "B"):
@@ -440,6 +446,9 @@ def cmd_backfill_embeddings(
     written = 0
     skipped = 0
     for i, row in enumerate(rows, 1):
+        if get_budget().in_cooldown():
+            typer.echo("gemini cooldown active — stopping early")
+            break
         if tier == "A":
             type_mod = _get_type_module(row["entity_type"])
             if type_mod is not None and hasattr(type_mod, "build_search_text"):
@@ -479,6 +488,7 @@ def cmd_reembed(
     changes). Idempotent — picks the next batch of stale entities each run.
     """
     from server.db import embed_text
+    from server.gemini_budget import get_budget
     from server.resolver.cascade import _get_type_module
     from server.resolver.embed import build_inference_text
 
@@ -522,6 +532,9 @@ def cmd_reembed(
     typer.echo(f"reembedding {len(rows)} entities (tier={tier}) …")
     written = skipped = 0
     for i, row in enumerate(rows, 1):
+        if get_budget().in_cooldown():
+            typer.echo("gemini cooldown active — stopping early")
+            break
         if tier == "B":
             text = build_inference_text(row["id"], db)
         else:
