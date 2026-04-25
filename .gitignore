@@ -36,8 +36,8 @@ build/
 coverage/
 *.tsbuildinfo
 
-# Data (default ignore — opt in per file)
-data/
+# Data
+data/**/.cache/
 *.sqlite
 *.db
 
