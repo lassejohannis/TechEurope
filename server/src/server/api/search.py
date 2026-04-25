@@ -97,8 +97,9 @@ def _fetch_entity_with_trust(db, entity_id: str, as_of: datetime | None = None) 
 # Hybrid search implementation
 # ---------------------------------------------------------------------------
 
-def run_hybrid_search(query: str, k: int = 10, as_of: datetime | None = None, entity_type: str | None = None) -> list[SearchResult]:
-    db = get_db()
+def run_hybrid_search(query: str, k: int = 10, as_of: datetime | None = None, entity_type: str | None = None, db=None) -> list[SearchResult]:
+    if db is None:
+        db = get_db()
 
     # --- Stage 1: Semantic ---
     semantic_scores: dict[str, float] = {}
@@ -180,5 +181,6 @@ def search(req: SearchRequest, db=Depends(get_db)):
         k=req.k,
         as_of=req.as_of,
         entity_type=req.entity_type,
+        db=db,
     )
     return SearchResponse(query=req.query, results=results, total=len(results))

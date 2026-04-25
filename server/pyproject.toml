@@ -20,10 +20,19 @@ dev = [
     "ruff>=0.8",
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
+    "httpx>=0.27",
 ]
 
 [project.scripts]
 server = "server.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+# Run all WS tests: uv run pytest tests/ -v
+# Single WS:        uv run pytest tests/test_ws4_query_api.py -v
+# Skip live tests:  uv run pytest tests/ -v -m "not live_db and not pioneer"
 
 [build-system]
 requires = ["uv_build>=0.10.10,<0.11.0"]
