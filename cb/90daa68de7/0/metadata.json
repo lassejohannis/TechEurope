@@ -1,0 +1,56 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "cb90daa68de7",
+  "session_id": "12c0983c-bf52-4a45-9fb9-7f90b87265d5",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-25T20:57:59.725944Z",
+  "branch": "Lasse",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "data/training/pioneer_ner_v4.jsonl",
+    "data/training/pioneer_ner_v4_holdout.jsonl",
+    "server/scripts/convert_to_pioneer_ner.py",
+    "server/src/server/cli.py"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "ea6f12c85029",
+  "token_usage": {
+    "input_tokens": 425,
+    "cache_creation_tokens": 537973,
+    "cache_read_tokens": 48642586,
+    "output_tokens": 148162,
+    "api_call_count": 228
+  },
+  "session_metrics": {
+    "turn_count": 17
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-25T20:57:59.686775Z",
+    "agent_lines": 462,
+    "agent_removed": 0,
+    "human_added": 2620,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 3082,
+    "total_lines_changed": 3082,
+    "agent_percentage": 14.990266060999351,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 9960,
+      "agent_lines_removed": 0
+    }
+  ]
+}
