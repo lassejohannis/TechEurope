@@ -76,7 +76,7 @@ class TestSyncConfig:
             neo4j_user="neo4j",
             neo4j_password="test",
             supabase_url="https://test.supabase.co",
-            supabase_service_key="test-key",
+            supabase_secret_key="test-key",
         )
         assert cfg.batch_size == 50
         assert cfg.retry_max == 5
