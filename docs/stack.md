@@ -29,35 +29,27 @@ See [team-briefing-technical.md](team-briefing-technical.md) for the canonical e
 | **Security scan** | Aikido | Connect repo Day 1 → screenshot at submission for the 1000€ side prize. |
 | **Repo layout** | Two folders (`web/`, `server/`) — no workspace tooling | Overhead not worth it for 30h + small team. |
 
-## Open: which 3 partners as core (decide Day 1)
+## Partner combo — RESOLVED (2026-04-25)
 
-Both options are valid. Aikido stacks on top of either as the security side prize.
+**Decision:** Pioneer + Gemini + Entire (Dev-Tool) + Aikido. Vollständige Spec in [`partner-tech.md`](partner-tech.md).
 
-### Option A — "Technical heavyweight"
-- **Google DeepMind (Gemini)** — embeddings + extraction + generation
-- **Pioneer / Fastino** — fine-tuned GLiNER2 as core entity extractor (also wins side prize 700€)
-- **Entire** — HITL / change-loop orchestration (also wins side prize $1k)
-- *(Aikido)* — security scan, side prize 1000€
+| Partner | Rolle | Side-Prize |
+|---|---|---|
+| **Google DeepMind (Gemini)** | Im Produkt: Embeddings, Reasoning, Multimodal | — |
+| **Pioneer (Fastino)** | Im Produkt: Fine-tuned GLiNER2 für E+R-Extraction am Hot-Path (Cascade Tier 3.5) | 700€ |
+| **Entire** | Dev-Tool: Coding-Provenance + Checkpoints (nicht im Produkt) | $1000 |
+| **Aikido** | Security-Scan auf Repo | 1000€ |
 
-**Story:** "We fine-tuned a custom NER model that beats GPT-4 at our extraction task; humans escalate via Entire."
-**Risk:** Pioneer fine-tuning runtime eats hours.
+**Story:** "Hand-rolled deterministic-first ER cascade. Pioneer-finetuned GLiNER2 schlägt Gemini am Hot-Path bei Cost/Latency. Gemini powered alles andere. Entire gibt uns Coding-Provenance, Aikido sichert das Repo."
 
-### Option B — "Ecosystem play" (closer to team brief ideas)
-- **Google DeepMind (Gemini)** — embeddings + extraction + generation
-- **Tavily** — research agent enriches Core Layer with public web facts about customers (cross-check against CRM)
-- **Gradium** — voice-to-text on sales calls → feeds the Core Layer (perfect fit for Revenue App: ingest call transcripts)
-- *Lovable used as design-to-code assistant (not core 3) — exports React+Tailwind components into Vite*
-- *(Aikido)* — security scan, side prize 1000€
+**Side-prize stack:** ~2700€ + $1000 goodies on top of Qontext track prize.
 
-**Story:** "Calls + emails + CRM + public research → one shared truth layer. Same memory powers Sales, CS, and a Second App."
-**Risk:** less technical depth than Path A; depends on Gradium STT quality and Tavily latency.
+**Day-1-Validation:** Mit Orga klären ob Entire als Dev-Tool für Pflicht-3 zählt. Falls nein → Tavily als 3. Produkt-Partner einbauen (~3h, Adapter-Pattern wie Email/CRM-Mock).
 
-### Recommendation
-
-**Path B** if the team values demo narrative + Revenue App fit.
-**Path A** if the team values technical-complexity scoring (the jury's explicit criterion) + side-prize stacking.
-
-No wrong answer; pick by team skill and bandwidth on Day 1.
+**Verworfene Alternativen:**
+- *Path B* (Gemini + Tavily + Gradium) — geringere technische Tiefe, Gradium-STT-Risiko
+- *Splink* als ER-Matcher — 6-10h Time-to-Value vs 4h hand-rolled (siehe Cowork-Research)
+- *Lovable* als 3. Pflicht-Partner — passive Stack-Kompatibilität, kein bewusster Use-Case
 
 ## Open: Revenue App details
 
