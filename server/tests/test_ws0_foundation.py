@@ -98,7 +98,7 @@ class TestConfig:
     def test_settings_has_required_fields(self):
         from server.config import settings
         assert hasattr(settings, "supabase_url")
-        assert hasattr(settings, "supabase_service_key")
+        assert hasattr(settings, "supabase_secret_key")
         assert hasattr(settings, "api_host")
         assert hasattr(settings, "api_port")
 
