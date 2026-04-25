@@ -123,6 +123,75 @@ def resolve(record: SourceRecord) -> Resolution:
 
 Bei Unsicherheit: Candidate-Set vorhalten. Nicht false-positive resolven. Merge ist günstig, Un-Merge ist Hölle.
 
+### Embedding-Strategie (Two-Tier)
+
+Wir embedden **nicht alles gleich**. Zwei Tiers:
+
+**Tier A — Name-Embedding (Default, alle Entities):**
+```python
+text = normalize(canonical_name + " " + key_attrs)
+# normalize: lowercase, strip "Inc/Ltd/GmbH/BV", collapse whitespace
+embedding = gemini_embed_004(text, dim=768)  # Matryoshka
+```
+Billig, schnell, gut genug für Resolution-Blocking.
+
+**Tier B — Inference-Embedding (opt-in, hot entities):**
+Für "wichtige" Entities (Companies + Persons mit ≥5 verbundenen Facts) generieren wir zusätzlich ein **kontext-reiches Embedding**:
+
+```python
+def inference_embedding(entity: Entity) -> Vector:
+    context = collect_graph_neighbors(entity, depth=1)  
+    # → role, department, managed_projects, recent_activity, ...
+    summary = gemini_flash.summarize(entity, context)
+    # → "Max Mustermann is Head of IT, manages Project Alpha + Beta, 
+    #    has 2 open tickets, reports to Anna Schmidt."
+    return gemini_embed_004(summary, dim=768)
+```
+
+Storage: zweite Spalte `inference_embedding VECTOR(768)` auf `entities`. Separater HNSW-Index.
+
+**Warum Two-Tier:**
+- Tier A trägt 95% der Resolution-Workload (billig)
+- Tier B macht **Semantic Search dramatisch besser** — *"Senior Engineers with high ticket load"* findet auch Personen, deren Titel "Senior" gar nicht enthält
+- Tier B ist re-computed nur via `needs_refresh`-Flag, nicht eager bei jedem Edge-Update
+
+**Demo-Wert:** Cross-Domain Discovery — eine Query findet semantisch ähnliche Konzepte über verschiedene Datenquellen hinweg. Das ist sichtbar besser als naive Name-Embeddings.
+
+### Hybrid Search (search_memory MCP-Tool)
+
+`search_memory` ist explicit **3-Stage Hybrid**: Semantic ∩ Structural → Rerank.
+
+```python
+def search_memory(query: str, k: int = 10) -> list[Result]:
+    # Stage 1: Semantic
+    q_emb = gemini_embed_004(query, dim=768)
+    semantic = pgvector_knn(
+        q_emb, 
+        col="inference_embedding",  # Tier-B falls vorhanden, fallback Tier-A
+        k=20, 
+        threshold=0.7
+    )
+
+    # Stage 2: Structural — Entity-Mentions aus Query extrahieren, 1-Hop traversieren
+    mentions = pioneer_extract_mentions(query)  # Pioneer-finetuned, 2. Use!
+    structural = []
+    for m in mentions:
+        entity = resolve_mention(m)
+        if entity:
+            structural += graph_traverse(entity, depth=1)
+
+    # Stage 3: Combine + Rerank
+    candidates = intersect_or_union(semantic, structural)  # intersect bei viel signal, union bei wenig
+    return rerank_by_confidence_and_recency(candidates)[:k]
+```
+
+**Warum Hybrid:**
+- Pure Semantic: findet ähnliche Konzepte aber ignoriert Struktur ("alle Senior Engineers" → ja, aber wie viele Tickets haben sie?)
+- Pure Graph: präzise Pfade aber keine Fuzzy-Begriffe ("MANAGES → IT_DEPT" findet nichts wenn Query "leitet die IT" sagt)
+- Hybrid: **Best of both.** Intersection erhöht Precision, Union erhöht Recall.
+
+**Pioneer-Bonus:** Tier 3.5 wird **zweitgenutzt** für Entity-Mention-Extraction aus der Query. Stärkt den Side-Prize-Claim ("our fine-tuned model is the backbone of both ingestion AND query").
+
 ### Graph Construction
 
 Entitäten sind Nodes. Beziehungen zwischen ihnen sind typisierte Edges.
@@ -131,7 +200,29 @@ Entitäten sind Nodes. Beziehungen zwischen ihnen sind typisierte Edges.
 
 **Edge-Types (vollständig):** `works_at`, `manages`, `authored`, `references`, `mentions`, `owns`, `assigned_to`, `participant_in`, `related_to`. Plus use-case-spezifische via Config (`champion_of` etc.).
 
-**Konfigurierbar, nicht hardcoded:** Entity- und Edge-Types liegen in `entity_type_config` und `edge_type_config` Tabellen (Source-of-Truth in Postgres, init via JSON-Seed). Ingestion validiert dagegen — neuer Use Case = Config-Update, kein Code-Change.
+**Konfigurierbar, nicht hardcoded:** Entity- und Edge-Types werden als **YAML-Ontologien** in `config/ontologies/*.yaml` definiert (dev-friendly, version-controlled, PR-diffbar) und beim Boot in `entity_type_config` / `edge_type_config` Postgres-Tabellen geladen (runtime-changeable, single source of truth). Ingestion validiert dagegen — neuer Use Case = neue YAML-Datei + Reload, kein Code-Change.
+
+```yaml
+# config/ontologies/hr.yaml
+entities:
+  Employee:
+    properties:
+      - {name: id, type: string}
+      - {name: name, type: string}
+      - {name: email, type: string}
+  Department:
+    properties:
+      - {name: id, type: string}
+      - {name: name, type: string}
+relationships:
+  works_in:
+    from: Employee
+    to: Department
+    properties:
+      - {name: since, type: date}
+```
+
+Boot-Loader: `config/ontologies/*.yaml → ontology_loader.py → INSERT INTO {entity,edge}_type_config`. Onthologie-Hot-Reload-Endpoint für Demo (`POST /admin/reload-ontologies`).
 
 Edges tragen Metadata: `source_record_id`, `confidence`, `valid_from`, `valid_to`. Bi-direktional traversierbar (Indexes auf `(subject_id, predicate)` UND `(object_id, predicate)`).
 
@@ -262,6 +353,37 @@ QUERY: Find all Persons where champion_of relates to Deal
 
 Beide Patterns returnen strukturierte JSON mit Attribution.
 
+### Neo4j Read-only Projection (post 2026-04-25)
+
+Postgres bleibt Source-of-Truth. Neo4j ist eine **read-only Projection**, gepflegt via Supabase-Realtime.
+
+**Architektur:**
+```
+[Postgres facts/entities INSERT]
+    │
+    ▼ Supabase Realtime
+[server/sync/neo4j_projection.py]
+    │
+    ▼ idempotent MERGE-Cypher
+[Neo4j Aura Free-Tier]
+    │
+    ▼ Cypher
+[FastAPI /query/cypher endpoint]
+```
+
+**Routing-Regel in der Query-API:**
+| Query-Type | Backend |
+|---|---|
+| `get_entity`, `get_fact`, `propose_fact`, Provenance-Joins, Time-Travel | Postgres |
+| Multi-Hop-Pattern (`MATCH (a)-[*..3]->(b)`), Shortest-Path, GDS-Algos | Neo4j |
+| Hybrid Search (`search_memory`) | Postgres pgvector ∩ Neo4j edges → Postgres rerank |
+
+**Skalierbarkeits-Argument (Pitch-Antwort):** *"Postgres skaliert transaktional zu Milliarden Rows — Episode-Store, Audit-Log, Provenance bleiben hier. Neo4j skaliert Graph-Traversal zu 100M+ Edges — Multi-Hop-Queries und Pattern-Matching gehen dort. Jeder Layer skaliert in seinem Domain."*
+
+**Failure-Mode:** Sync-Crash = Neo4j-Projection wird stale, **nichts korrumpiert**. Re-Sync via Replay aus Postgres möglich. Kein Dual-Write-Risiko weil Postgres die einzige Schreibseite ist.
+
+**Hard-Cap:** Samstag 14:00. Wenn Sync-Worker bis dahin nicht stabil → Neo4j wird im Pitch als "Day 2" gestreamt, Demo läuft auf Postgres-only.
+
 ### Change Streams
 
 Apps können auf Events subscriben:
@@ -366,19 +488,30 @@ Nicht vorher hyped — Demo-Moment kommt als Überraschung am Ende.
 
 > **Note (2026-04-25, Option A — voll erfüllen):** Verteilung neu gewichtet. Alle 10 Anforderungs-Sektionen werden gecovered. Revenue App gekürzt zugunsten Core-Vollständigkeit + Human-UI.
 
-**50% Zeit auf Core Layer (Vollständig):**
+**45% Zeit auf Core Layer (Vollständig):**
 
-1. Splink-basierte Entity Resolution für Person + Company + Product
+1. Hand-rolled Cascade-Resolver für Person + Company + Product (Pioneer-Tier 3.5)
 2. VFS mit Read **+ Write/Delete** (Write/Delete intern via `propose_fact` / `mark_fact_invalid`)
 3. Query API (REST + 5 MCP-Tools + `get_fact_provenance`)
-4. Graph Construction für die 9 Edge-Types, konfigurierbar via `*_type_config`-Tabellen
+4. Graph Construction für die 9 Edge-Types, konfigurierbar via YAML-Ontologien
 5. Source Attribution durchgängig (system/path/record-id/timestamp/method + confidence)
-6. Bi-temporal Schema (tstzrange + EXCLUDE), eine "as-of"-Query
+6. Bi-temporal Schema (tstzrange + EXCLUDE + Supersede-Trigger), eine "as-of"-Query
 7. Auto-Resolution-Rules (Recency / Authority / Confidence / Cross-Confirmation)
 8. Resolution-Decision Traceability (`resolution_signals: jsonb`)
 9. PDF-Adapter mit Text + 1 strukturiertem Schema (Invoice oder Resume)
 10. Diff in Change-Events (über `superseded_by` Pointer)
 11. Document/Communication als first-class Entity-Types
+12. Two-Tier Embeddings (Name-default + Inference-rich für hot entities)
+13. Hybrid Search (`search_memory` als Semantic ∩ Structural → Rerank)
+
+**5% Zeit auf Neo4j-Projection (NEU, Tag 1 hard-cap Samstag 14:00):**
+
+1. Neo4j Aura Free-Tier setup
+2. `server/sync/neo4j_projection.py` — Supabase-Realtime-Listener → idempotent MERGE-Cypher
+3. Cypher-Query-Endpoint in FastAPI für Demo-Queries
+4. Eine Cypher-Wow-Demo-Query getestet (3-Hop-Pattern)
+
+**Hard-Cap-Regel:** Wenn Samstag 14:00 nicht steht → Postgres-only weiter, Neo4j wird "Day 2" im Pitch.
 
 **20% Zeit auf Human-Facing UI (NEU, Pflicht):**
 
@@ -404,6 +537,7 @@ Nicht vorher hyped — Demo-Moment kommt als Überraschung am Ende.
 4. **Streaming Ingestion Log** via Supabase Realtime (SourceRecord → Facts → Resolutions live tail)
 5. **GDPR Source-Delete-Cascade** (~30 Zeilen, Killer für Enterprise-Judges)
 6. **Pioneer-vs-Gemini Comparison-View** — side-by-side Tabelle für 10 Beispiele. Belegt den Pioneer-Side-Prize claim glaubhaft.
+7. **Cypher-Wow-Query auf Neo4j-Projection** — z.B. *"Find all Persons connected to Acme within 3 hops, group by relationship type"* oder *"Shortest path between Alice and any Customer"*. Pitch-Story: "Postgres skaliert transaktional, Neo4j skaliert Multi-Hop — jeder Layer in seinem Domain."
 
 **5% Zeit auf Second App + Pitch-Integration:**
 Minimal. HR-View auf denselben Core-Daten. Demo-Transitions testen.
@@ -542,7 +676,7 @@ Aus der Cowork-Research (2026-04-25). Wer "ich schreib das schnell selbst" sagt,
 
 **Steal patterns, do NOT import:**
 - **[Cognee](https://github.com/topoteretes/cognee)** — DataPoints-Idee (typed Pydantic + Postgres-Mirror) klauen. Nicht runtime-integrieren — Postgres-only-Retrofit kostet 6h.
-- **[Graphiti](https://github.com/getzep/graphiti)** (Zep) — Edge-Property-Pattern + Extraction-Prompts ansehen. Nicht installieren (Neo4j-Dependency).
+- **[Graphiti](https://github.com/getzep/graphiti)** (Zep) — Edge-Property-Pattern + Bi-temporal-Invalidation + Extraction-Prompts ansehen. **Nicht installieren**, auch nicht jetzt wo wir Neo4j haben. Begründung: End-to-End-Pipeline (würde 60% unserer Architektur ersetzen), Bi-temporal-Konflikt (Postgres EXCLUDE vs Graphiti App-Logic), Pioneer-Story kaputt, 48h-Lernkurve. Patterns klauen, Runtime nicht. **Hard rule:** wer am Samstag "lass mal Graphiti einbauen" sagt → 60min Begründungs-Pflicht oder overruled.
 - **[LightRAG](https://github.com/HKUDS/LightRAG)** — Dual-Level-Retrieval-Pattern in `search_memory` MCP-Tool replizieren (entity-mention + topical phase). Lib nicht ziehen.
 
 **Don't even click the docs (Traps):**
