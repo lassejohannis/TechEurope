@@ -3,7 +3,7 @@
   "checkpoint_id": "cb90daa68de7",
   "strategy": "manual-commit",
   "branch": "Lasse",
-  "checkpoints_count": 3,
+  "checkpoints_count": 5,
   "files_touched": [
     "data/training/comparison.json",
     "data/training/eval_holdout.jsonl",
@@ -16,7 +16,8 @@
     "server/scripts/eval_extractors.py",
     "server/scripts/pioneer_pipeline.py",
     "server/src/server/cli.py",
-    "server/src/server/extractors/prompt.py"
+    "server/src/server/extractors/prompt.py",
+    "server/src/server/gemini_budget.py"
   ],
   "sessions": [
     {
@@ -30,13 +31,19 @@
       "transcript": "/cb/90daa68de7/1/full.jsonl",
       "content_hash": "/cb/90daa68de7/1/content_hash.txt",
       "prompt": "/cb/90daa68de7/1/prompt.txt"
+    },
+    {
+      "metadata": "/cb/90daa68de7/2/metadata.json",
+      "transcript": "/cb/90daa68de7/2/full.jsonl",
+      "content_hash": "/cb/90daa68de7/2/content_hash.txt",
+      "prompt": "/cb/90daa68de7/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 1076,
-    "cache_creation_tokens": 968095,
-    "cache_read_tokens": 112163275,
-    "output_tokens": 330740,
-    "api_call_count": 554
+    "input_tokens": 2414,
+    "cache_creation_tokens": 2903919,
+    "cache_read_tokens": 579273782,
+    "output_tokens": 914189,
+    "api_call_count": 1502
   }
 }
