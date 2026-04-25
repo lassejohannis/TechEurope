@@ -1,0 +1,16 @@
+entity_types:
+  ticket:
+    id_field: "ticket_id"
+    attributes: ["status", "priority"]
+  project:
+    id_field: "name"
+    attributes: ["owner", "deadline"]
+  policy:
+    id_field: "policy_id"
+    attributes: ["title", "department"]
+
+edge_types:
+  blocks: { from: ticket, to: project }
+  governed_by: { from: process, to: policy }
+  assigned_to: { from: ticket, to: person }
+

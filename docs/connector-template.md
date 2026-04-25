@@ -1,115 +1,72 @@
-# Writing a new connector (< 30 min)
+# Connector Template
 
-A connector reads one external data source and yields `SourceRecord` objects that
-the ingestion pipeline upserts into `source_records` (Supabase) and optionally
-indexes in Neo4j.
+Goal: A new engineer can build a connector in ~30 minutes. Use this as a checklist.
 
-## Minimal template
+## Skeleton
 
 ```python
-# server/src/server/connectors/my_source.py
+# server/src/server/connectors/my_connector.py
 from __future__ import annotations
-
 from pathlib import Path
 from typing import Iterator
 
-from server.connectors.base import BaseConnector, SourceRecord
+from server.models import SourceRecord, ExtractionStatus
+from server.connectors.base import BaseConnector
 
+class MyConnector(BaseConnector):
+    source_type = "my_source"
 
-class MySourceConnector(BaseConnector):
-    source_type = "my_source"          # used as prefix in SourceRecord.id
-
-    def fetch(self, path: Path) -> Iterator[dict]:
-        """Yield raw dicts — one per logical record."""
-        import json
-        with open(path) as f:
-            yield from json.load(f)
+    def discover(self, path: Path) -> Iterator[dict]:
+        # yield raw dicts from files/dirs under `path`
+        ...
 
     def normalize(self, raw: dict) -> SourceRecord:
-        """Map a raw dict → SourceRecord."""
-        native_id = str(raw.get("id", ""))
-        payload = {
-            "id":    raw.get("id"),
-            "title": raw.get("title", ""),
-            "body":  raw.get("body", "")[:4000],  # cap large text for jsonb
-        }
-        content_hash = SourceRecord.hash_payload(payload)
+        native_id = str(raw["id"])  # pick a stable native id
+        payload = {...}              # minimal normalized shape
         return SourceRecord(
-            id=SourceRecord.make_id(self.source_type, content_hash),
+            id=self.make_id(native_id),
             source_type=self.source_type,
-            source_uri=str(path),
+            source_uri=raw.get("uri"),
             source_native_id=native_id,
             payload=payload,
-            content_hash=content_hash,
-            metadata={"method": "connector_ingest"},
+            content_hash=self.make_content_hash(payload),
+            extraction_status=ExtractionStatus.pending,
         )
 ```
 
-## Register it
+## Register
 
-Add one line to `server/src/server/connectors/__init__.py`:
+The registry auto-imports known modules (`email`, `crm`, `hr`, `pdf`). For a new file, either:
+- Add an import to `server/src/server/connectors/__init__.py`, or
+- Use the registry programmatically in code paths that instantiate your connector.
 
-```python
-from server.connectors.my_source import MySourceConnector
+## Idempotenz
 
-REGISTRY = {
-    ...
-    "my_source": MySourceConnector,
-}
-```
+- `id = f"{source_type}:{sha256(native_id)}"` — stable across runs
+- `content_hash = sha256(canonical_json(payload))` — only changed rows are upserted
+- The base `ingest()` function batches and only writes new/changed rows.
 
-## Run it
+## Test Loop (3 steps)
 
+1) Dry-run locally
 ```bash
-# dry-run (no DB writes)
-uv run server ingest --connector my_source --path data/my_source/records.json --dry-run
-
-# persist to Supabase
-uv run server ingest --connector my_source --path data/my_source/records.json
+uv run python -c "from server.connectors.my_connector import MyConnector; print('OK')"
 ```
 
-## Rules
-
-| Rule | Reason |
-|------|--------|
-| `payload` values must be JSON-serialisable | stored in Supabase `jsonb` column |
-| Cap long text fields to ≤ 8 000 chars | prevents oversized payloads |
-| `source_native_id` must be stable | used for dedup / linking |
-| Never raise in `normalize()` | wrap in try/except and log, return `None` to skip |
-| `fetch()` is a generator | keeps memory flat for large files |
-
-## `SourceRecord` fields
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | str | `"{source_type}:{sha256[:24]}"` — globally unique |
-| `source_type` | str | Matches connector `source_type` |
-| `source_uri` | str | Relative path or URL to the source file |
-| `source_native_id` | str | ID as it appears in the source system |
-| `payload` | dict | All fields to store / search |
-| `content_hash` | str | SHA-256 of canonical payload — used for dedup |
-| `extraction_status` | str | `"pending"` by default |
-| `metadata` | dict | Extra context (method, file size, etc.) |
-
-## Directory connectors
-
-If your source is a directory of files, handle it in `fetch()`:
-
-```python
-def fetch(self, path: Path) -> Iterator[dict]:
-    if path.is_dir():
-        for file in sorted(path.rglob("*.json")):
-            yield from self._load_file(file)
-    else:
-        yield from self._load_file(path)
+2) Ingest small sample
+```bash
+uv run server ingest --connector my_source --path data/enterprise-bench/
 ```
 
-## Existing connectors for reference
+3) Re-run (idempotent)
+```bash
+uv run server ingest --connector my_source --path data/enterprise-bench/
+# counts unchanged; written=0 if no changes
+```
 
-| Connector | File | Source |
-|-----------|------|--------|
-| `email` | `email_mock.py` | `Enterprise_mail_system/emails.json` |
-| `crm` | `crm_mock.py` | `CRM/` directory (clients/vendors/customers/sales) |
-| `hr` | `hr_mock.py` | `Human_Resources/` (employees.json + resume CSV) |
-| `itsm` | `itsm_mock.py` | `IT_Service_Management/it_tickets.json` |
-| `document` | `document.py` | Any directory — PDF/DOCX/PPTX/HTML/CSV/MD via Docling |
+## Notes
+- Keep `payload` reasonably small but complete enough for downstream extraction.
+- Preserve useful relation hints (e.g. `thread_id`, `reports_to`) in `payload` — WS‑2 will use them to create edges/facts.
+- Do not add use-case semantics into the connector; it only normalizes.
+- Use batches of ~500 for large files.
+

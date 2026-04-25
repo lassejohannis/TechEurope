@@ -7,14 +7,6 @@ Supported formats (via Docling):
   HTML  — web pages / exported reports
   CSV   — structured tables (fallback to stdlib csv)
   MD    — markdown files
-
-Structured extraction (invoice / policy / resume schemas) runs on top of
-Docling's plain-text output via Gemini + instructor.
-
-Usage:
-    connector = DocumentConnector()
-    for record in connector.ingest(Path("data/enterprise-bench/Policy_Documents")):
-        print(record.source_type, record.source_native_id)
 """
 
 from __future__ import annotations
@@ -26,16 +18,15 @@ import os
 from pathlib import Path
 from typing import Iterator
 
-from server.connectors.base import BaseConnector, SourceRecord
+from server.ingestion_models import ExtractionStatus, SourceRecord
+from .base import BaseConnector
 
 logger = logging.getLogger(__name__)
 
-# File extensions handled by Docling vs. native fallbacks
 _DOCLING_EXTS = {".pdf", ".docx", ".pptx", ".html", ".htm", ".png", ".jpg", ".jpeg"}
 _CSV_EXTS = {".csv"}
 _TEXT_EXTS = {".txt", ".md"}
 
-# Auto-detect document type from path patterns
 _TYPE_HINTS = {
     "invoice": "invoice",
     "policy": "policy",
@@ -55,12 +46,7 @@ def _detect_doc_type(path: Path) -> str:
     return "document"
 
 
-# ---------------------------------------------------------------------------
-# Docling extraction
-# ---------------------------------------------------------------------------
-
 def _extract_with_docling(path: Path) -> dict:
-    """Parse document with Docling. Falls back to pdfplumber for PDFs if unavailable."""
     try:
         from docling.document_converter import DocumentConverter
         converter = DocumentConverter()
@@ -77,7 +63,6 @@ def _extract_with_docling(path: Path) -> dict:
 
 
 def _extract_with_pdfplumber(path: Path) -> dict:
-    """Fallback PDF extraction via pdfplumber."""
     try:
         import pdfplumber
         text_parts = []
@@ -95,12 +80,10 @@ def _extract_with_pdfplumber(path: Path) -> dict:
 
 
 def _extract_csv(path: Path) -> dict:
-    rows = []
     with open(path, newline="", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        rows = list(reader)
+        rows = list(csv.DictReader(f))
     return {
-        "text": "\n".join(json.dumps(r) for r in rows[:50]),  # first 50 rows as text
+        "text": "\n".join(json.dumps(r) for r in rows[:50]),
         "rows": rows,
         "method": "csv_native",
     }
@@ -109,10 +92,6 @@ def _extract_csv(path: Path) -> dict:
 def _extract_text(path: Path) -> dict:
     return {"text": path.read_text(encoding="utf-8", errors="replace"), "method": "text_native"}
 
-
-# ---------------------------------------------------------------------------
-# Structured schema extraction via Gemini + instructor
-# ---------------------------------------------------------------------------
 
 def _extract_structured(text: str, doc_type: str) -> dict:
     """Use Gemini + instructor to pull structured fields from document text."""
@@ -131,7 +110,6 @@ def _extract_structured(text: str, doc_type: str) -> dict:
         if doc_type == "invoice":
             class InvoiceSchema(BaseModel):
                 invoice_number: str | None = None
-                customer_id: str | None = None
                 customer_name: str | None = None
                 total_amount: str | None = None
                 currency: str | None = None
@@ -153,7 +131,6 @@ def _extract_structured(text: str, doc_type: str) -> dict:
                 skills: list[str] = []
                 current_role: str | None = None
                 years_experience: int | None = None
-                education: list[str] = []
 
             result = client.chat.completions.create(
                 model="gemini-2.0-flash",
@@ -168,7 +145,6 @@ def _extract_structured(text: str, doc_type: str) -> dict:
                 category: str | None = None
                 effective_date: str | None = None
                 key_rules: list[str] = []
-                applies_to: str | None = None
 
             result = client.chat.completions.create(
                 model="gemini-2.0-flash",
@@ -182,21 +158,15 @@ def _extract_structured(text: str, doc_type: str) -> dict:
     return {}
 
 
-# ---------------------------------------------------------------------------
-# Connector
-# ---------------------------------------------------------------------------
-
 class DocumentConnector(BaseConnector):
-    """Multi-format document connector using Docling + Gemini structured extraction."""
+    """Multi-format document connector using Docling + optional Gemini structured extraction."""
 
     source_type = "document"
 
     def __init__(self, extract_structured: bool = False):
-        # Structured extraction costs Gemini API calls — opt-in
         self.extract_structured = extract_structured
 
-    def fetch(self, path: Path) -> Iterator[dict]:
-        """Yield raw extraction dicts. Path can be file or directory."""
+    def discover(self, path: Path) -> Iterator[dict]:
         if path.is_dir():
             for ext in (*_DOCLING_EXTS, *_CSV_EXTS, *_TEXT_EXTS):
                 for file in sorted(path.rglob(f"*{ext}")):
@@ -206,7 +176,6 @@ class DocumentConnector(BaseConnector):
 
     def _process_file(self, path: Path) -> Iterator[dict]:
         ext = path.suffix.lower()
-        logger.debug("Processing %s", path)
         try:
             if ext in _DOCLING_EXTS:
                 extracted = _extract_with_docling(path)
@@ -238,29 +207,23 @@ class DocumentConnector(BaseConnector):
     def normalize(self, raw: dict) -> SourceRecord:
         path = Path(raw["_path"])
         doc_type = raw["_doc_type"]
-
         payload = {
             "file_name": path.name,
             "doc_type": doc_type,
             "extension": raw["_ext"],
-            "text": raw.get("text", "")[:8000],  # cap for jsonb
+            "text": raw.get("text", "")[:8000],
             "structured": raw.get("structured", {}),
             "table_count": len(raw.get("tables", [])),
             "row_count": len(raw.get("rows", [])),
             "extraction_method": raw.get("extraction_method"),
         }
-
-        content_hash = SourceRecord.hash_payload(payload)
+        content_hash = self.make_content_hash(payload)
         return SourceRecord(
-            id=SourceRecord.make_id(f"doc_{doc_type}", content_hash),
+            id=self.make_id(path.stem),
             source_type=f"doc_{doc_type}",
             source_uri=str(path),
             source_native_id=path.stem,
             payload=payload,
             content_hash=content_hash,
-            metadata={
-                "method": raw.get("extraction_method", "docling"),
-                "doc_type": doc_type,
-                "file_size_bytes": path.stat().st_size if path.exists() else 0,
-            },
+            extraction_status=ExtractionStatus.pending,
         )
