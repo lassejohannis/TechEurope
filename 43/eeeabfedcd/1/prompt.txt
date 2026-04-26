@@ -1,0 +1,9 @@
+pushe alles auf main und lege meine branch danach auf main
+
+---
+
+mache du
+
+---
+
+Erwähne noch oben, dass wir erstmal einen kleineren datensatz der gesamten testdaten durchlaufen lassen haben
