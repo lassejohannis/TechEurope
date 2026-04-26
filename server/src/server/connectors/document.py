@@ -46,10 +46,22 @@ def _detect_doc_type(path: Path) -> str:
     return "document"
 
 
+_DOCLING_CONVERTER = None  # module-level singleton — DocumentConverter loads
+                            # ~1GB of layout/OCR/table models, must NOT be
+                            # re-instantiated per PDF.
+
+
+def _get_docling_converter():
+    global _DOCLING_CONVERTER
+    if _DOCLING_CONVERTER is None:
+        from docling.document_converter import DocumentConverter
+        _DOCLING_CONVERTER = DocumentConverter()
+    return _DOCLING_CONVERTER
+
+
 def _extract_with_docling(path: Path) -> dict:
     try:
-        from docling.document_converter import DocumentConverter
-        converter = DocumentConverter()
+        converter = _get_docling_converter()
         result = converter.convert(str(path))
         doc = result.document
         return {
