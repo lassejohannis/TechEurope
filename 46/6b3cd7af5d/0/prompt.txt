@@ -983,3 +983,7 @@ b machen wenn es schnell geht
 ---
 
 Die nutzen doch die selbe Supabase instanz, bei denen sind die changes doch auch
+
+---
+
+lass einmal pushen, dann mit main mergen und auf main pushen
