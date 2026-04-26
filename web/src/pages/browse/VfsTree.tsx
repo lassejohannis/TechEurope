@@ -10,12 +10,12 @@ interface VfsNode {
   entity_id: string
   path: string
   type: string
-  content: { canonical_name?: string; [key: string]: unknown }
+  content: { canonical_name?: string; sentiment_label?: string; [key: string]: unknown }
 }
 interface VfsListResponse { children: VfsNode[]; total: number }
 interface VfsSection {
   path: string; label: string; types: string[]; count?: number
-  items: Array<{ entityId: string; label: string; Icon: LucideIcon; type: string }>
+  items: Array<{ entityId: string; label: string; sentiment?: string; Icon: LucideIcon; type: string }>
 }
 interface VfsSectionsResponse {
   sections: Array<{ path: string; label: string; types: string[]; count?: number }>
@@ -50,6 +50,7 @@ async function fetchBrowseTree() {
       (byType.get(type) ?? []).map(node => ({
         entityId: node.entity_id,
         label: node.content?.canonical_name ?? node.entity_id,
+        sentiment: (node.content as any)?.sentiment_label as string | undefined,
         Icon: FileText, type,
       }))
     ),
@@ -197,6 +198,8 @@ function FileRow({
 }) {
   const [hovered, setHovered] = useState(false)
   const pal = PALETTE[sectionType] ?? PALETTE.document
+  const sentiment = (item.sentiment ?? '').toLowerCase()
+  const dotColor = sentiment === 'positive' ? '#16a34a' : sentiment === 'negative' ? '#dc2626' : sentiment ? '#6b7280' : null
 
   return (
     <div
@@ -224,6 +227,9 @@ function FileRow({
         flex: 1, fontSize: 13, fontWeight: isActive ? 500 : 400, color: '#0a0a0a',
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>
+        {dotColor && (
+          <span style={{ width: 8, height: 8, background: dotColor, display: 'inline-block', borderRadius: 999, marginRight: 6, verticalAlign: 'middle' }} />
+        )}
         {item.label}
       </span>
       <span style={{ fontSize: 11, color: '#bbb', flexShrink: 0, textTransform: 'capitalize' }}>

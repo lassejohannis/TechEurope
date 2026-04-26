@@ -282,6 +282,44 @@ def vfs_read(
             )
             for e in (res.data or [])
         ]
+
+        # Lightweight augmentation: for communication lists, attach sentiment label if present.
+        if entity_type == "communication" and nodes:
+            try:
+                ids = [n.entity_id for n in nodes]
+                f_res = (
+                    db.table("facts")
+                    .select("subject_id, object_literal")
+                    .eq("predicate", "sentiment")
+                    .is_("valid_to", "null")
+                    .in_("subject_id", ids)
+                    .execute()
+                )
+                labels: dict[str, tuple[str, float | None]] = {}
+                for f in f_res.data or []:
+                    lit = f.get("object_literal")
+                    label = None
+                    conf = None
+                    if isinstance(lit, dict):
+                        raw = lit.get("label") or lit.get("value")
+                        if isinstance(raw, str):
+                            label = raw.strip()
+                        if isinstance(lit.get("confidence"), (int, float)):
+                            conf = float(lit.get("confidence"))
+                    elif isinstance(lit, str):
+                        label = lit.strip()
+                    if label:
+                        labels[str(f.get("subject_id"))] = (label, conf)
+                if labels:
+                    for n in nodes:
+                        if n.entity_id in labels:
+                            lab, cf = labels[n.entity_id]
+                            n.content["sentiment_label"] = lab
+                            if cf is not None:
+                                n.content["sentiment_confidence"] = cf
+            except Exception:
+                pass  # best-effort; list remains usable without augmentation
+
         return VfsListResponse(path=f"/{path}", children=nodes, total=len(nodes))
 
     slug = segments[1]
@@ -361,7 +399,11 @@ def propose_fact(req: ProposeFactRequest, db=Depends(get_db)):
             "proposed_by": req.source_system,
         },
     }
-    db.table("source_records").insert(sr_payload).execute()
+    try:
+        db.table("source_records").insert(sr_payload).execute()
+    except Exception as exc:
+        logger.exception("source_records insert failed in propose_fact: %s", exc)
+        raise HTTPException(status_code=500, detail=f"source_records insert failed: {exc}")
 
     # 2. Create Fact (supersede trigger fires automatically in Postgres)
     fact_id = str(uuid.uuid4())
@@ -377,7 +419,11 @@ def propose_fact(req: ProposeFactRequest, db=Depends(get_db)):
         "valid_from": now,
         "status": "live",
     }
-    db.table("facts").insert(fact_payload).execute()
+    try:
+        db.table("facts").insert(fact_payload).execute()
+    except Exception as exc:
+        logger.exception("facts insert failed in propose_fact: %s", exc)
+        raise HTTPException(status_code=500, detail=f"facts insert failed: {exc}")
 
     return ProposeFactResponse(fact_id=fact_id, source_record_id=sr_id)
 

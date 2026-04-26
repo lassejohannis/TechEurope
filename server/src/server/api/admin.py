@@ -51,6 +51,35 @@ def reload_ontologies(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@router.post("/ensure-sentiment", status_code=200)
+def ensure_sentiment_predicate(
+    db=Depends(get_db),
+    principal: Principal = Depends(require_scope("admin")),
+):
+    """Ensure the 'sentiment' edge type exists and is approved.
+
+    Facts with predicate='sentiment' are rejected by the DB trigger unless the
+    predicate is present in edge_type_config with approval_status='approved'.
+    This helper upserts that row. Intended for demos/hacks where migrations
+    may not have been applied.
+    """
+    try:
+        db.table("edge_type_config").upsert(
+            {
+                "id": "sentiment",
+                "config": {"description": "Sentiment label/score for a communication", "demo": True},
+                "approval_status": "approved",
+                "auto_proposed": False,
+                "from_type": "communication",
+                "to_type": None,
+            },
+            on_conflict="id",
+        ).execute()
+        return {"status": "ok", "predicate": "sentiment"}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @router.delete("/source-records/{source_record_id}", status_code=200)
 def gdpr_delete_source(
     source_record_id: str,
