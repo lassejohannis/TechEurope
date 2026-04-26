@@ -1,0 +1,63 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "48b39b143360",
+  "session_id": "60294954-bc73-44f3-a951-6633f66d8e32",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-26T09:12:56.87906Z",
+  "branch": "Lasse",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "server/src/server/api/entities.py",
+    "server/src/server/cli.py",
+    "server/src/server/extractors/pioneer.py",
+    "server/src/server/ontology/engine.py"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "81ce5cf5546f",
+  "token_usage": {
+    "input_tokens": 3328,
+    "cache_creation_tokens": 6086793,
+    "cache_read_tokens": 971278367,
+    "output_tokens": 1313734,
+    "api_call_count": 2151
+  },
+  "session_metrics": {
+    "turn_count": 177
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-26T09:12:56.48897Z",
+    "agent_lines": 223,
+    "agent_removed": 5,
+    "human_added": 247,
+    "human_modified": 2,
+    "human_removed": 0,
+    "total_committed": 472,
+    "total_lines_changed": 477,
+    "agent_percentage": 47.79874213836478,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 9,
+      "agent_lines_removed": 4
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 9,
+      "agent_lines_removed": 4
+    }
+  ]
+}
