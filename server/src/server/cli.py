@@ -229,8 +229,12 @@ def _persist_entity(
     # resolve must not re-call Gemini for entities that already have one.
     embedding = None if has_embedding else _build_tier_a_embedding(candidate)
 
+    # `entities.entity_type` is a generated column (`GENERATED ALWAYS AS type`);
+    # the writable canonical column is `type`. Older code wrote `entity_type`
+    # directly which now raises 428C9 from Postgres.
     row: dict[str, object] = {
         "id": eid,
+        "type": canonical_entity_type,
         "canonical_name": candidate.canonical_name,
         "aliases": aliases,
         "attrs": attrs,
@@ -1022,6 +1026,207 @@ def cmd_infer_source_mappings(
         typer.echo(f"    → {status}")
 
     typer.echo("done.")
+
+
+@cli.command("enrich-entity")
+def cmd_enrich_entity(
+    entity_id: str = typer.Argument(..., help="Entity to enrich, e.g. organization:acme-corp"),
+    query: str | None = typer.Option(None, "--query", "-q",
+                                     help="Override search query (default: derived from canonical_name)"),
+    max_results: int = typer.Option(8, help="Max Tavily hits to ingest"),
+    auto_resolve: bool = typer.Option(
+        True,
+        help="After ingest, auto-bootstrap web_search mapping (if missing) and run resolve.",
+    ),
+    seed: Path | None = typer.Option(
+        None,
+        "--seed",
+        help="Path to a pre-recorded Tavily results JSON. Lets the demo run "
+             "without a TAVILY_API_KEY (e.g. data/seed_web_search_demo.json).",
+    ),
+) -> None:
+    """Pull external web facts for an existing entity into the Memory.
+
+    The Tavily-fetched hits land as `source_records` of `source_type='web_search'`,
+    each tagged with `triggered_by_entity_id`. They flow through the same
+    JSONata-engine pipeline as Email/CRM/HR records, so the Generality
+    promise — *zero new code per data shape* — holds end-to-end.
+    """
+    from server.connectors.tavily import TavilySearchConnector
+    from server.ontology.engine import apply_mapping
+    from server.resolver.cascade import resolve as cascade_resolve
+
+    db = get_supabase()
+
+    entity_res = (
+        db.table("entities")
+        .select("id, canonical_name, entity_type")
+        .eq("id", entity_id)
+        .limit(1)
+        .execute()
+    )
+    if not entity_res.data:
+        raise typer.BadParameter(f"entity {entity_id} not found")
+    entity = entity_res.data[0]
+
+    derived_query = query or f"{entity['canonical_name']} 2026 news leadership"
+    typer.echo(f"[tavily] entity={entity_id} query={derived_query!r}")
+
+    inst = TavilySearchConnector()
+    written = inst.ingest_query(
+        query=derived_query,
+        supabase=db,
+        triggered_by_entity_id=entity_id,
+        max_results=max_results,
+        seed_path=seed,
+    )
+    typer.echo(f"[tavily] ingested: {written} new hits")
+    if written == 0:
+        typer.echo("[tavily] nothing new — entity already enriched with this query")
+        return
+
+    if not auto_resolve:
+        typer.echo("[tavily] --no-auto-resolve set, stopping after ingest")
+        return
+
+    # Bootstrap mapping for `web_search` if no approved one exists yet.
+    mapping_q = (
+        db.table("source_type_mapping")
+        .select("status")
+        .eq("source_type", "web_search")
+        .limit(1)
+        .execute()
+    )
+    has_mapping = bool(mapping_q.data) and mapping_q.data[0].get("status") == "approved"
+    if not has_mapping:
+        typer.echo("[tavily] no approved mapping for web_search — inferring now")
+        from server.ontology.propose import (
+            infer_source_mapping,
+            persist_proposal,
+            validate_proposal,
+        )
+
+        sample_q = (
+            db.table("source_records")
+            .select("id, source_type, payload")
+            .eq("source_type", "web_search")
+            .limit(8)
+            .execute()
+        )
+        records = sample_q.data or []
+        if len(records) < 2:
+            typer.echo("[tavily] not enough records to infer a mapping; aborting auto-resolve")
+            return
+        sample = records[:5]
+        holdout = records[5:8] or sample[-1:]
+        proposal = infer_source_mapping("web_search", sample, db)
+        if proposal is None:
+            typer.echo("[tavily] inference returned None (likely Gemini cap/cooldown)")
+            return
+        stats = validate_proposal(proposal, holdout)
+        typer.echo(
+            f"[tavily] mapping validation: ents={stats['entities_total']} "
+            f"facts={stats['facts_total']} "
+            f"entity_rate={stats['entity_rate']:.2f}"
+        )
+        # Auto-approve every type/predicate the mapping references — same
+        # logic as `cmd_infer_source_mappings` but inlined for the demo flow.
+        referenced_e: set[str] = set()
+        referenced_p: set[str] = set()
+        for spec in proposal.entities or []:
+            if spec.type:
+                referenced_e.add(spec.type)
+        for spec in proposal.facts or []:
+            if spec.subject_type:
+                referenced_e.add(spec.subject_type)
+            if spec.object_type:
+                referenced_e.add(spec.object_type)
+            if spec.predicate:
+                referenced_p.add(spec.predicate)
+        for tid in referenced_e:
+            db.table("entity_type_config").upsert(
+                {
+                    "id": tid,
+                    "config": {"description": "Auto-approved by enrich-entity",
+                               "auto_proposed": True},
+                    "approval_status": "approved",
+                    "auto_proposed": True,
+                },
+                on_conflict="id",
+            ).execute()
+        for tid in referenced_p:
+            db.table("edge_type_config").upsert(
+                {
+                    "id": tid,
+                    "config": {"description": "Auto-approved by enrich-entity",
+                               "auto_proposed": True},
+                    "approval_status": "approved",
+                    "auto_proposed": True,
+                },
+                on_conflict="id",
+            ).execute()
+        persist_proposal(
+            proposal,
+            db,
+            sample_ids=[r["id"] for r in sample],
+            validation_stats=stats,
+            auto_approve=True,
+        )
+        typer.echo("[tavily] mapping persisted as approved")
+
+        # Bust the cascade's cache so newly-approved types take effect.
+        try:
+            from server.resolver.cascade import _load_entity_type_config
+            _load_entity_type_config.cache_clear()
+        except Exception:
+            pass
+
+    # Resolve the new web_search records.
+    typer.echo("[tavily] resolving new hits…")
+    cfg_q = (
+        db.table("source_type_mapping")
+        .select("config")
+        .eq("source_type", "web_search")
+        .limit(1)
+        .execute()
+    )
+    cfg = (cfg_q.data or [{}])[0].get("config") or {}
+
+    new_records = (
+        db.table("source_records")
+        .select("id, source_type, payload")
+        .eq("source_type", "web_search")
+        .order("ingested_at", desc=True)
+        .limit(written)
+        .execute()
+        .data
+        or []
+    )
+
+    stats = {"records": 0, "candidates": 0, "entities": 0, "facts": 0}
+    for rec in new_records:
+        stats["records"] += 1
+        candidates, pending_facts = apply_mapping(rec, cfg)
+        stats["candidates"] += len(candidates)
+        name_to_id: dict[tuple[str, str], str] = {}
+        for cand in candidates:
+            result = cascade_resolve(cand, db)
+            same_type_match = (
+                result.matched_id
+                if result.tier in ("hard_id", "alias", "embedding", "pioneer")
+                else None
+            )
+            eid = _persist_entity(db, cand, same_type_match)
+            if eid:
+                name_to_id[(cand.entity_type, cand.canonical_name)] = eid
+                stats["entities"] += 1
+        for pf in pending_facts:
+            if _persist_fact(db, pf, name_to_id, rec["id"]):
+                stats["facts"] += 1
+
+    typer.echo("[tavily] done:")
+    for k, v in stats.items():
+        typer.echo(f"  {k}: {v}")
 
 
 @cli.command("mcp-stdio")

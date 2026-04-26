@@ -209,7 +209,15 @@ def _llm_free_text_facts(
     paths: Iterable[str],
     mapping_config: dict[str, Any],
 ) -> list[PendingFact]:
-    """Mine each free_text path with the constrained-predicate extractor."""
+    """Mine each free-text path for relationship facts.
+
+    Strategy: try Pioneer (fine-tuned GLiNER2, ~700ms p50) first. If
+    Pioneer is not configured, returns no result, or errors, fall back
+    to Gemini's structured-output extractor (`extract_email_facts`,
+    ~5s p50). Each emitted fact carries the extractor name in
+    `extraction_method` so the demo can show the split per-record.
+    """
+    from server.extractors import pioneer
     from server.extractors.gemini_structured import extract_email_facts
 
     payload = source_record.get("payload") or {}
@@ -217,11 +225,55 @@ def _llm_free_text_facts(
 
     sender_name = jstr(mapping_config.get("free_text_sender"), payload) or ""
     recipient_name = jstr(mapping_config.get("free_text_recipient"), payload) or ""
+    source_type = source_record.get("source_type") or "unknown"
 
     for path in paths:
         body = jstr(path, payload) or ""
         if len(body) < 200:
             continue
+
+        # Pioneer-first: produces relations directly between named entities.
+        if pioneer.AVAILABLE:
+            pio_result = pioneer.extract(body, source_type=source_type)
+            if pio_result and pio_result.facts:
+                for pf in pio_result.facts:
+                    object_key: tuple[str, str] | None = None
+                    object_literal: dict[str, Any] | None = None
+                    if pf.object_type == "entity" and isinstance(pf.object, str):
+                        # Pioneer-emitted IDs are "<type>:<slug>" — split for the
+                        # cascade's name-keyed lookup. Fall back to literal if
+                        # the object isn't a recognized id shape.
+                        if ":" in pf.object:
+                            otype, oname = pf.object.split(":", 1)
+                            object_key = (otype, oname.replace("-", " ").title())
+                        else:
+                            object_literal = {"value": pf.object}
+                    else:
+                        object_literal = {"value": pf.object}
+
+                    if isinstance(pf.subject, str) and ":" in pf.subject:
+                        stype, sname = pf.subject.split(":", 1)
+                        subject_key: tuple[str, str] = (
+                            stype,
+                            sname.replace("-", " ").title(),
+                        )
+                    else:
+                        subject_key = ("person", str(pf.subject))
+
+                    facts.append(
+                        PendingFact(
+                            subject_key=subject_key,
+                            predicate=pf.predicate,
+                            object_key=object_key,
+                            object_literal=object_literal,
+                            confidence=float(pf.confidence),
+                            extraction_method="pioneer",
+                        )
+                    )
+                # Pioneer succeeded — skip Gemini for this body.
+                continue
+
+        # Gemini fallback (also runs when Pioneer is unavailable or returned empty).
         for ef in extract_email_facts(body, sender_name, recipient_name):
             object_key = ("person", ef.object_name.strip()) if ef.object_name else None
             object_literal = None if ef.object_name else {"quote": ef.quote}
