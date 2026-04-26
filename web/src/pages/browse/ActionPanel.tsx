@@ -37,6 +37,26 @@ interface Props {
   entityId: string | null
 }
 
+const UUIDISH_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function isUuidish(value: string): boolean {
+  return UUIDISH_PATTERN.test(value.trim())
+}
+
+function readSubjectValue(value: unknown): string | null {
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (value && typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    for (const key of ['subject', 'canonical_name', 'name', 'title', 'label', 'value']) {
+      const nested = obj[key]
+      if (typeof nested === 'string' && nested.trim()) return nested.trim()
+    }
+  }
+  return null
+}
+
 function factValueText(fact: Fact): string {
   const value = fact.object_literal ?? fact.object_id
   if (value == null) return '—'
@@ -155,6 +175,20 @@ export default function ActionPanel({ entityId }: Props) {
     [data?.attrs],
   )
   const hasQualityScore = facts.length > 0
+  const communicationSubject =
+    facts
+      .filter((f) => {
+        const p = String(f.predicate ?? '')
+          .toLowerCase()
+          .replace(/[_\s-]+/g, '')
+        return p === 'subject' || p === 'hassubject'
+      })
+      .map((f) => readSubjectValue(f.object_literal) ?? readSubjectValue(f.object_id))
+      .find(Boolean) ?? null
+  const insightsTitle =
+    data && String(data.entity_type).toLowerCase() === 'communication' && isUuidish(data.canonical_name)
+      ? communicationSubject ?? (typeof data.attrs?.subject === 'string' ? data.attrs.subject : data.canonical_name)
+      : (data?.canonical_name ?? '')
 
   const proposeMutation = useMutation({
     mutationFn: async () => {
@@ -460,7 +494,7 @@ export default function ActionPanel({ entityId }: Props) {
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Insights
           </p>
-          {data && <CardTitle className="truncate">{data.canonical_name}</CardTitle>}
+          {data && <CardTitle className="truncate">{insightsTitle}</CardTitle>}
           <div className="flex flex-wrap gap-1">
             <Badge variant="secondary">{data?.entity_type}</Badge>
             <Badge variant="outline">{facts.length} facts</Badge>

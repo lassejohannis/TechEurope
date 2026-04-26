@@ -9,6 +9,7 @@ BACKEND_LOG="${ROOT_DIR}/server/.dev-server.log"
 BACKEND_HEALTH_URL="http://127.0.0.1:8000/api/health"
 BACKEND_STARTUP_TIMEOUT_SECONDS=120
 SERVER_DEPS_STAMP="${ROOT_DIR}/server/.venv/.deps-lock-hash"
+PORTS_TO_FREE=(${PORTS_TO_FREE:-8000 5173 5174})
 
 find_listeners() {
   local port="$1"
@@ -47,8 +48,9 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
-free_port 8000
-free_port 5173
+for port in "${PORTS_TO_FREE[@]}"; do
+  free_port "${port}"
+done
 
 ensure_server_deps() {
   local lock_hash current_hash

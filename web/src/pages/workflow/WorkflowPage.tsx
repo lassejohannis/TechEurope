@@ -309,46 +309,16 @@ function render(
   const byId = new Map(nodes.map(n => [n.id, n]))
   const focusId = selectedId ?? hoveredId
 
-  /* soft type halos for better grouping */
-  const typeBuckets = new Map<string, SimNode[]>()
-  for (const n of nodes) {
-    const arr = typeBuckets.get(n.type) ?? []
-    arr.push(n)
-    typeBuckets.set(n.type, arr)
-  }
-  for (const [type, arr] of typeBuckets) {
-    if (arr.length < 2) continue
-    const [clr] = nodeStyle(type)
-    let cx = 0
-    let cy = 0
-    for (const n of arr) {
-      cx += n.x
-      cy += n.y
-    }
-    cx /= arr.length
-    cy /= arr.length
-    let r = 0
-    for (const n of arr) {
-      const d = Math.hypot(n.x - cx, n.y - cy) + n.r
-      r = Math.max(r, d)
-    }
-    ctx.beginPath()
-    ctx.fillStyle = `${clr}18`
-    ctx.arc(cx, cy, r + 24, 0, Math.PI * 2)
-    ctx.fill()
-  }
-
   /* edges */
   ctx.globalAlpha = 1
   for (const e of edges) {
     const a = byId.get(e.source), b = byId.get(e.target)
     if (!a || !b) continue
-    const active =
-      !focusId ||
-      e.source === focusId ||
-      e.target === focusId ||
+    const isDirect = focusId && (e.source === focusId || e.target === focusId)
+    const isActive = !focusId || isDirect ||
       isRelated(focusId, e.source, neighbors) ||
       isRelated(focusId, e.target, neighbors)
+
     const mx = (a.x + b.x) / 2
     const my = (a.y + b.y) / 2
     const dx = b.x - a.x
@@ -361,13 +331,22 @@ function render(
     const cx = mx + nx * bend
     const cy = my + ny * bend
 
-    ctx.strokeStyle = active ? '#64748b' : '#cbd5e1'
-    ctx.lineWidth = (active ? 1.4 : 1) / scale
-    ctx.globalAlpha = active ? 0.72 : 0.25
+    const edgeColor = isDirect ? '#3b82f6' : isActive ? '#475569' : '#cbd5e1'
+    const edgeWidth = isDirect ? 2.5 : isActive ? 1.6 : 0.9
+    const edgeAlpha = isDirect ? 1 : isActive ? 0.65 : 0.18
+
+    if (isDirect) {
+      ctx.shadowColor = '#3b82f6'
+      ctx.shadowBlur = 6 / scale
+    }
+    ctx.strokeStyle = edgeColor
+    ctx.lineWidth = edgeWidth / scale
+    ctx.globalAlpha = edgeAlpha
     ctx.beginPath()
     ctx.moveTo(a.x, a.y)
     ctx.quadraticCurveTo(cx, cy, b.x, b.y)
     ctx.stroke()
+    ctx.shadowBlur = 0
 
     // arrow head
     const tx = b.x - cx
@@ -375,12 +354,12 @@ function render(
     const tLen = Math.max(1, Math.hypot(tx, ty))
     const ux = tx / tLen
     const uy = ty / tLen
-    const arrowL = 8 / scale
-    const arrowW = 4.2 / scale
+    const arrowL = (isDirect ? 10 : 8) / scale
+    const arrowW = (isDirect ? 5 : 4.2) / scale
     const bx = b.x - ux * (b.r * 0.35)
     const by = b.y - uy * (b.r * 0.35)
-    ctx.fillStyle = active ? '#64748b' : '#cbd5e1'
-    ctx.globalAlpha = active ? 0.82 : 0.22
+    ctx.fillStyle = edgeColor
+    ctx.globalAlpha = isDirect ? 1 : isActive ? 0.75 : 0.18
     ctx.beginPath()
     ctx.moveTo(bx, by)
     ctx.lineTo(bx - ux * arrowL + -uy * arrowW, by - uy * arrowL + ux * arrowW)
@@ -388,12 +367,12 @@ function render(
     ctx.closePath()
     ctx.fill()
 
-    if (edgeLabels && scale > 0.62 && active) {
-      ctx.fillStyle = '#64748b'
-      ctx.font = `${9 / scale}px system-ui`
+    if (edgeLabels && scale > 0.62 && isActive) {
+      ctx.fillStyle = isDirect ? '#3b82f6' : '#64748b'
+      ctx.font = `${(isDirect ? 10 : 9) / scale}px system-ui`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.globalAlpha = 0.8
+      ctx.globalAlpha = isDirect ? 0.95 : 0.8
       ctx.fillText(e.label, cx, cy)
     }
 
@@ -453,9 +432,11 @@ async function fetchGraph(limit: number, focusId: string): Promise<{ nodes: Grap
         query: `
           MATCH (a:Entity)-[r]->(b:Entity)
           WHERE $focus_id = '' OR a.id = $focus_id OR b.id = $focus_id
-          RETURN a.id AS sid, coalesce(a.canonical_name,a.id) AS sl,
+          RETURN a.id AS sid,
+                 coalesce(a.canonical_name, split(a.id,':')[-1]) AS sl,
                  coalesce(a.entity_type,'entity') AS st, properties(a) AS sp,
-                 b.id AS tid, coalesce(b.canonical_name,b.id) AS tl,
+                 b.id AS tid,
+                 coalesce(b.canonical_name, split(b.id,':')[-1]) AS tl,
                  coalesce(b.entity_type,'entity') AS tt, properties(b) AS tp,
                  type(r) AS rel
           LIMIT $limit`,

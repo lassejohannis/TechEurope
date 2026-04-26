@@ -64,6 +64,39 @@ def _extract_name_mentions(text: str) -> list[str]:
     return list(dict.fromkeys(m.strip() for m in mentions if m.strip()))
 
 
+_UUIDISH_PATTERN = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
+
+
+def _is_uuidish(value: str) -> bool:
+    return bool(_UUIDISH_PATTERN.fullmatch(value.strip()))
+
+
+def _communication_display_name(
+    *,
+    subject: str,
+    sender_name: str,
+    recipient_name: str,
+    sent_at: str,
+) -> str:
+    clean_subject = subject.strip()
+    if clean_subject and not _is_uuidish(clean_subject):
+        return clean_subject[:120]
+    if sender_name and recipient_name:
+        name = f"Conversation {sender_name} <-> {recipient_name}"
+    elif sender_name:
+        name = f"Conversation from {sender_name}"
+    elif recipient_name:
+        name = f"Conversation with {recipient_name}"
+    else:
+        name = "Email conversation"
+    if sent_at:
+        return f"{name} ({sent_at[:10]})"[:120]
+    return name[:120]
+
+
 # ---------------------------------------------------------------------------
 # Per-source-type extractors
 # ---------------------------------------------------------------------------
@@ -73,7 +106,6 @@ def _extract_email(
     payload: dict[str, Any], llm_extract: bool = False
 ) -> tuple[list[CandidateEntity], list[PendingFact]]:
     email_id = str(payload.get("email_id") or payload.get("id") or "").strip()
-    thread_id = str(payload.get("thread_id") or "").strip()
     subject = (payload.get("subject") or "").strip()
     body = str(payload.get("body") or "")
     sender_name = (payload.get("sender_name") or "").strip()
@@ -117,26 +149,7 @@ def _extract_email(
             )
         )
 
-    communication_name: str | None = None
-    comm_attrs: dict[str, Any] = {}
-    if thread_id:
-        communication_name = f"Thread {thread_id}"
-        comm_attrs["thread_id"] = thread_id
-    elif email_id:
-        communication_name = f"Email {email_id}"
-        comm_attrs["email_id"] = email_id
-    if communication_name:
-        if subject:
-            comm_attrs["subject"] = subject
-        entities.append(
-            CandidateEntity(
-                entity_type="communication",
-                canonical_name=communication_name,
-                attrs=comm_attrs,
-            )
-        )
-
-    # Facts: works_at(person → company by domain), participant_in(person → communication)
+    # Facts: works_at(person → company by domain)
     for name, email in ((sender_name, sender_email), (recipient_name, recipient_email)):
         if not name or not email:
             continue
@@ -152,13 +165,67 @@ def _extract_email(
                     derivation="rule:email_domain",
                 )
             )
-        if communication_name:
+    # Communication entity: one per email thread (or per email if no thread_id).
+    # This is what makes the Graph dense — sender + recipient both attach via
+    # participant_in / authored edges.
+    communication_name: str | None = None
+    thread_or_mail_id = payload.get("thread_id") or payload.get("email_id")
+    if thread_or_mail_id and (sender_name or recipient_name):
+        sent_at = str(payload.get("date") or payload.get("sent_at") or "").strip()
+        communication_name = _communication_display_name(
+            subject=subject,
+            sender_name=sender_name,
+            recipient_name=recipient_name,
+            sent_at=sent_at,
+        )
+        comm_attrs: dict[str, Any] = {
+            "channel": "email",
+            "thread_id": str(thread_or_mail_id),
+        }
+        if subject:
+            comm_attrs["subject"] = subject
+        if email_id := payload.get("email_id"):
+            comm_attrs["email_id"] = str(email_id)
+        if sent_at:
+            comm_attrs["date"] = sent_at
+        if importance := payload.get("importance"):
+            comm_attrs["importance"] = str(importance)
+        if category := payload.get("category"):
+            comm_attrs["category"] = str(category)
+
+        entities.append(
+            CandidateEntity(
+                entity_type="communication",
+                canonical_name=communication_name,
+                attrs=comm_attrs,
+            )
+        )
+        if sender_name:
             facts.append(
                 PendingFact(
-                    subject_key=("person", name),
+                    subject_key=("person", sender_name),
+                    predicate="authored",
+                    object_key=("communication", communication_name),
+                    confidence=0.99,
+                    derivation="rule:email_thread",
+                )
+            )
+            facts.append(
+                PendingFact(
+                    subject_key=("person", sender_name),
                     predicate="participant_in",
                     object_key=("communication", communication_name),
-                    confidence=0.95,
+                    confidence=0.99,
+                    derivation="rule:email_thread",
+                )
+            )
+        if recipient_name and recipient_name != sender_name:
+            facts.append(
+                PendingFact(
+                    subject_key=("person", recipient_name),
+                    predicate="participant_in",
+                    object_key=("communication", communication_name),
+                    confidence=0.99,
                     derivation="rule:email_thread",
                 )
             )
@@ -184,60 +251,6 @@ def _extract_email(
                     confidence=0.70,
                     extraction_method="gemini",
                     derivation="llm:email_body_extract",
-                )
-            )
-
-    # Communication entity: one per email thread (or per email if no thread_id).
-    # This is what makes the Graph dense — sender + recipient both attach via
-    # participant_in / authored edges.
-    thread_id = payload.get("thread_id") or payload.get("email_id")
-    subject = (payload.get("subject") or "").strip() or "(no subject)"
-    if thread_id and (sender_name or recipient_name):
-        comm_attrs: dict[str, Any] = {
-            "channel": "email",
-            "thread_id": str(thread_id),
-            "subject": subject,
-        }
-        if email_id := payload.get("email_id"):
-            comm_attrs["email_id"] = str(email_id)
-        if date := payload.get("date"):
-            comm_attrs["date"] = str(date)
-        if importance := payload.get("importance"):
-            comm_attrs["importance"] = str(importance)
-        if category := payload.get("category"):
-            comm_attrs["category"] = str(category)
-
-        entities.append(
-            CandidateEntity(
-                entity_type="communication",
-                canonical_name=subject[:120],
-                attrs=comm_attrs,
-            )
-        )
-        if sender_name:
-            facts.append(
-                PendingFact(
-                    subject_key=("person", sender_name),
-                    predicate="authored",
-                    object_key=("communication", subject[:120]),
-                    confidence=0.99,
-                )
-            )
-            facts.append(
-                PendingFact(
-                    subject_key=("person", sender_name),
-                    predicate="participant_in",
-                    object_key=("communication", subject[:120]),
-                    confidence=0.99,
-                )
-            )
-        if recipient_name and recipient_name != sender_name:
-            facts.append(
-                PendingFact(
-                    subject_key=("person", recipient_name),
-                    predicate="participant_in",
-                    object_key=("communication", subject[:120]),
-                    confidence=0.99,
                 )
             )
 

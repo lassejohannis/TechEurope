@@ -6,6 +6,7 @@ import {
   getTrustWeights,
   listEntityPairResolutions,
   listFactResolutions,
+  refreshBrowseTree,
 } from '@/lib/api'
 
 export function useEntityPairInbox(status: 'pending' | 'merged' | 'rejected' = 'pending') {
@@ -178,8 +179,21 @@ export function useDecidePendingType() {
       decision: 'approved' | 'rejected'
       note?: string
     }) => decidePendingType(pendingId, { kind, decision, note }),
-    onSuccess: () => {
+    onSuccess: async (_data, vars) => {
       qc.invalidateQueries({ queryKey: ['inbox', 'pending-types'] })
+      if (vars.decision === 'approved') {
+        try {
+          await refreshBrowseTree({
+            limit: 250,
+            infer_mappings: true,
+            auto_approve_mappings: true,
+            llm_extract: false,
+          })
+        } catch {
+          // Best-effort refresh; pending approval should still succeed.
+        }
+        qc.invalidateQueries({ queryKey: ['browse', 'tree'] })
+      }
     },
   })
 }

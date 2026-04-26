@@ -22,6 +22,25 @@ interface VfsSectionsResponse {
   total_sections: number; total_entities: number
 }
 
+const UUIDISH_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function isUuidish(value: string): boolean {
+  return UUIDISH_PATTERN.test(value.trim())
+}
+
+function pickNodeLabel(node: VfsNode, type: string): string {
+  const canonical = String(node.content?.canonical_name ?? '').trim()
+  if (type === 'communication' && canonical && isUuidish(canonical)) {
+    const subject = String(node.content?.subject ?? '').trim()
+    if (subject && !isUuidish(subject)) return subject
+    const sentAt = String(node.content?.date ?? node.content?.sent_at ?? '').trim()
+    if (sentAt) return `Communication (${sentAt.slice(0, 10)})`
+    return `Communication ${canonical.slice(0, 8)}`
+  }
+  return canonical || node.entity_id
+}
+
 // ── Fetch helpers ────────────────────────────────────────────────────────────
 
 function pluralSegment(type: string): string {
@@ -43,13 +62,14 @@ async function fetchBrowseTree() {
   const defs = await fetchSections()
   const types = defs.flatMap(s => s.types)
   const results = await Promise.all(types.map(t => fetchType(t).then(nodes => ({ t, nodes }))))
+
   const byType = new Map(results.map(r => [r.t, r.nodes]))
   const sections: VfsSection[] = defs.map(def => ({
     ...def,
     items: def.types.flatMap(type =>
       (byType.get(type) ?? []).map(node => ({
         entityId: node.entity_id,
-        label: node.content?.canonical_name ?? node.entity_id,
+        label: pickNodeLabel(node, type),
         Icon: FileText, type,
       }))
     ),
@@ -250,7 +270,9 @@ export default function VfsTree({ selectedEntityId }: { selectedEntityId: string
   const treeQuery = useQuery({
     queryKey: ['browse', 'tree'],
     queryFn: fetchBrowseTree,
-    staleTime: 60_000, gcTime: 30 * 60_000,
+    staleTime: 10 * 60_000,
+    gcTime: 60 * 60_000,
+    refetchOnMount: false,
     refetchOnWindowFocus: false, refetchOnReconnect: false,
   })
 
@@ -277,16 +299,17 @@ export default function VfsTree({ selectedEntityId }: { selectedEntityId: string
     })
   }, [selectedEntityId, openSection, currentSection?.path])
 
-  // Background refresh
+  // Background refresh only when tree is empty (bootstrap mode).
   useEffect(() => {
+    if (loading || totalEntities > 0) return
     const KEY = 'browse_refresh_last_run'
     const last = Number(window.sessionStorage.getItem(KEY) ?? '0')
-    if (Date.now() - last < 60_000) return
+    if (Date.now() - last < 10 * 60_000) return
     window.sessionStorage.setItem(KEY, String(Date.now()))
     void triggerRefresh().then(ok => {
       if (ok) queryClient.invalidateQueries({ queryKey: ['browse', 'tree'] })
     })
-  }, [queryClient])
+  }, [loading, totalEntities, queryClient])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
