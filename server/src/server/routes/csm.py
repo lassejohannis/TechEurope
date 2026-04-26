@@ -123,6 +123,7 @@ def _parse_sentiment(object_literal: Any) -> dict[str, Any] | None:
 
 
 def _fetch_communications(db: Any, account_id: str, limit: int = 20) -> list[dict[str, Any]]:
+    # 1) persons working at account
     works = (
         db.table("facts")
         .select("subject_id")
@@ -135,6 +136,7 @@ def _fetch_communications(db: Any, account_id: str, limit: int = 20) -> list[dic
     if not person_ids:
         return []
 
+    # 2) communications those persons participated in
     parts = (
         db.table("facts")
         .select("object_id")
@@ -148,6 +150,7 @@ def _fetch_communications(db: Any, account_id: str, limit: int = 20) -> list[dic
     if not comm_ids:
         return []
 
+    # 3) load communication entities
     rows = (
         db.table("entities")
         .select("id, attrs, canonical_name")
@@ -157,6 +160,7 @@ def _fetch_communications(db: Any, account_id: str, limit: int = 20) -> list[dic
     )
     comms = rows.data or []
 
+    # 4) fetch all sentiment facts in one bulk query
     sent_res = (
         db.table("facts")
         .select("subject_id, object_literal")

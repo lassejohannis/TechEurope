@@ -25,6 +25,20 @@ export default function DecisionPanel({ conflictId, selectedClaimIndex }: Props)
   const decidePair = useDecideEntityPair()
   const [bulkPending, setBulkPending] = useState(false)
 
+  const isPair = conflictId?.startsWith('pair:') ?? false
+  const isFactConflict = conflictId?.startsWith('fact:') ?? false
+  const rawId = conflictId?.replace(/^(pair|fact):/, '') ?? ''
+  const currentFactItem = isFactConflict ? factItems.find((i) => i.id === rawId) : null
+  const similarLoaded = useMemo(() => {
+    if (!currentFactItem) return []
+    const first = currentFactItem.facts[0]
+    if (!first) return []
+    return factItems.filter((i) => {
+      const f = i.facts[0]
+      return f && f.subject_id === first.subject_id && f.predicate === first.predicate
+    })
+  }, [currentFactItem, factItems])
+
   if (!conflictId) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
@@ -35,9 +49,6 @@ export default function DecisionPanel({ conflictId, selectedClaimIndex }: Props)
     )
   }
 
-  const isPair = conflictId.startsWith('pair:')
-  const isFactConflict = conflictId.startsWith('fact:')
-  const rawId = conflictId.replace(/^(pair|fact):/, '')
   const canPickOne = selectedClaimIndex !== null
 
   const onSettled = () => {
@@ -96,16 +107,6 @@ export default function DecisionPanel({ conflictId, selectedClaimIndex }: Props)
   }
 
   const pending = decideFact.isPending || decidePair.isPending
-  const currentFactItem = isFactConflict ? factItems.find((i) => i.id === rawId) : null
-  const similarLoaded = useMemo(() => {
-    if (!currentFactItem) return []
-    const first = currentFactItem.facts[0]
-    if (!first) return []
-    return factItems.filter((i) => {
-      const f = i.facts[0]
-      return f && f.subject_id === first.subject_id && f.predicate === first.predicate
-    })
-  }, [currentFactItem, factItems])
 
   const resolveAllSimilar = async (decision: 'pick_one' | 'both_with_qualifier' | 'reject_all') => {
     if (!currentFactItem || similarLoaded.length < 2) return
