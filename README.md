@@ -5,13 +5,17 @@
 # The Layer
 ### the structured company memory for AI agents
 
-**Big Hack Berlin 2026 · Tech Europe Hack · Qontext Track**
+# 🌐 LIVE DEMO → [chickentendr.club](https://chickentendr.club)
 
-🌐 **Live demo:** [chickentendr.club](https://chickentendr.club) (production deploy on Vultr)
+### *production deploy on Vultr — try it right now*
+
+---
+
+**Big Hack Berlin 2026 · Tech Europe Hack · Qontext Track**
 
 A two-layer platform that turns fragmented enterprise data (email, CRM, HR, policy PDFs, chat, tickets) into a structured, bi-temporal, provenance-first **context base** that AI agents can query — without runtime reconstruction, without hallucinated joins, without losing the audit trail.
 
-[Demo video (Loom)](https://www.loom.com/share/86df369f9a74441ca0441c108bac57eb) · [Architecture](#architecture) · [Why this design](#why) · [Quickstart](#quickstart) · [Deploy](./deploy/) · **[Partner deep-dives →](./partners/)**
+[Demo video (Loom)](https://www.loom.com/share/86df369f9a74441ca0441c108bac57eb) · [Pitch deck (PDF)](./Qontext-BER-Hack-Pitch.pdf) · [Architecture](#architecture) · [Why this design](#why) · [Quickstart](#quickstart) · [Deploy](./deploy/) · **[Partner deep-dives →](./partners/)**
 
 </div>
 
