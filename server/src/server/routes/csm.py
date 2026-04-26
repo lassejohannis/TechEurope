@@ -106,6 +106,144 @@ def _map_fact(f: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _parse_sentiment(object_literal: Any) -> dict[str, Any] | None:
+    if not isinstance(object_literal, dict):
+        return None
+    label = object_literal.get("label") or object_literal.get("sentiment_label")
+    score = object_literal.get("score") or object_literal.get("sentiment_score") or 0.0
+    confidence = object_literal.get("confidence") or 0.0
+    if not label:
+        return None
+    return {
+        "sentiment_label": str(label),
+        "sentiment_score": float(score),
+        "confidence": float(confidence),
+        "aspects": [],
+    }
+
+
+def _fetch_communications(db: Any, account_id: str, limit: int = 20) -> list[dict[str, Any]]:
+    # 1) persons working at account
+    works = (
+        db.table("facts")
+        .select("subject_id")
+        .eq("predicate", "works_at")
+        .eq("object_id", account_id)
+        .is_("valid_to", "null")
+        .execute()
+    )
+    person_ids = [str(r["subject_id"]) for r in (works.data or []) if r.get("subject_id")]
+    if not person_ids:
+        return []
+
+    # 2) communications those persons participated in
+    parts = (
+        db.table("facts")
+        .select("object_id")
+        .eq("predicate", "participant_in")
+        .is_("valid_to", "null")
+        .in_("subject_id", person_ids[:500])
+        .limit(limit * 3)
+        .execute()
+    )
+    comm_ids = list({str(r["object_id"]) for r in (parts.data or []) if r.get("object_id")})[:limit]
+    if not comm_ids:
+        return []
+
+    # 3) load communication entities
+    rows = (
+        db.table("entities")
+        .select("id, attrs, canonical_name")
+        .eq("entity_type", "communication")
+        .in_("id", comm_ids)
+        .execute()
+    )
+    comms = rows.data or []
+
+    # 4) fetch all sentiment facts in one bulk query
+    sent_res = (
+        db.table("facts")
+        .select("subject_id, object_literal")
+        .eq("predicate", "sentiment")
+        .is_("valid_to", "null")
+        .in_("subject_id", comm_ids)
+        .execute()
+    )
+    sentiments: dict[str, dict[str, Any]] = {}
+    for f in (sent_res.data or []):
+        parsed = _parse_sentiment(f.get("object_literal"))
+        if parsed:
+            sentiments[str(f["subject_id"])] = parsed
+
+    result = []
+    for c in comms:
+        cid = str(c["id"])
+        attrs = c.get("attrs") or {}
+        to_raw = attrs.get("to_addresses") or attrs.get("to_address") or attrs.get("recipients") or []
+        if isinstance(to_raw, str):
+            to_raw = [to_raw]
+        source_type = attrs.get("type") or attrs.get("source_type") or "email"
+        if source_type not in ("email", "chat", "call_transcript"):
+            source_type = "email"
+        result.append({
+            "id": cid,
+            "subject": attrs.get("subject") or c.get("canonical_name") or "",
+            "body_snippet": (attrs.get("body") or attrs.get("text") or attrs.get("content") or "")[:300],
+            "from_address": attrs.get("from_address") or attrs.get("from") or attrs.get("sender") or "",
+            "to_addresses": to_raw,
+            "date": str(attrs.get("date") or attrs.get("timestamp") or attrs.get("sent_at") or ""),
+            "source_type": source_type,
+            "linked_entity_ids": [account_id],
+            "sentiment": sentiments.get(cid),
+            "extracted_fact_ids": [],
+        })
+
+    result.sort(key=lambda x: x["date"], reverse=True)
+    return result[:limit]
+
+
+def _missing_column(exc: Exception, column: str) -> bool:
+    text = str(exc).lower()
+    return column.lower() in text and (
+        "column" in text
+        or "schema cache" in text
+        or "pgrst" in text
+    )
+
+
+def _list_active_accounts_for_type(db: Any, entity_type: str, limit: int = 200) -> list[dict[str, Any]]:
+    select_variants = (
+        "id, entity_type, canonical_name, attrs, status",
+        "id, entity_type, canonical_name, attributes, status",
+    )
+    last_exc: Exception | None = None
+
+    for select_cols in select_variants:
+        base = (
+            db.table("entities")
+            .select(select_cols)
+            .eq("entity_type", entity_type)
+            .limit(limit)
+        )
+        try:
+            res = base.is_("deleted_at", "null").execute()
+        except Exception as exc:
+            if _missing_column(exc, "deleted_at"):
+                try:
+                    res = base.neq("status", "archived").execute()
+                except Exception as exc2:
+                    last_exc = exc2
+                    continue
+            else:
+                last_exc = exc
+                continue
+        return res.data or []
+
+    if last_exc:
+        raise last_exc
+    return []
+
+
 # ── Accounts ──────────────────────────────────────────────────────────────────
 
 def _fact_counts_bulk(db: Any, ids: list[str]) -> dict[str, int]:
@@ -241,13 +379,14 @@ def get_account_card(account_id: str) -> dict[str, Any]:
 
     health = _csm_health(account_id, len(facts))
     summary = _executive_summary(health["tier"])
+    recent_communications = _fetch_communications(db, account_id)
 
     return {
         "entity": _map_entity(ent),
         "facts": facts,
         "key_contacts": key_contacts,
         "open_tickets": [],
-        "recent_communications": [],
+        "recent_communications": recent_communications,
         "health": health,
         "stakeholder_change_detected": False,
         "new_stakeholders": [],
