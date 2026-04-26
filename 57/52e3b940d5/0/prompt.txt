@@ -1,0 +1,29 @@
+Lösche den search tab an der linken Seite im Interface. Er ist nun bei browse implementiert, daher brauchen wir kei extra abschnitt damit
+
+---
+
+[Image #1] Die Wörter stehen an der Seite über die Kästen fixe das
+
+---
+
+Der chat unten ist abgeschnitten, da er zu tief ist. Außerdem mach ihn floating, heißt nicht mit dem weißen Quadrat drum herum. Und auf der rechten Seite kann man noch mehr Platz haben für die fakten udn so
+
+---
+
+[Image #1] Mach die linke Seite vom Design so aussehend wie auf dem bild
+
+---
+
+[Image #1] Der Chat ist unten immernoch abgeschnitten, da irgendwie ein creme farbener balken unten drunter ist
+
+---
+
+[Image #1] Mach den Hintergrund in die selbe Farbe. SO dass der chat wirklich freistehend aussieht
+
+---
+
+Solange keien Datei ausgewählt ist zeige die rechte Spalte aus der Page nicht an. Nur wenn etwas ausgewählt ist soll sie angezeigt werden. Und dann mit den Fakten und so
+
+---
+
+[Image #1] Siehst du die Kante unten links unter dem Chat? Es ist links so, dass es gerade runter in einem dunkleren Ton geht. Bitte lösche diesen Ton, so dass es einfach nur die Chatbar ein bisschen abgehoben ist.
