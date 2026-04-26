@@ -29,19 +29,11 @@ SourceType = Literal[
     "human_resolution",
 ]
 
-EntityType = Literal[
-    "person",
-    "customer",
-    "product",
-    "org_unit",
-    "process",
-    "policy",
-    "project",
-    "task",
-    "ticket",
-    "vendor",
-    "repo",
-]
+# Entity types are no longer a closed Literal — the autonomous-ontology
+# work writes new types into entity_type_config at runtime. The downstream
+# trigger on `entities.entity_type` enforces "must be approved", so type
+# safety is preserved at the DB layer rather than the Python schema layer.
+EntityType = str
 
 ObjectType = Literal["entity", "string", "number", "date", "bool", "enum"]
 FactStatus = Literal["live", "draft", "superseded", "disputed"]

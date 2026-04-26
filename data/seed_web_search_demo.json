@@ -1,0 +1,25 @@
+{
+  "query": "Acme Corp 2026 funding leadership",
+  "results": [
+    {
+      "url": "https://techcrunch.com/2026/03/acme-series-c",
+      "title": "Acme Corp Closes $80M Series C, Names Jane Smith CEO",
+      "content": "Acme Corp announced today an $80M Series C round led by Sequoia. Founder Jane Smith takes over as CEO, with previous CEO Bob Johnson moving to Chairman. The funds will accelerate Acme's expansion into European markets, with a new Berlin office opening in Q3 2026.",
+      "score": 0.94,
+      "published_date": "2026-03-15"
+    },
+    {
+      "url": "https://acme.com/press/2026-q1-results",
+      "title": "Acme Q1 2026 Results: Revenue Up 42% YoY",
+      "content": "Acme Corp reports Q1 2026 revenue of $24M, up 42% year-over-year. Customer count grew to 1,200 enterprises. CFO Carol Davis cites enterprise SaaS growth and the new partnership with Inazuma Corp as primary drivers.",
+      "score": 0.88,
+      "published_date": "2026-04-10"
+    },
+    {
+      "url": "https://www.linkedin.com/in/jane-smith-acme",
+      "title": "Jane Smith — CEO at Acme Corp",
+      "content": "Jane Smith is CEO of Acme Corp, based in Berlin. Previously VP Engineering at Inazuma. MIT '12.",
+      "score": 0.81
+    }
+  ]
+}

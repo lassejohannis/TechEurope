@@ -75,6 +75,9 @@ class Settings(BaseSettings):
     pioneer_api_key: str = ""
     pioneer_model_id: str = ""
 
+    # Tavily (web-search Entity-Enrichment)
+    tavily_api_key: str = ""
+
     # ── API layer (#14 Schnittstelle für Software & AI) ────────────────────
     supabase_jwt_secret: str = Field(
         default="",
