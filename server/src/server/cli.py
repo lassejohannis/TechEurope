@@ -225,6 +225,20 @@ def _persist_entity(
         if v := candidate.attrs.get(hard_id_field):
             aliases.append(str(v).lower())
 
+    # Organization-specific alias seeding so that "Inazuma", "Inazuma.co",
+    # "Inazuma Corp", "inazuma.com" all converge on the same entity via
+    # Tier 2 alias-match. Without these the same company gets a fresh
+    # entity per source-type-mapping.
+    if canonical_entity_type == "organization":
+        from server.db import normalize_for_embedding
+        aliases.append(normalize_for_embedding(candidate.canonical_name))
+        if "@" in candidate.canonical_name:
+            aliases.append(candidate.canonical_name.split("@", 1)[1].lower().strip())
+        for fld in ("domain", "website", "url", "homepage"):
+            v = candidate.attrs.get(fld)
+            if isinstance(v, str) and v.strip():
+                aliases.append(v.strip().lower())
+
     # Build Tier-A name embedding only if this entity is new — re-runs of
     # resolve must not re-call Gemini for entities that already have one.
     embedding = None if has_embedding else _build_tier_a_embedding(candidate)
@@ -866,20 +880,26 @@ def cmd_infer_source_mappings(
         # `facts[].predicate` without declaring it. Walk the config instead
         # so the resolver can never hit a "type X not approved" trigger.
         if auto_approve:
+            from server.ontology.engine import FORBIDDEN_ENTITY_TYPES
+
+            def _is_real_entity_type(t: str | None) -> bool:
+                """Block scalar pseudo-types (string, number, ...) from becoming approved."""
+                return bool(t) and t.strip().lower() not in FORBIDDEN_ENTITY_TYPES
+
             referenced_entity_types: set[str] = set()
             referenced_edges: set[str] = set()
             for spec in proposal.entities or []:
-                if spec.type:
+                if _is_real_entity_type(spec.type):
                     referenced_entity_types.add(spec.type)
             for spec in proposal.facts or []:
-                if spec.subject_type:
+                if _is_real_entity_type(spec.subject_type):
                     referenced_entity_types.add(spec.subject_type)
-                if spec.object_type:
+                if _is_real_entity_type(spec.object_type):
                     referenced_entity_types.add(spec.object_type)
                 if spec.predicate:
                     referenced_edges.add(spec.predicate)
             for self_declared in proposal.new_entity_types or []:
-                if self_declared:
+                if _is_real_entity_type(self_declared):
                     referenced_entity_types.add(self_declared)
             for self_declared in proposal.new_edge_types or []:
                 if self_declared:

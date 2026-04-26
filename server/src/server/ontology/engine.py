@@ -50,6 +50,41 @@ from server.resolver.extract import PendingFact
 logger = logging.getLogger(__name__)
 
 
+# Pseudo-types Gemini sometimes emits when it conflates "primitive value"
+# with "entity type". These should never become entities — they're scalar
+# values, not first-class graph nodes. Filtered both at mapping-approve
+# time (cli.py) and at runtime (apply_mapping below) for defense-in-depth.
+FORBIDDEN_ENTITY_TYPES = frozenset({
+    "string", "str", "text",
+    "number", "integer", "int", "float", "decimal",
+    "bool", "boolean",
+    "date", "datetime", "time", "timestamp",
+    "any", "null", "none", "object", "array", "list", "dict",
+    "value",
+})
+
+
+def _compact_canonical_name(name: str, entity_type: str) -> str:
+    """Trim very-long canonical_names for free-text-y entity types.
+
+    Some Gemini-inferred mappings (e.g. collaboration chats) bind
+    `canonical_name` to the full message body, producing 1–2k char names
+    that bloat embeddings, make IDs unreadable, and inflate the inbox
+    diff display. For document/communication, prefer the first sentence
+    or first 117 chars + ellipsis.
+    """
+    if entity_type not in {"document", "communication"}:
+        return name
+    name = name.strip()
+    if len(name) <= 120:
+        return name
+    for sep in (". ", "? ", "! ", "\n\n", "\n"):
+        idx = name.find(sep, 20, 200)
+        if idx > 0:
+            return name[: idx + 1].strip()
+    return name[:117].rstrip() + "..."
+
+
 def apply_mapping(
     record: dict[str, Any],
     config: dict[str, Any],
@@ -88,6 +123,11 @@ def _entity_from_spec(
     entity_type = spec.get("type")
     if not entity_type:
         return None
+    if str(entity_type).strip().lower() in FORBIDDEN_ENTITY_TYPES:
+        # Gemini occasionally proposes scalar pseudo-types as entities (e.g.
+        # type="string"). Drop them silently — they belong as object_literal,
+        # not as graph nodes.
+        return None
 
     attrs: dict[str, Any] = {}
 
@@ -109,6 +149,8 @@ def _entity_from_spec(
                 attrs[key] = val
         else:
             attrs[key] = expr_or_literal
+
+    canonical_name = _compact_canonical_name(canonical_name, str(entity_type))
 
     cand = CandidateEntity(
         entity_type=str(entity_type),

@@ -210,7 +210,6 @@ class Neo4jProjection:
                     n.canonical_name = $canonical_name,
                     n.aliases = $aliases,
                     n.attrs = $attrs,
-                    n.last_synced = datetime()
                     n.emp_id = $emp_id,
                     n.last_synced = datetime()
             """

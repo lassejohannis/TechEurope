@@ -16,6 +16,7 @@ Thresholds (tune in this module):
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -27,7 +28,9 @@ from server.resolver.embed import get_name_embedding
 logger = logging.getLogger(__name__)
 
 THRESHOLD_AUTO_MERGE = 0.92
-THRESHOLD_INBOX_LOW = 0.82
+THRESHOLD_INBOX_LOW = 0.86  # tightened from 0.82 — narrows the ambiguous bucket
+                             # so clearly-similar pairs auto-merge instead of
+                             # bloating the human inbox
 
 
 # ---------------------------------------------------------------------------
@@ -248,7 +251,57 @@ def _tier2_alias(candidate: CandidateEntity, db: Any) -> ResolutionResult | None
     return None
 
 
+_OPAQUE_CODE = re.compile(r"^[a-z_-]*\d+[a-z_\d-]*$", re.IGNORECASE)
+
+
+def _names_close_enough(a: str | None, b: str | None) -> bool:
+    """Treat two names as the same when they normalize to the same string,
+    or when one is a prefix of the other with at least 5 chars overlap.
+
+    Used by Tier 3 to auto-merge in the [INBOX_LOW, AUTO_MERGE] bucket when
+    string similarity makes the embedding ambiguity moot.
+    """
+    if not a or not b:
+        return False
+    a_n = normalize_name(a)
+    b_n = normalize_name(b)
+    if not a_n or not b_n:
+        return False
+    if a_n == b_n:
+        return True
+    short, long = (a_n, b_n) if len(a_n) <= len(b_n) else (b_n, a_n)
+    if len(short) >= 5 and long.startswith(short):
+        return True
+    return False
+
+
+def _is_unsuitable_for_embedding_match(name: str | None) -> bool:
+    """Heuristic: skip Tier 3 when canonical_name is too generic for an
+    embedding-similarity match to be informative.
+
+    Triggers:
+    - <5 alphanumeric chars (ambiguous, embedding noise dominates)
+    - all-digit name (e.g., "12345")
+    - opaque code-like patterns (`emp-0436`, `INC-001`, `SR_4711`) — Tier 1
+      handles these via hard_id, false positives in Tier 3 just bloat the
+      ambiguity inbox
+    """
+    if not name:
+        return True
+    cleaned = re.sub(r"[^a-zA-Z0-9]", "", name)
+    if len(cleaned) < 5:
+        return True
+    if cleaned.isdigit():
+        return True
+    if _OPAQUE_CODE.match(name.strip()):
+        return True
+    return False
+
+
 def _tier3_embedding(candidate: CandidateEntity, db: Any) -> ResolutionResult | None:
+    if _is_unsuitable_for_embedding_match(candidate.canonical_name):
+        return None
+
     search_text = _build_search_text(
         candidate.entity_type, candidate.canonical_name, candidate.attrs
     )
@@ -284,8 +337,22 @@ def _tier3_embedding(candidate: CandidateEntity, db: Any) -> ResolutionResult | 
                 signals={"similarity": score, "matched_name": best["canonical_name"]},
                 action="merge",
             )
-        elif score >= THRESHOLD_INBOX_LOW:
-            # Ambiguous — caller will route to Tier 5 inbox
+        if score >= THRESHOLD_INBOX_LOW:
+            # In the ambiguous bucket: if the names are essentially the same
+            # string (normalized), promote to auto-merge. Avoids putting
+            # "Jane Doe" / "Jane  Doe" / "Jane Doe " in the inbox.
+            if _names_close_enough(candidate.canonical_name, best.get("canonical_name")):
+                return ResolutionResult(
+                    matched_id=str(best["id"]),
+                    confidence=score,
+                    tier="embedding",
+                    signals={
+                        "similarity": score,
+                        "matched_name": best["canonical_name"],
+                        "name_close_match": True,
+                    },
+                    action="merge",
+                )
             return ResolutionResult(
                 matched_id=str(best["id"]),
                 confidence=score,
