@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button'
 
 const MODES = [
   { to: '/browse', label: 'Browse' },
-  { to: '/search', label: 'Search' },
   { to: '/review', label: 'Review' },
   { to: '/workflow', label: 'Graph' },
 ] as const
