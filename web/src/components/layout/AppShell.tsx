@@ -5,7 +5,6 @@ import {
   Folder,
   Orbit,
   Database,
-  ChevronsUpDown,
   PanelLeftClose,
   PanelLeftOpen,
   EllipsisVertical,
@@ -70,29 +69,6 @@ export default function AppShell() {
             <PanelLeftClose size={15} />
           </button>
         </div>
-
-        {/* Workspace switcher */}
-        <button
-          type="button"
-          style={{
-            width: '100%', height: 56,
-            border: '1px solid #e1e1e6', borderRadius: 13, background: '#fff',
-            padding: '0 12px', display: 'flex', alignItems: 'center', gap: 10,
-            marginBottom: 26, boxShadow: '0 1px 2px rgba(0,0,0,0.04)', cursor: 'pointer',
-            flexShrink: 0,
-          }}
-        >
-          <div style={{
-            width: 30, height: 30, borderRadius: 8, background: '#5b5bd6',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          }}>
-            <Database size={14} color="white" strokeWidth={2.2} />
-          </div>
-          <span style={{ flex: 1, textAlign: 'left', color: '#3f3f46', fontSize: 33/2, fontWeight: 500, whiteSpace: 'nowrap' }}>
-            Qontext
-          </span>
-          <ChevronsUpDown size={16} color="#777" />
-        </button>
 
         {/* Nav */}
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

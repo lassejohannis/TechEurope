@@ -17,12 +17,12 @@ export default function ThreeColumnLayout({
 }: Props) {
   return (
     <div
-      className="grid h-full divide-x overflow-hidden"
+      className="grid h-full min-h-0 divide-x overflow-hidden"
       style={{ gridTemplateColumns: `${leftWidthClass} minmax(0, 1fr) ${rightWidthClass}` }}
     >
-      <aside className="flex flex-col overflow-y-auto">{left}</aside>
-      <section className="flex flex-col overflow-y-auto">{center}</section>
-      <aside className="flex flex-col overflow-y-auto">{right}</aside>
+      <aside className="flex min-h-0 flex-col overflow-y-auto">{left}</aside>
+      <section className="flex min-h-0 flex-col overflow-y-auto">{center}</section>
+      <aside className="flex min-h-0 flex-col overflow-y-auto">{right}</aside>
     </div>
   )
 }

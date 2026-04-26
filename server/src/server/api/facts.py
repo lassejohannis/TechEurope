@@ -41,6 +41,10 @@ class FactEditRequest(BaseModel):
     note: str | None = None
 
 
+class FactDeleteRequest(BaseModel):
+    reason: str | None = None
+
+
 def _source_ref_from_record(sr: dict) -> SourceReference:
     meta = sr.get("metadata") or {}
     return SourceReference(
@@ -238,3 +242,28 @@ def edit_fact(
         source_id=str(new_row["source_id"]),
         status=new_row.get("status", "active"),
     )
+
+
+@router.post("/{fact_id}/delete", status_code=200)
+def delete_fact(
+    fact_id: str,
+    req: FactDeleteRequest | None = None,
+    db=Depends(get_db),
+    principal: Principal = Depends(require_scope("write")),
+):
+    """Invalidate a fact (soft-delete semantics) and write audit row."""
+    fact = _load_fact_or_404(db, fact_id)
+    now = datetime.now(tz=timezone.utc).isoformat()
+    db.table("facts").update({
+        "status": "invalidated",
+        "valid_to": now,
+    }).eq("id", fact_id).execute()
+    db.table("fact_changes").insert({
+        "kind": "delete",
+        "fact_id": fact_id,
+        "old_value": {"status": fact.get("status")},
+        "new_value": {"status": "invalidated", "reason": (req.reason if req else None)},
+        "triggered_by": principal.subject,
+        "at": now,
+    }).execute()
+    return {"fact_id": fact_id, "status": "invalidated", "deleted_by": principal.subject, "at": now}

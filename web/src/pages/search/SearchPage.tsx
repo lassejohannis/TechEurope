@@ -25,6 +25,54 @@ interface ChatMessage {
   payload?: AssistantPayload
 }
 
+const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
+
+function normalizeEmail(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^mailto:/i, '')
+    .replace(/[)>.,;:!?]+$/g, '')
+    .toLowerCase()
+}
+
+function extractEmailFromQuery(query: string): string | null {
+  const match = query.match(EMAIL_PATTERN)
+  if (!match?.[0]) return null
+  return normalizeEmail(match[0])
+}
+
+function textContainsEmail(value: unknown, email: string): boolean {
+  if (value == null) return false
+  if (typeof value === 'string') return normalizeEmail(value) === email
+  if (typeof value === 'number' || typeof value === 'boolean') return false
+  if (Array.isArray(value)) return value.some((v) => textContainsEmail(v, email))
+  if (typeof value === 'object') return Object.values(value as Record<string, unknown>).some((v) => textContainsEmail(v, email))
+  return false
+}
+
+function findEmailMatch(query: string, results: SearchResultItem[]): SearchResultItem | null {
+  const email = extractEmailFromQuery(query)
+  if (!email) return null
+
+  const matches = (r: SearchResultItem) => {
+    const entity = r.entity
+    if (normalizeEmail(entity.canonical_name) === email) return true
+    if (entity.aliases.some((alias) => normalizeEmail(alias) === email)) return true
+    if (textContainsEmail(entity.attrs, email)) return true
+    return entity.facts.some((fact) => {
+      const predicate = String(fact.predicate ?? '').toLowerCase()
+      if (!predicate.includes('email')) return false
+      const literal = typeof fact.object_literal === 'string' ? normalizeEmail(fact.object_literal) : null
+      const objectId = typeof fact.object_id === 'string' ? normalizeEmail(fact.object_id) : null
+      return literal === email || objectId === email
+    })
+  }
+
+  return results.find((r) => String(r.entity.entity_type).toLowerCase() === 'person' && matches(r))
+    ?? results.find((r) => matches(r))
+    ?? null
+}
+
 function buildAssistantPayload(query: string, results: SearchResultItem[]): AssistantPayload {
   const intent = parseInterpretation(query)
   const { filtered, steps } = cascadeFilter(results, intent)
@@ -89,7 +137,20 @@ export default function SearchPage() {
     setIsLoading(true)
 
     try {
-      const response = await searchMemory({ query, k: needsBroaderWindow ? 120 : 40 })
+      const response = await searchMemory({ query, k: needsBroaderWindow ? 50 : 40 })
+      const emailHit = findEmailMatch(query, response.results)
+      if (emailHit) {
+        navigate(`/browse/${encodeURIComponent(emailHit.entity.id)}`)
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `a-${Date.now()}`,
+            role: 'assistant',
+            content: `→ E-Mail „${extractEmailFromQuery(query)}" gefunden bei „${emailHit.entity.canonical_name}" — direkt geöffnet.`,
+          },
+        ])
+        return
+      }
       const payload = buildAssistantPayload(query, response.results)
 
       setMessages((prev) => [

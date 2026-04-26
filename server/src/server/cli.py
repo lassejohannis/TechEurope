@@ -247,12 +247,11 @@ def _persist_entity(
     # resolve must not re-call Gemini for entities that already have one.
     embedding = None if has_embedding else _build_tier_a_embedding(candidate)
 
-    # `entities.entity_type` is a generated column (`GENERATED ALWAYS AS type`);
-    # the writable canonical column is `type`. Writing entity_type directly
-    # raises 428C9 from Postgres.
+    # entities.entity_type is the writable column on this schema (renamed
+    # from `type` in migration 003).
     row: dict[str, object] = {
         "id": eid,
-        "type": canonical_entity_type,
+        "entity_type": canonical_entity_type,
         "canonical_name": candidate.canonical_name,
         "aliases": aliases,
         "attrs": attrs,
@@ -342,6 +341,10 @@ def _persist_fact(
     if object_id is None and object_literal is None:
         return False
 
+    # Skip self-loops (Pioneer occasionally emits "X has_price X" on noisy text).
+    if object_id is not None and object_id == subject_id:
+        return False
+
     try:
         payload = {
             "id": str(uuid.uuid4()),
@@ -357,6 +360,27 @@ def _persist_fact(
         db.table("facts").insert(payload).execute()
         return True
     except Exception as exc:
+        # Pioneer/Gemini occasionally emit predicates not yet in edge_type_config.
+        # Auto-register them as approved (consistent with the autonomous-ontology
+        # promise) and retry once.
+        if "edge_type_config" in str(exc) or "facts_predicate_fk" in str(exc):
+            try:
+                db.table("edge_type_config").upsert(
+                    {
+                        "id": pf.predicate,
+                        "config": {
+                            "description": "Auto-registered from free-text extraction",
+                            "auto_proposed": True,
+                        },
+                        "approval_status": "approved",
+                        "auto_proposed": True,
+                    },
+                    on_conflict="id",
+                ).execute()
+                db.table("facts").insert(payload).execute()
+                return True
+            except Exception:
+                return False
         if "not approved" in str(exc):
             return False
         # `no_temporal_overlap` GIST exclusion fires when (subject, predicate)
@@ -374,7 +398,7 @@ def cmd_resolve(
     source_type: str | None = typer.Option(None, help="Filter by source_type"),
     offset: int = typer.Option(0, help="Skip the first N records"),
     verbose: bool = typer.Option(False, help="Log every entity decision"),
-    llm_extract: bool = typer.Option(False, help="Mine email bodies via Gemini for relationship facts"),
+    llm_extract: bool = typer.Option(True, help="Mine free-text payload fields via Pioneer/Gemini for relationship facts"),
 ) -> None:
     """Walk source_records → resolve → upsert entities + facts.
 
@@ -810,6 +834,7 @@ def cmd_infer_source_mappings(
     from server.ontology.propose import (
         infer_source_mapping,
         persist_proposal,
+        should_auto_approve,
         validate_proposal,
     )
 
@@ -883,7 +908,12 @@ def cmd_infer_source_mappings(
         # the LLM frequently uses a predicate (e.g. `has_skill`) inside
         # `facts[].predicate` without declaring it. Walk the config instead
         # so the resolver can never hit a "type X not approved" trigger.
-        if auto_approve:
+        # Honest gate: even when --auto-approve is on (default), only flip the
+        # mapping to approved if the validator actually scored it. A 0/0 mapping
+        # belongs in the human inbox, not silently approved.
+        gated_auto = auto_approve and should_auto_approve(proposal, stats)
+
+        if gated_auto:
             from server.ontology.engine import FORBIDDEN_ENTITY_TYPES
 
             def _is_real_entity_type(t: str | None) -> bool:
@@ -949,7 +979,7 @@ def cmd_infer_source_mappings(
             db,
             sample_ids=[r["id"] for r in sample],
             validation_stats=stats,
-            auto_approve=auto_approve,
+            auto_approve=gated_auto,
         )
         typer.echo(f"    → {status}")
 

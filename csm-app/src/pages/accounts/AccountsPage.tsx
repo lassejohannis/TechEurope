@@ -52,11 +52,20 @@ export default function AccountsPage() {
   const filtered = (accounts ?? []).filter((a) =>
     a.entity.canonical_name.toLowerCase().includes(query.toLowerCase())
   )
+  const totalArr = filtered.reduce((sum, account) => sum + getArr(account), 0)
+  const atRisk = filtered.filter((a) => riskBadge(a) === 'At Risk').length
+  const renewalsIn90d = filtered.filter((a) => {
+    const days = renewalDaysLeft(a)
+    return days !== null && days >= 0 && days <= 90
+  }).length
+  const avgHealth = filtered.length > 0
+    ? Math.round(filtered.reduce((sum, account) => sum + account.health.score, 0) / filtered.length)
+    : 0
 
   return (
-    <div className="accounts-page">
+    <div className="accounts-page accounts-overview-page">
       <div className="accounts-header">
-        <div className="accounts-title">Accounts</div>
+        <div className="accounts-title">Account-Übersicht</div>
       </div>
 
       <div className="accounts-search-wrap">
@@ -70,75 +79,100 @@ export default function AccountsPage() {
         />
       </div>
 
-      {isLoading ? (
-        <div className="empty-state">Loading accounts…</div>
-      ) : filtered.length === 0 ? (
-        <div className="empty-state">No accounts match your search.</div>
-      ) : (
-        <table className="accounts-table">
-          <thead>
-            <tr>
-              <th>Account</th>
-              <th className="col-right">ARR</th>
-              <th className="col-center">Health</th>
-              <th>Renewal</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((account) => {
-              const arr = getArr(account)
-              const tier = getSubscriptionTier(account)
-              const segment = segmentLabel(tier)
-              const renewalDate = getRenewalDate(account)
-              const daysLeft = renewalDaysLeft(account)
-              const trend = healthTrend(account)
-              const badge = riskBadge(account)
+      <div className="accounts-metrics-grid">
+        <div className="metric-card">
+          <div className="metric-label">Accounts</div>
+          <div className="metric-value">{filtered.length}</div>
+        </div>
+        <div className="metric-card">
+          <div className="metric-label">Total ARR</div>
+          <div className="metric-value">{formatArr(totalArr)}</div>
+        </div>
+        <div className="metric-card">
+          <div className="metric-label">At Risk</div>
+          <div className="metric-value">{atRisk}</div>
+        </div>
+        <div className="metric-card">
+          <div className="metric-label">Renewals ≤ 90d</div>
+          <div className="metric-value">{renewalsIn90d}</div>
+        </div>
+        <div className="metric-card">
+          <div className="metric-label">Avg Health</div>
+          <div className="metric-value">{avgHealth}</div>
+        </div>
+      </div>
 
-              return (
-                <tr
-                  key={account.entity.id}
-                  className="accounts-row"
-                  onClick={() => navigate(`/accounts/${encodeURIComponent(account.entity.id)}`)}
-                >
-                  <td>
-                    <div className="accounts-name">{account.entity.canonical_name}</div>
-                    <span className="segment-chip">{segment}</span>
-                  </td>
-                  <td className="col-right accounts-arr">{formatArr(arr)}</td>
-                  <td className="col-center">
-                    <span className={`health-score-badge ${account.health.tier}`}>
-                      {account.health.score}
-                    </span>
-                    <span style={{ marginLeft: 4, fontSize: 12, color: TREND_COLOR[trend] }}>
-                      {TREND_ARROW[trend]}
-                    </span>
-                  </td>
-                  <td>
-                    {renewalDate ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span className="accounts-renewal-date">{formatRenewalDate(renewalDate)}</span>
-                        {daysLeft !== null && (
-                          <span className={`days-left-chip ${daysLeft < 30 ? 'urgent' : daysLeft < 90 ? 'soon' : 'ok'}`}>
-                            {daysLeft}d
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span style={{ color: 'var(--text-tertiary)' }}>—</span>
-                    )}
-                  </td>
-                  <td>
-                    <span className={`risk-badge ${badge.toLowerCase().replace(' ', '-')}`}>
-                      {badge}
-                    </span>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      )}
+      <div className="accounts-table-wrap">
+        {isLoading ? (
+          <div className="empty-state">Loading accounts…</div>
+        ) : filtered.length === 0 ? (
+          <div className="empty-state">No accounts match your search.</div>
+        ) : (
+          <table className="accounts-table">
+            <thead>
+              <tr>
+                <th>Account</th>
+                <th className="col-right">ARR</th>
+                <th className="col-center">Health</th>
+                <th>Renewal</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((account) => {
+                const arr = getArr(account)
+                const tier = getSubscriptionTier(account)
+                const segment = segmentLabel(tier)
+                const renewalDate = getRenewalDate(account)
+                const daysLeft = renewalDaysLeft(account)
+                const trend = healthTrend(account)
+                const badge = riskBadge(account)
+
+                return (
+                  <tr
+                    key={account.entity.id}
+                    className="accounts-row"
+                    onClick={() => navigate(`/accounts/${encodeURIComponent(account.entity.id)}`)}
+                  >
+                    <td>
+                      <div className="accounts-name">{account.entity.canonical_name}</div>
+                      <span className="segment-chip">{segment}</span>
+                    </td>
+                    <td className="col-right accounts-arr">{formatArr(arr)}</td>
+                    <td className="col-center">
+                      <span className={`health-score-badge ${account.health.tier}`}>
+                        {account.health.score}
+                      </span>
+                      <span style={{ marginLeft: 4, fontSize: 12, color: TREND_COLOR[trend] }}>
+                        {TREND_ARROW[trend]}
+                      </span>
+                    </td>
+                    <td>
+                      {renewalDate ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span className="accounts-renewal-date">{formatRenewalDate(renewalDate)}</span>
+                          {daysLeft !== null && (
+                            <span className={`days-left-chip ${daysLeft < 30 ? 'urgent' : daysLeft < 90 ? 'soon' : 'ok'}`}>
+                              {daysLeft}d
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ color: 'var(--text-tertiary)' }}>—</span>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`risk-badge ${badge.toLowerCase().replace(' ', '-')}`}>
+                        {badge}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   )
 }

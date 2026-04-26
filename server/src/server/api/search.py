@@ -21,11 +21,23 @@ from server.models import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["search"])
+EMAIL_PATTERN = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.IGNORECASE)
 
 
 def _is_single_row_not_found(exc: Exception) -> bool:
     text = str(exc)
     return "PGRST116" in text or "multiple (or no) rows returned" in text
+
+
+def _normalize_email(raw: str) -> str:
+    return raw.strip().removeprefix("mailto:").strip(")>.,;:!?").lower()
+
+
+def _extract_email(query: str) -> str | None:
+    match = EMAIL_PATTERN.search(query)
+    if not match:
+        return None
+    return _normalize_email(match.group(0))
 
 
 # ---------------------------------------------------------------------------
@@ -158,6 +170,39 @@ def run_hybrid_search(query: str, k: int = 10, as_of: datetime | None = None, en
                 if f.get("object_id"):
                     structural_ids.add(str(f["object_id"]))
 
+    # --- Stage 2b: Exact email hit (person lookup) ---
+    exact_email_ids: set[str] = set()
+    email_query = _extract_email(query)
+    if email_query:
+        try:
+            email_attr_res = (
+                db.table("entities")
+                .select("id")
+                .filter("attrs->>email", "eq", email_query)
+                .limit(20)
+                .execute()
+            )
+            for row in email_attr_res.data or []:
+                if row.get("id"):
+                    exact_email_ids.add(str(row["id"]))
+        except Exception as exc:
+            logger.warning("Exact email attr lookup failed: %s", exc)
+
+        try:
+            # Fallback for datasets where email is stored as canonical_name
+            email_name_res = (
+                db.table("entities")
+                .select("id")
+                .ilike("canonical_name", f"%{email_query}%")
+                .limit(20)
+                .execute()
+            )
+            for row in email_name_res.data or []:
+                if row.get("id"):
+                    exact_email_ids.add(str(row["id"]))
+        except Exception as exc:
+            logger.warning("Exact email canonical_name lookup failed: %s", exc)
+
     # --- Stage 3: Combine + rerank ---
     if semantic_scores and structural_ids:
         intersection = set(semantic_scores.keys()) & structural_ids
@@ -170,6 +215,8 @@ def run_hybrid_search(query: str, k: int = 10, as_of: datetime | None = None, en
         combined_ids = structural_ids
         match_type = "structural"
 
+    combined_ids = set(combined_ids) | exact_email_ids
+
     results: list[SearchResult] = []
     for entity_id in list(combined_ids)[:k * 2]:
         entity = _fetch_entity_with_trust(db, entity_id, as_of)
@@ -178,6 +225,8 @@ def run_hybrid_search(query: str, k: int = 10, as_of: datetime | None = None, en
         if entity_type and entity.entity_type != entity_type:
             continue
         score = semantic_scores.get(entity_id, 0.5)
+        if entity_id in exact_email_ids:
+            score = max(score, 0.98)
         # Boost by trust score
         final_score = score * 0.7 + entity.trust_score * 0.3
         results.append(SearchResult(entity=entity, score=final_score, match_type=match_type))

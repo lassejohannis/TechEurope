@@ -1,8 +1,9 @@
 import { GitMerge } from 'lucide-react'
+import { useMemo } from 'react'
 
 import { Skeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
-import { useEntityPairInbox, useFactConflictInbox } from '@/hooks/useConflicts'
+import { useEntityPairInboxInfinite, useFactConflictInboxInfinite } from '@/hooks/useConflicts'
 
 interface Props {
   conflictId: string | null
@@ -31,8 +32,10 @@ function formatObject(fact: { object_id: string | null; object_literal: unknown 
 }
 
 export default function ConflictDetail({ conflictId, selectedClaimIndex, onSelectClaim }: Props) {
-  const facts = useFactConflictInbox('pending')
-  const pairs = useEntityPairInbox('pending')
+  const facts = useFactConflictInboxInfinite('pending', 100)
+  const pairs = useEntityPairInboxInfinite('pending', 100)
+  const factItems = useMemo(() => facts.data?.pages.flatMap((p) => p.items) ?? [], [facts.data?.pages])
+  const pairItems = useMemo(() => pairs.data?.pages.flatMap((p) => p.items) ?? [], [pairs.data?.pages])
 
   if (!conflictId) {
     return (
@@ -53,7 +56,7 @@ export default function ConflictDetail({ conflictId, selectedClaimIndex, onSelec
   const rawId = conflictId.replace(/^(pair|fact):/, '')
 
   if (isPair) {
-    const item = pairs.data?.items.find((i) => i.id === rawId)
+    const item = pairItems.find((i) => i.id === rawId)
     if (!item) {
       return (
         <div className="p-4 text-sm text-muted-foreground">Pair not found.</div>
@@ -101,7 +104,7 @@ export default function ConflictDetail({ conflictId, selectedClaimIndex, onSelec
   }
 
   if (isFactConflict) {
-    const item = facts.data?.items.find((i) => i.id === rawId)
+    const item = factItems.find((i) => i.id === rawId)
     if (!item) {
       return (
         <div className="p-4 text-sm text-muted-foreground">Conflict not found.</div>
@@ -109,6 +112,10 @@ export default function ConflictDetail({ conflictId, selectedClaimIndex, onSelec
     }
     return (
       <div className="flex flex-col gap-4 p-4">
+        <div className="rounded-md border bg-muted/30 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">AI Briefing</p>
+          <p className="mt-1 text-sm text-muted-foreground">{buildConflictBriefing(item)}</p>
+        </div>
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Competing claims
@@ -167,4 +174,29 @@ export default function ConflictDetail({ conflictId, selectedClaimIndex, onSelec
       Unknown conflict id: {conflictId}
     </div>
   )
+}
+
+function buildConflictBriefing(item: any): string {
+  const [a, b] = item.facts
+  if (!a || !b) {
+    return 'Der Konflikt enthält unvollständige Daten. Bitte Claims prüfen oder neu laden.'
+  }
+  const aValue = formatObject(a)
+  const bValue = formatObject(b)
+  const aScore = Math.round(100 * (a.verification_score ?? a.confidence))
+  const bScore = Math.round(100 * (b.verification_score ?? b.confidence))
+  const gap = Math.abs(aScore - bScore)
+  const sourceA = a.source?.source_type ?? 'unknown source'
+  const sourceB = b.source?.source_type ?? 'unknown source'
+
+  if (aValue === bValue) {
+    return `Beide Claims sagen inhaltlich dasselbe (${aValue}), stammen aber aus unterschiedlichen Quellen (${sourceA} vs ${sourceB}). Das ist eher ein Zusammenführungsfall als ein echter Widerspruch.`
+  }
+
+  if (gap >= 15) {
+    const winner = aScore > bScore ? 'Claim A' : 'Claim B'
+    return `Die Claims widersprechen sich (${aValue} vs ${bValue}). ${winner} wirkt deutlich robuster (${aScore}% vs ${bScore}%), daher ist "Pick one" wahrscheinlich die schnellste Entscheidung.`
+  }
+
+  return `Die Claims widersprechen sich (${aValue} vs ${bValue}), aber die Evidenz ist nah beieinander (${aScore}% vs ${bScore}%). Sinnvoll ist "Both true (with qualifier)" oder eine manuelle Zusatzprüfung.`
 }

@@ -12,7 +12,26 @@ type GraphNode = {
   properties: Record<string, unknown>
 }
 type GraphEdge = { id: string; source: string; target: string; label: string }
+type RenderEdge = {
+  id: string
+  source: string
+  target: string
+  label: string
+  labels: string[]
+  count: number
+}
 type SimNode = GraphNode & { x: number; y: number; vx: number; vy: number; r: number }
+type NeighborMap = Map<string, Set<string>>
+type CameraAnim = {
+  fromPanX: number
+  fromPanY: number
+  fromScale: number
+  toPanX: number
+  toPanY: number
+  toScale: number
+  startAt: number
+  duration: number
+}
 
 /* ── Node colours ───────────────────────────────────────────────────────── */
 
@@ -177,13 +196,107 @@ function tick(nodes: SimNode[], edges: GraphEdge[], alpha: number) {
   }
 }
 
+function buildNeighborMap(edges: GraphEdge[]): NeighborMap {
+  const map: NeighborMap = new Map()
+  for (const e of edges) {
+    if (!map.has(e.source)) map.set(e.source, new Set())
+    if (!map.has(e.target)) map.set(e.target, new Set())
+    map.get(e.source)!.add(e.target)
+    map.get(e.target)!.add(e.source)
+  }
+  return map
+}
+
+function bundleEdges(edges: GraphEdge[]): { simEdges: GraphEdge[]; renderEdges: RenderEdge[] } {
+  const grouped = new Map<string, { source: string; target: string; labels: string[] }>()
+  for (const e of edges) {
+    const k = `${e.source}→${e.target}`
+    const prev = grouped.get(k)
+    if (prev) {
+      prev.labels.push(e.label)
+    } else {
+      grouped.set(k, { source: e.source, target: e.target, labels: [e.label] })
+    }
+  }
+
+  const renderEdges: RenderEdge[] = []
+  const simEdges: GraphEdge[] = []
+  let i = 0
+  for (const [key, group] of grouped.entries()) {
+    const counts = new Map<string, number>()
+    for (const l of group.labels) counts.set(l, (counts.get(l) ?? 0) + 1)
+    const sortedLabels = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([l]) => l)
+    const base = sortedLabels[0] ?? 'REL'
+    const label = group.labels.length > 1 ? `${base} +${group.labels.length - 1}` : base
+    renderEdges.push({
+      id: `re-${i++}`,
+      source: group.source,
+      target: group.target,
+      label,
+      labels: sortedLabels,
+      count: group.labels.length,
+    })
+    simEdges.push({ id: `se-${key}`, source: group.source, target: group.target, label: base })
+  }
+
+  return { simEdges, renderEdges }
+}
+
+function isRelated(a: string, b: string, neighbors: NeighborMap): boolean {
+  if (a === b) return true
+  return neighbors.get(a)?.has(b) ?? false
+}
+
+function easeOutCubic(t: number): number {
+  return 1 - (1 - t) ** 3
+}
+
+function connectionCount(nodeId: string, edges: RenderEdge[]): number {
+  return edges.reduce((sum, e) => (
+    e.source === nodeId || e.target === nodeId ? sum + e.count : sum
+  ), 0)
+}
+
+function fitToView(
+  nodes: SimNode[],
+  width: number,
+  height: number,
+): { panX: number; panY: number; scale: number } {
+  if (!nodes.length) return { panX: 0, panY: 0, scale: 1 }
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const n of nodes) {
+    minX = Math.min(minX, n.x - n.r)
+    minY = Math.min(minY, n.y - n.r)
+    maxX = Math.max(maxX, n.x + n.r)
+    maxY = Math.max(maxY, n.y + n.r)
+  }
+  const graphW = Math.max(1, maxX - minX)
+  const graphH = Math.max(1, maxY - minY)
+  const pad = 56
+  const sx = (width - pad * 2) / graphW
+  const sy = (height - pad * 2) / graphH
+  const scale = Math.max(0.12, Math.min(2.8, Math.min(sx, sy)))
+  const cx = (minX + maxX) / 2
+  const cy = (minY + maxY) / 2
+  return {
+    panX: -cx * scale,
+    panY: -cy * scale,
+    scale,
+  }
+}
+
 /* ── Canvas renderer ────────────────────────────────────────────────────── */
 
 function render(
   ctx: CanvasRenderingContext2D,
   nodes: SimNode[],
-  edges: GraphEdge[],
+  edges: RenderEdge[],
   selectedId: string | null,
+  hoveredId: string | null,
+  neighbors: NeighborMap,
   panX: number, panY: number, scale: number,
   edgeLabels: boolean,
 ) {
@@ -194,22 +307,96 @@ function render(
   ctx.scale(scale, scale)
 
   const byId = new Map(nodes.map(n => [n.id, n]))
+  const focusId = selectedId ?? hoveredId
+
+  /* soft type halos for better grouping */
+  const typeBuckets = new Map<string, SimNode[]>()
+  for (const n of nodes) {
+    const arr = typeBuckets.get(n.type) ?? []
+    arr.push(n)
+    typeBuckets.set(n.type, arr)
+  }
+  for (const [type, arr] of typeBuckets) {
+    if (arr.length < 2) continue
+    const [clr] = nodeStyle(type)
+    let cx = 0
+    let cy = 0
+    for (const n of arr) {
+      cx += n.x
+      cy += n.y
+    }
+    cx /= arr.length
+    cy /= arr.length
+    let r = 0
+    for (const n of arr) {
+      const d = Math.hypot(n.x - cx, n.y - cy) + n.r
+      r = Math.max(r, d)
+    }
+    ctx.beginPath()
+    ctx.fillStyle = `${clr}18`
+    ctx.arc(cx, cy, r + 24, 0, Math.PI * 2)
+    ctx.fill()
+  }
 
   /* edges */
-  ctx.globalAlpha = 0.55
+  ctx.globalAlpha = 1
   for (const e of edges) {
     const a = byId.get(e.source), b = byId.get(e.target)
     if (!a || !b) continue
-    ctx.strokeStyle = '#94a3b8'
-    ctx.lineWidth = 1.2 / scale
-    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke()
+    const active =
+      !focusId ||
+      e.source === focusId ||
+      e.target === focusId ||
+      isRelated(focusId, e.source, neighbors) ||
+      isRelated(focusId, e.target, neighbors)
+    const mx = (a.x + b.x) / 2
+    const my = (a.y + b.y) / 2
+    const dx = b.x - a.x
+    const dy = b.y - a.y
+    const len = Math.max(1, Math.hypot(dx, dy))
+    const nx = -dy / len
+    const ny = dx / len
+    const hash = e.id.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
+    const bend = ((hash % 13) - 6) * 2.6
+    const cx = mx + nx * bend
+    const cy = my + ny * bend
 
-    if (edgeLabels && scale > 0.45) {
+    ctx.strokeStyle = active ? '#64748b' : '#cbd5e1'
+    ctx.lineWidth = (active ? 1.4 : 1) / scale
+    ctx.globalAlpha = active ? 0.72 : 0.25
+    ctx.beginPath()
+    ctx.moveTo(a.x, a.y)
+    ctx.quadraticCurveTo(cx, cy, b.x, b.y)
+    ctx.stroke()
+
+    // arrow head
+    const tx = b.x - cx
+    const ty = b.y - cy
+    const tLen = Math.max(1, Math.hypot(tx, ty))
+    const ux = tx / tLen
+    const uy = ty / tLen
+    const arrowL = 8 / scale
+    const arrowW = 4.2 / scale
+    const bx = b.x - ux * (b.r * 0.35)
+    const by = b.y - uy * (b.r * 0.35)
+    ctx.fillStyle = active ? '#64748b' : '#cbd5e1'
+    ctx.globalAlpha = active ? 0.82 : 0.22
+    ctx.beginPath()
+    ctx.moveTo(bx, by)
+    ctx.lineTo(bx - ux * arrowL + -uy * arrowW, by - uy * arrowL + ux * arrowW)
+    ctx.lineTo(bx - ux * arrowL - -uy * arrowW, by - uy * arrowL - ux * arrowW)
+    ctx.closePath()
+    ctx.fill()
+
+    if (edgeLabels && scale > 0.62 && active) {
       ctx.fillStyle = '#64748b'
       ctx.font = `${9 / scale}px system-ui`
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.globalAlpha = 0.8
-      ctx.fillText(e.label, (a.x + b.x) / 2, (a.y + b.y) / 2)
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.globalAlpha = 0.8
+      ctx.fillText(e.label, cx, cy)
     }
+
   }
   ctx.globalAlpha = 1
 
@@ -217,12 +404,16 @@ function render(
   for (const n of nodes) {
     const [fill, fg] = nodeStyle(n.type)
     const sel = n.id === selectedId
+    const hov = n.id === hoveredId
+    const active = !focusId || isRelated(focusId, n.id, neighbors)
+    const nodeAlpha = active ? 1 : 0.22
 
+    ctx.globalAlpha = nodeAlpha
     ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, 2 * Math.PI)
     ctx.fillStyle = fill; ctx.fill()
-    ctx.strokeStyle = sel ? '#fff' : 'rgba(0,0,0,0.18)'
-    ctx.lineWidth   = sel ? 3 / scale : 1 / scale
-    if (sel) { ctx.shadowColor = fill; ctx.shadowBlur = 16 / scale }
+    ctx.strokeStyle = sel ? '#fff' : hov ? '#e2e8f0' : 'rgba(0,0,0,0.18)'
+    ctx.lineWidth   = sel ? 3 / scale : hov ? 2 / scale : 1 / scale
+    if (sel || hov) { ctx.shadowColor = fill; ctx.shadowBlur = (sel ? 16 : 10) / scale }
     ctx.stroke()
     ctx.shadowBlur = 0
 
@@ -234,6 +425,7 @@ function render(
     if (lbl !== n.label) lbl += '…'
     ctx.fillText(lbl, n.x, n.y)
   }
+  ctx.globalAlpha = 1
 
   ctx.restore()
 }
@@ -294,6 +486,10 @@ export default function WorkflowPage() {
   const s = useRef({
     nodes:      [] as SimNode[],
     edges:      [] as GraphEdge[],
+    renderEdges: [] as RenderEdge[],
+    neighbors:  new Map() as NeighborMap,
+    rawEdgeCount: 0,
+    camAnim:    null as CameraAnim | null,
     alpha:      0,
     rafId:      0,
     panX:       0, panY:  0, scale: 1,
@@ -304,6 +500,7 @@ export default function WorkflowPage() {
   })
 
   const [selected,     setSelected]     = useState<SimNode | null>(null)
+  const [hoveredId,    setHoveredId]    = useState<string | null>(null)
   const [graphVersion, setGraphVersion] = useState(0)   // bumped on load → re-derive lists
   const [loading,      setLoading]      = useState(false)
   const [edgeLabels,   setEdgeLabels]   = useState(false)
@@ -314,13 +511,37 @@ export default function WorkflowPage() {
 
   const edgeLabelsRef = useRef(false); edgeLabelsRef.current = edgeLabels
   const selectedRef   = useRef<SimNode | null>(null); selectedRef.current = selected
+  const hoveredRef    = useRef<string | null>(null); hoveredRef.current = hoveredId
+
+  const startCameraTween = useCallback((toPanX: number, toPanY: number, toScale: number, duration = 380) => {
+    s.current.camAnim = {
+      fromPanX: s.current.panX,
+      fromPanY: s.current.panY,
+      fromScale: s.current.scale,
+      toPanX,
+      toPanY,
+      toScale,
+      startAt: performance.now(),
+      duration,
+    }
+  }, [])
 
   /* animation loop */
   const loop = useCallback(() => {
     const c = canvasRef.current; if (!c) return
     const ctx = c.getContext('2d'); if (!ctx) return
+    if (s.current.camAnim) {
+      const now = performance.now()
+      const t = Math.min(1, (now - s.current.camAnim.startAt) / s.current.camAnim.duration)
+      const k = easeOutCubic(t)
+      s.current.panX = s.current.camAnim.fromPanX + (s.current.camAnim.toPanX - s.current.camAnim.fromPanX) * k
+      s.current.panY = s.current.camAnim.fromPanY + (s.current.camAnim.toPanY - s.current.camAnim.fromPanY) * k
+      s.current.scale = s.current.camAnim.fromScale + (s.current.camAnim.toScale - s.current.camAnim.fromScale) * k
+      if (t >= 1) s.current.camAnim = null
+    }
     if (s.current.alpha > 0.001) { tick(s.current.nodes, s.current.edges, s.current.alpha); s.current.alpha *= 0.991 }
-    render(ctx, s.current.nodes, s.current.edges, selectedRef.current?.id ?? null,
+    render(ctx, s.current.nodes, s.current.renderEdges, selectedRef.current?.id ?? null,
+      hoveredRef.current, s.current.neighbors,
       s.current.panX, s.current.panY, s.current.scale, edgeLabelsRef.current)
     s.current.rafId = requestAnimationFrame(loop)
   }, [])
@@ -330,13 +551,23 @@ export default function WorkflowPage() {
     setLoading(true)
     try {
       const lim = Math.max(10, Math.min(300, Number(limitStr) || 80))
-      const { nodes, edges } = await fetchGraph(lim, focusId.trim())
+      const { nodes, edges: rawEdges } = await fetchGraph(lim, focusId.trim())
+      const { simEdges, renderEdges } = bundleEdges(rawEdges)
       const c = canvasRef.current
       const W = c?.clientWidth ?? 900, H = c?.clientHeight ?? 600
-      s.current.nodes = initSim(nodes, edges, W, H)
-      s.current.edges = edges
+      s.current.nodes = initSim(nodes, simEdges, W, H)
+      s.current.edges = simEdges
+      s.current.renderEdges = renderEdges
+      s.current.neighbors = buildNeighborMap(simEdges)
+      s.current.rawEdgeCount = rawEdges.length
+      const fitted = fitToView(s.current.nodes, W, H)
+      s.current.panX = fitted.panX
+      s.current.panY = fitted.panY
+      s.current.scale = fitted.scale
+      s.current.camAnim = null
       s.current.alpha = 1
       setSelected(null)
+      setHoveredId(null)
       setGraphVersion(v => v + 1)
     } finally { setLoading(false) }
   }, [limitStr, focusId])
@@ -365,6 +596,7 @@ export default function WorkflowPage() {
   }
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
+    s.current.camAnim = null
     const { x, y } = getXY(e)
     const c = canvasRef.current!
     const node = hit(s.current.nodes, x, y, s.current.panX, s.current.panY, s.current.scale, c.clientWidth, c.clientHeight)
@@ -386,6 +618,11 @@ export default function WorkflowPage() {
     } else if (s.current.isPan) {
       s.current.panX = s.current.px0 + dx
       s.current.panY = s.current.py0 + dy
+    } else {
+      const c = canvasRef.current!
+      const node = hit(s.current.nodes, x, y, s.current.panX, s.current.panY, s.current.scale, c.clientWidth, c.clientHeight)
+      const next = node?.id ?? null
+      if (next !== hoveredRef.current) setHoveredId(next)
     }
   }, [])
 
@@ -395,12 +632,19 @@ export default function WorkflowPage() {
       const c = canvasRef.current!
       const node = hit(s.current.nodes, x, y, s.current.panX, s.current.panY, s.current.scale, c.clientWidth, c.clientHeight)
       setSelected(node ? { ...node } : null)
+      setHoveredId(node?.id ?? null)
     }
     s.current.isDrag = false; s.current.isPan = false; s.current.dragNode = null
   }, [])
 
+  const onMouseLeave = useCallback((e: React.MouseEvent) => {
+    onMouseUp(e)
+    setHoveredId(null)
+  }, [onMouseUp])
+
   const onWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault()
+    s.current.camAnim = null
     const { x, y } = getXY(e)
     const c = canvasRef.current!
     const factor   = e.deltaY < 0 ? 1.12 : 0.89
@@ -410,6 +654,20 @@ export default function WorkflowPage() {
     s.current.panY = y - cy - (y - cy - s.current.panY) * (newScale / s.current.scale)
     s.current.scale = newScale
   }, [])
+
+  const handleFitView = useCallback(() => {
+    const c = canvasRef.current
+    if (!c) return
+    const fitted = fitToView(s.current.nodes, c.clientWidth, c.clientHeight)
+    startCameraTween(fitted.panX, fitted.panY, fitted.scale)
+    s.current.alpha = Math.max(s.current.alpha, 0.12)
+  }, [startCameraTween])
+
+  const handleCenterSelection = useCallback(() => {
+    if (!selected) return
+    startCameraTween(-selected.x * s.current.scale, -selected.y * s.current.scale, s.current.scale)
+    s.current.alpha = Math.max(s.current.alpha, 0.09)
+  }, [selected, startCameraTween])
 
   /* derived lists */
   const overviewNodes = useMemo(() => {
@@ -426,29 +684,32 @@ export default function WorkflowPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graphVersion])
 
-  const selectedConnections = useMemo(() => {
-    if (!selected) return 0
-    return s.current.edges.filter(e => e.source === selected.id || e.target === selected.id).length
+  const hoveredNode = useMemo(() => {
+    if (!hoveredId) return null
+    return s.current.nodes.find((n) => n.id === hoveredId) ?? null
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, graphVersion])
+  }, [hoveredId, graphVersion])
 
-  const normalizedSelectedProperties = useMemo(
-    () => (selected ? normalizeProperties(selected.properties) : {}),
-    [selected],
+  const detailNode = selected ?? hoveredNode
+  const isHoverPreview = !selected && !!hoveredNode
+
+  const normalizedDetailProperties = useMemo(
+    () => (detailNode ? normalizeProperties(detailNode.properties) : {}),
+    [detailNode],
   )
 
-  const selectedPropertyPreview = useMemo(
-    () => dedupeAttributeEntries(flattenProperties(normalizedSelectedProperties)),
-    [normalizedSelectedProperties],
+  const detailPropertyPreview = useMemo(
+    () => dedupeAttributeEntries(flattenProperties(normalizedDetailProperties)),
+    [normalizedDetailProperties],
   )
 
   async function handleExtractRawData() {
-    if (!selected) return
-    const raw = JSON.stringify(normalizedSelectedProperties, null, 2)
+    if (!detailNode) return
+    const raw = JSON.stringify(normalizedDetailProperties, null, 2)
     try {
       await navigator.clipboard.writeText(raw)
-      setCopiedNodeId(selected.id)
-      window.setTimeout(() => setCopiedNodeId((prev) => (prev === selected.id ? null : prev)), 1200)
+      setCopiedNodeId(detailNode.id)
+      window.setTimeout(() => setCopiedNodeId((prev) => (prev === detailNode.id ? null : prev)), 1200)
     } catch {
       setCopiedNodeId(null)
     }
@@ -461,6 +722,8 @@ export default function WorkflowPage() {
         <Input className="w-60" placeholder="Focus Entity ID (optional)" value={focusId} onChange={e => setFocusId(e.target.value)} />
         <Input className="w-20" placeholder="Limit" value={limitStr} onChange={e => setLimitStr(e.target.value)} />
         <Button onClick={loadGraph} disabled={loading}>{loading ? 'Loading…' : 'Load Graph'}</Button>
+        <Button variant="outline" onClick={handleFitView}>Fit View</Button>
+        <Button variant="outline" onClick={handleCenterSelection} disabled={!selected}>Center Selection</Button>
         <Button variant={edgeLabels ? 'secondary' : 'outline'} onClick={() => setEdgeLabels(v => !v)}>
           Edge Labels {edgeLabels ? 'On' : 'Off'}
         </Button>
@@ -475,7 +738,7 @@ export default function WorkflowPage() {
             )
           })}
           <span className="text-xs text-muted-foreground">
-            {s.current.nodes.length} nodes · {s.current.edges.length} edges
+            {s.current.nodes.length} nodes · {s.current.renderEdges.length} links
           </span>
         </div>
       </div>
@@ -489,7 +752,7 @@ export default function WorkflowPage() {
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={onMouseUp}
-          onMouseLeave={onMouseUp}
+          onMouseLeave={onMouseLeave}
           onWheel={onWheel}
         />
         {s.current.nodes.length === 0 && !loading && (
@@ -504,31 +767,36 @@ export default function WorkflowPage() {
         <Card>
           <CardHeader><CardTitle className="text-sm">Node Detail</CardTitle></CardHeader>
           <CardContent>
-            {!selected ? (
-              <p className="text-sm text-muted-foreground">Klicke im Graph auf einen Node.</p>
+            {!detailNode ? (
+              <p className="text-sm text-muted-foreground">Hover oder klicke im Graph auf einen Node.</p>
             ) : (
               <div className="space-y-3">
+                {isHoverPreview && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50/80 px-3 py-1.5 text-xs font-medium text-blue-700">
+                    Preview (Hover) - click to pin
+                  </div>
+                )}
                 <div className="rounded-2xl border border-white/60 bg-white/70 p-4 shadow-[0_2px_20px_rgba(15,23,42,0.05)] backdrop-blur-xl">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-block h-3 w-3 rounded-full" style={{ background: nodeStyle(selected.type)[0] }} />
-                    <p className="text-base font-semibold text-slate-900">{selected.label}</p>
+                    <span className="inline-block h-3 w-3 rounded-full" style={{ background: nodeStyle(detailNode.type)[0] }} />
+                    <p className="text-base font-semibold text-slate-900">{detailNode.label}</p>
                     <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
-                      {selected.type}
+                      {detailNode.type}
                     </span>
                     <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
-                      {selectedConnections} connections
+                      {connectionCount(detailNode.id, s.current.renderEdges)} connections
                     </span>
                   </div>
-                  <p className="mt-2 break-all font-mono text-xs text-slate-500">{selected.id}</p>
+                  <p className="mt-2 break-all font-mono text-xs text-slate-500">{detailNode.id}</p>
                 </div>
 
-                {selectedPropertyPreview.length > 0 && (
+                {detailPropertyPreview.length > 0 && (
                   <div className="rounded-2xl border border-border/70 bg-background/70 p-3">
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Attributes
                     </p>
                     <div className="space-y-1.5">
-                      {selectedPropertyPreview.map(([key, value]) => (
+                      {detailPropertyPreview.map(([key, value]) => (
                         <div key={key} className="grid grid-cols-[150px_1fr] items-center gap-2 text-xs">
                           <span className="text-slate-500">{formatAttributeLabel(key)}</span>
                           <div className="overflow-x-auto">
@@ -548,15 +816,15 @@ export default function WorkflowPage() {
                   </p>
                   <Button
                     size="sm"
-                    variant={copiedNodeId === selected.id ? 'secondary' : 'outline'}
+                    variant={copiedNodeId === detailNode.id ? 'secondary' : 'outline'}
                     className={
-                      copiedNodeId === selected.id
+                      copiedNodeId === detailNode.id
                         ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                         : ''
                     }
                     onClick={handleExtractRawData}
                   >
-                    {copiedNodeId === selected.id ? (
+                    {copiedNodeId === detailNode.id ? (
                       <span className="inline-flex items-center gap-1.5">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M20 6 9 17l-5-5" />
@@ -583,7 +851,12 @@ export default function WorkflowPage() {
               ) : overviewNodes.map(n => (
                 <button
                   key={n.id}
-                  onClick={() => setSelected({ ...n })}
+                  onClick={() => {
+                    setSelected({ ...n })
+                    setHoveredId(n.id)
+                    startCameraTween(-n.x * s.current.scale, -n.y * s.current.scale, s.current.scale, 320)
+                    s.current.alpha = Math.max(s.current.alpha, 0.08)
+                  }}
                   className="flex w-full items-center gap-2 border-b px-3 py-2 text-left last:border-0 hover:bg-muted/40"
                 >
                   <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: nodeStyle(n.type)[0] }} />

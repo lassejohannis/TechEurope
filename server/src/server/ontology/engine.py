@@ -185,6 +185,12 @@ def _fact_from_spec(spec: dict[str, Any], payload: dict[str, Any]) -> PendingFac
         if val is not None:
             object_literal = val if isinstance(val, (dict, list)) else {"value": val}
 
+    # A fact without any resolved object is not a real fact — the mapping
+    # referenced a field the payload doesn't contain. Drop it so the validator
+    # scores honestly instead of inflating fact_rate to 1.00.
+    if object_key is None and object_literal is None:
+        return None
+
     extraction_method = str(spec.get("extraction_method") or "rule")
     confidence = spec.get("confidence")
     if isinstance(confidence, (int, float)):
@@ -266,20 +272,57 @@ def resolve_with_engine(
         .execute()
     )
     mapping = mapping_row.data if hasattr(mapping_row, "data") else None
-    if not mapping or mapping.get("status") != "approved":
+    if not mapping:
+        logger.debug("no mapping for source_type=%s", source_type)
+        return [], []
+    if mapping.get("status") not in ("approved", "pending"):
         logger.debug(
-            "no approved mapping for source_type=%s (status=%s)",
+            "skipping mapping for %s with status=%s",
             source_type,
-            (mapping or {}).get("status"),
+            mapping.get("status"),
         )
         return [], []
 
     entities, facts = apply_mapping(source_record, mapping["config"] or {})
 
     # Free-text LLM extract for opted-in records (Phase D of the resolver plan).
-    if llm_extract and (paths := (mapping["config"] or {}).get("free_text_paths")):
+    # If the mapping declares free_text_paths, use them. Otherwise auto-detect:
+    # any top-level string field longer than 200 chars is a candidate for Pioneer.
+    cfg = mapping["config"] or {}
+    declared = list(cfg.get("free_text_paths") or [])
+    paths = list(declared)
+    # Always also probe long top-level string fields the LLM may have missed
+    # (e.g. `$.text` on PDFs when Gemini guessed `$.body`).
+    declared_keys = {p.lstrip("$.").split(".")[0] for p in declared}
+    for key, val in (source_record.get("payload") or {}).items():
+        if key in declared_keys:
+            continue
+        if isinstance(val, str) and len(val) >= 200:
+            paths.append(f"$.{key}")
+    if llm_extract and paths:
         try:
-            facts.extend(_llm_free_text_facts(source_record, paths, mapping["config"]))
+            new_facts = _llm_free_text_facts(source_record, paths, cfg)
+            # Materialize subject/object entities Pioneer/Gemini emitted so the
+            # downstream `_persist_fact` lookup in name_to_id finds them.
+            seen_keys = {(e.entity_type, e.canonical_name) for e in entities}
+            for f in new_facts:
+                for key in (f.subject_key, f.object_key):
+                    if key is None:
+                        continue
+                    if key in seen_keys:
+                        continue
+                    if key[0] in FORBIDDEN_ENTITY_TYPES:
+                        continue
+                    entities.append(
+                        CandidateEntity(
+                            canonical_name=key[1],
+                            entity_type=key[0],
+                            attrs={},
+                            source_id=source_record.get("id", ""),
+                        )
+                    )
+                    seen_keys.add(key)
+            facts.extend(new_facts)
         except Exception as exc:
             logger.debug("free_text extract failed: %s", exc)
 

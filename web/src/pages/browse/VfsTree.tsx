@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { FileText, Loader2 } from 'lucide-react'
@@ -214,6 +214,7 @@ function FileRow({
   return (
     <div
       className="row-in"
+      data-entity-id={item.entityId}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -260,6 +261,7 @@ export default function VfsTree({ selectedEntityId }: { selectedEntityId: string
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [openSection, setOpenSection] = useState<string | null>(null)
+  const fileListRef = useRef<HTMLDivElement | null>(null)
 
   const treeQuery = useQuery({
     queryKey: ['browse', 'tree'],
@@ -280,6 +282,16 @@ export default function VfsTree({ selectedEntityId }: { selectedEntityId: string
     if (sec && sec.path !== openSection) setOpenSection(sec.path)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEntityId, sections])
+
+  // Keep the active row clearly visible above the bottom chat area.
+  useEffect(() => {
+    if (!selectedEntityId || !fileListRef.current) return
+    const activeEl = fileListRef.current.querySelector<HTMLElement>(`[data-entity-id="${selectedEntityId}"]`)
+    if (!activeEl) return
+    requestAnimationFrame(() => {
+      activeEl.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
+  }, [selectedEntityId, openSection, currentSection?.path])
 
   // Background refresh
   useEffect(() => {
@@ -325,7 +337,7 @@ export default function VfsTree({ selectedEntityId }: { selectedEntityId: string
       </div>
 
       {/* ── Scroll area ── */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 22px 120px', background: '#f5f5f7' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 22px 24px', background: '#f5f5f7' }}>
 
         {loading && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#aaa', fontSize: 13 }}>
@@ -393,7 +405,7 @@ export default function VfsTree({ selectedEntityId }: { selectedEntityId: string
                 Dieser Ordner ist leer.
               </p>
             ) : (
-              <div style={{ padding: '4px 6px' }}>
+              <div ref={fileListRef} style={{ padding: '4px 6px' }}>
                 {currentSection.items.map((item, i) => (
                   <FileRow
                     key={item.entityId}

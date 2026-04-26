@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
   decideEntityPair,
@@ -34,6 +34,48 @@ export function useFactConflictInbox(
   })
 }
 
+export function useEntityPairInboxInfinite(
+  status: 'pending' | 'merged' | 'rejected' = 'pending',
+  pageSize = 100,
+) {
+  return useInfiniteQuery({
+    queryKey: ['inbox', 'entity-pairs-infinite', status, pageSize],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => listEntityPairResolutions(status, pageSize, pageParam),
+    getNextPageParam: (lastPage) => {
+      const loaded = (lastPage.offset ?? 0) + lastPage.items.length
+      if (loaded >= lastPage.total) return undefined
+      return loaded
+    },
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+  })
+}
+
+export function useFactConflictInboxInfinite(
+  status: 'pending' | 'auto_resolved' | 'human_resolved' | 'rejected' = 'pending',
+  pageSize = 100,
+) {
+  return useInfiniteQuery({
+    queryKey: ['inbox', 'fact-conflicts-infinite', status, pageSize],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => listFactResolutions(status, pageSize, pageParam),
+    getNextPageParam: (lastPage) => {
+      const loaded = (lastPage.offset ?? 0) + lastPage.items.length
+      if (loaded >= lastPage.total) return undefined
+      return loaded
+    },
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+  })
+}
+
 export function useDecideEntityPair() {
   const qc = useQueryClient()
   return useMutation({
@@ -58,6 +100,7 @@ export function useDecideEntityPair() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['inbox', 'entity-pairs'] })
+      qc.invalidateQueries({ queryKey: ['inbox', 'entity-pairs-infinite'] })
     },
   })
 }
@@ -89,6 +132,7 @@ export function useDecideFactConflict() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['inbox', 'fact-conflicts'] })
+      qc.invalidateQueries({ queryKey: ['inbox', 'fact-conflicts-infinite'] })
     },
   })
 }
