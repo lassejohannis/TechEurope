@@ -4,7 +4,6 @@ import {
   House,
   Folder,
   Orbit,
-  Database,
   PanelLeftClose,
   PanelLeftOpen,
   EllipsisVertical,
@@ -47,15 +46,16 @@ export default function AppShell() {
           marginBottom: 20,
           flexShrink: 0,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: 8, background: '#5b5bd6',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            }}>
-              <Database size={13} color="white" strokeWidth={2.2} />
-            </div>
-            <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: '-0.02em', color: '#0a0a0a', whiteSpace: 'nowrap' }}>
-              Qontext
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <img
+              src="/logo-mark.svg"
+              alt="The Layer"
+              width={28}
+              height={28}
+              style={{ flexShrink: 0 }}
+            />
+            <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em', color: '#0a0a0a', whiteSpace: 'nowrap' }}>
+              The Layer
             </span>
           </div>
           <button

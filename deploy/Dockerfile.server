@@ -1,0 +1,53 @@
+# Multi-stage build for the FastAPI core engine
+# Image: ~600 MB after build (uv + Python deps + pdfplumber/docling)
+
+FROM python:3.12-slim AS builder
+
+# uv for fast deps
+RUN pip install --no-cache-dir uv==0.5.5
+
+# Build context = repo root (set in docker-compose / docker build)
+WORKDIR /app
+COPY server/pyproject.toml server/uv.lock ./
+
+# System deps for pdfplumber + docling + neo4j SSL
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential libffi-dev libssl-dev libxml2-dev libxslt1-dev \
+        zlib1g-dev libjpeg-dev poppler-utils ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/*
+
+# Resolve + install into a venv
+RUN uv sync --frozen --no-install-project
+
+
+# ----- runtime image -----
+FROM python:3.12-slim AS runtime
+
+# Runtime-only OS deps (poppler for pdfplumber, ca-certificates for TLS to Aura)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        poppler-utils ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Bring over the resolved venv from the builder
+COPY --from=builder /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# certifi-Bundle für Neo4j Aura (otherwise SSLCertVerificationError on Linux too)
+ENV SSL_CERT_FILE=/app/.venv/lib/python3.12/site-packages/certifi/cacert.pem
+
+# App code (copied last so deps cache survives source changes)
+COPY server/src ./src
+COPY server/migrations ./migrations
+COPY server/pyproject.toml ./
+
+ENV PYTHONPATH=/app/src
+
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -f http://localhost:8000/api/health || exit 1
+
+CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]
