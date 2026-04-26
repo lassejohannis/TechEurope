@@ -41,6 +41,7 @@ or facts. Validation happens during inference (Phase G) before approval.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Iterable
 
 from server.ontology.jsonata_eval import jeval, jstr
@@ -62,6 +63,109 @@ FORBIDDEN_ENTITY_TYPES = frozenset({
     "any", "null", "none", "object", "array", "list", "dict",
     "value",
 })
+
+
+# Common nouns that NER (Pioneer/GLiNER2) routinely mis-labels as proper-noun
+# entities. These are not real people/orgs — they're substrings of the
+# extraction text that happened to be capitalized or pattern-matched.
+# NOTE: We deliberately DON'T include "invoice" — there is a legit document
+# entity named "Invoice" in some CRM datasets.
+_BAD_NAME_LITERALS: frozenset[str] = frozenset({
+    "policy", "document", "email", "communication", "complaint", "complainant",
+    "violation", "violations", "subject", "report", "guideline", "guidelines",
+    "compliance", "employees", "managers", "engineers", "developers", "members",
+    "team", "department", "company", "organization", "person", "user",
+    "data", "information", "records", "record",
+})
+
+# Plural-person suffixes Pioneer often labels as `person`.
+_PLURAL_PERSON_SUFFIXES: tuple[str, ...] = (
+    "employees", "engineers", "managers", "developers", "members",
+    "users", "operators", "officers", "stakeholders", "team",
+)
+
+# Real HTML entities either terminate with `;` (e.g. `&amp;`, `&nbsp;`) or
+# are unterminated remnants from sloppy PDF extraction (e.g. "Legal &amp",
+# trailing). We deliberately do NOT match `&I` in "D&I Training".
+_HTML_ENTITY_RE = re.compile(
+    r"&(?:amp|nbsp|lt|gt|quot|apos|#\d+);?(?:\s|$)", re.IGNORECASE
+)
+
+
+# Common nouns / domain words. A multi-word `person` whose every word is in
+# this set (e.g. "Information Security Policy", "Hardware Assets") is almost
+# certainly a Pioneer mislabel — real person names contain proper nouns.
+_COMMON_NOUNS_FOR_PERSON_CHECK: frozenset[str] = frozenset({
+    # generic
+    "information", "data", "system", "systems", "service", "services",
+    "process", "processes", "report", "reports", "record", "records",
+    "asset", "assets", "resource", "resources", "tool", "tools",
+    "user", "users", "team", "teams", "group", "groups",
+    # security / compliance
+    "security", "policy", "policies", "compliance", "audit", "audits",
+    "risk", "risks", "control", "controls", "violation", "violations",
+    "incident", "incidents", "threat", "threats", "vulnerability",
+    # tech
+    "hardware", "software", "network", "device", "devices", "server",
+    "database", "application", "platform", "infrastructure",
+    "code", "configuration", "technology", "technologies",
+    # business
+    "company", "department", "division", "office", "branch",
+    "project", "program", "initiative", "campaign", "operation",
+    # common modifiers
+    "new", "old", "primary", "secondary", "general", "specific",
+    "internal", "external", "global", "local", "annual", "quarterly",
+})
+
+
+def _is_pseudo_entity(entity_type: str, name: str) -> bool:
+    """True if (type, name) is almost certainly a NER false positive.
+
+    Conservative — only blocks shapes we've actually seen polluting the DB:
+    - too short / too long (per-type limits)
+    - known common-noun literals
+    - HTML-entity remnants from PDF extraction
+    - plural-person suffixes mis-labeled as person
+    - synthetic HR-code shapes (`emp_NNNN`)
+    - person-typed names not starting with a letter
+    """
+    n = (name or "").strip()
+    if not n:
+        return True
+
+    # Per-type length limits. Communication/document/product names can be
+    # long; org names can be short ("HR"); only person is strict.
+    min_len, max_len = 2, 80
+    if entity_type == "person":
+        min_len, max_len = 3, 80
+    elif entity_type in ("communication", "document", "product"):
+        min_len, max_len = 2, 250
+
+    if len(n) < min_len or len(n) > max_len:
+        return True
+
+    low = n.lower()
+    if low in _BAD_NAME_LITERALS:
+        return True
+    if _HTML_ENTITY_RE.search(n):
+        return True
+    if entity_type == "person":
+        if low.endswith(_PLURAL_PERSON_SUFFIXES):
+            return True
+        # `emp_NNNN`-style HR codes — synthetic IDs that never got resolved
+        # to a real name. Filter these out so they don't pollute the graph.
+        if re.fullmatch(r"emp[_-]?\d{2,}", low):
+            return True
+        # Names starting with a digit or non-letter — not a real person name.
+        if not n[0].isalpha():
+            return True
+        # Multi-word names where every word is a generic noun (e.g.
+        # "Information Security Policy", "Hardware Assets"). Real person
+        # names contain at least one proper-noun-like token.
+        words = re.findall(r"[A-Za-z]+", low)
+        if len(words) >= 2 and all(w in _COMMON_NOUNS_FOR_PERSON_CHECK for w in words):
+            return True
+    return False
 
 
 def _compact_canonical_name(name: str, entity_type: str) -> str:
@@ -301,7 +405,21 @@ def resolve_with_engine(
             paths.append(f"$.{key}")
     if llm_extract and paths:
         try:
-            new_facts = _llm_free_text_facts(source_record, paths, cfg)
+            raw_facts = _llm_free_text_facts(source_record, paths, cfg)
+            # Drop facts whose subject is a pseudo-entity outright. If only the
+            # object is pseudo, downgrade to a literal-only fact when possible
+            # so the predicate is still captured without polluting the graph.
+            new_facts: list[PendingFact] = []
+            for f in raw_facts:
+                if _is_pseudo_entity(f.subject_key[0], f.subject_key[1]):
+                    continue
+                if f.object_key and _is_pseudo_entity(f.object_key[0], f.object_key[1]):
+                    if f.object_literal is None:
+                        # No literal fallback available → drop the fact.
+                        continue
+                    f.object_key = None
+                new_facts.append(f)
+
             # Materialize subject/object entities Pioneer/Gemini emitted so the
             # downstream `_persist_fact` lookup in name_to_id finds them.
             seen_keys = {(e.entity_type, e.canonical_name) for e in entities}
@@ -312,6 +430,8 @@ def resolve_with_engine(
                     if key in seen_keys:
                         continue
                     if key[0] in FORBIDDEN_ENTITY_TYPES:
+                        continue
+                    if _is_pseudo_entity(key[0], key[1]):
                         continue
                     entities.append(
                         CandidateEntity(

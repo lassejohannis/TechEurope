@@ -151,6 +151,7 @@ def _fetch_communications(db: Any, account_id: str, limit: int = 20) -> list[dic
     if not comm_ids:
         return []
 
+    # 3) load communication entities
     rows = (
         db.table("entities")
         .select("id, attrs, canonical_name")
@@ -161,6 +162,7 @@ def _fetch_communications(db: Any, account_id: str, limit: int = 20) -> list[dic
     )
     comms = rows.data or []
 
+    # 4) fetch all sentiment facts in one bulk query
     sent_res = (
         db.table("facts")
         .select("subject_id, object_literal")

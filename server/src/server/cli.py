@@ -23,8 +23,12 @@ from server.connectors import (  # side-effect import populates registry
     CONNECTOR_REGISTRY,
     get_connector,
 )
-from server.db import get_supabase
+from server.db import get_supabase, get_gemini
 from server.vfs_paths import segment_from_type, slugify_name
+from pydantic import BaseModel, Field
+import json as _json
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 cli = typer.Typer(add_completion=False, no_args_is_help=False)
@@ -1068,6 +1072,277 @@ def cmd_link_reports_to(
                 typer.echo(f"  error {manager_id} → {employee_id}: {exc}")
 
     typer.echo(f"linked: {linked}  already_exists: {already_exists}  skipped: {skipped}")
+
+
+# ---------------------------------------------------------------------------
+# Sentiment extraction — derive facts for communications
+# ---------------------------------------------------------------------------
+
+
+class _SentimentResult(BaseModel):
+    label: str = Field(pattern=r"^(positive|neutral|negative)$")
+    score: float
+    confidence: float
+
+
+_SENTIMENT_PROMPT = (
+    "Analyze the sentiment of this business communication.\n"
+    "Return only valid JSON with three fields:\n"
+    "- label: one of 'positive', 'neutral', 'negative'\n"
+    "- score: float between -1.0 (most negative) and 1.0 (most positive)\n"
+    "- confidence: float between 0.0 and 1.0\n\n"
+    "Text:\n{body}"
+)
+
+
+def _pick_body(attrs: dict) -> str:
+    for key in ("body", "transcript", "text", "content", "summary", "description"):
+        v = (attrs or {}).get(key)
+        if isinstance(v, str) and len(v.strip()) >= 50:
+            return v
+    return ""
+
+
+def _gemini_sentiment(text: str, *, model: str = "gemini-2.0-flash") -> _SentimentResult | None:
+    from google.genai import types as genai_types
+
+    if not text.strip():
+        return None
+    client = get_gemini()
+    schema = _SentimentResult.model_json_schema()
+    resp = client.models.generate_content(
+        model=model,
+        contents=[_SENTIMENT_PROMPT.format(body=text[:8000])],
+        config=genai_types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=schema,
+            temperature=0.1,
+        ),
+    )
+    if not getattr(resp, "text", "").strip():
+        return None
+    try:
+        return _SentimentResult.model_validate_json(resp.text)
+    except Exception:
+        try:
+            data = _json.loads(resp.text)
+            return _SentimentResult(**data)
+        except Exception:
+            return None
+
+
+def _now_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(tz=timezone.utc).isoformat()
+
+
+@cli.command("sentiment")
+def cmd_sentiment(
+    company: str = typer.Option("inazuma", help="Company name filter (ilike)"),
+    limit: int = typer.Option(200, help="Max communications to process", min=1, max=2000),
+    concurrency: int = typer.Option(10, help="Parallel Gemini calls", min=1, max=20),
+    dry_run: bool = typer.Option(False, help="Extract but don't write facts"),
+):
+    """Extract sentiment for Communications linked to a company's people, write 'sentiment' facts."""
+    supabase = get_supabase()
+
+    # 1) Resolve organization
+    org = (
+        supabase.table("entities")
+        .select("id, canonical_name")
+        .eq("entity_type", "organization")
+        .ilike("canonical_name", f"%{company}%")
+        .limit(1)
+        .execute()
+    )
+    if not org.data:
+        typer.echo(f"No organization found ilike '%{company}%' — aborting")
+        raise typer.Exit(code=1)
+    org_id = str(org.data[0]["id"])  # type: ignore[index]
+    org_name = org.data[0]["canonical_name"]
+
+    # 2) Persons working at org
+    works = (
+        supabase.table("facts")
+        .select("subject_id")
+        .eq("predicate", "works_at")
+        .eq("object_id", org_id)
+        .is_("valid_to", "null")
+        .execute()
+    )
+    person_ids = sorted({str(r["subject_id"]) for r in (works.data or []) if r.get("subject_id")})
+    if not person_ids:
+        typer.echo(f"No persons linked to organization {org_name} — nothing to do")
+        raise typer.Exit(code=0)
+
+    # 3) Communications where those persons participated
+    parts = (
+        supabase.table("facts")
+        .select("object_id")
+        .eq("predicate", "participant_in")
+        .is_("valid_to", "null")
+        .in_("subject_id", person_ids[:1000])
+        .limit(limit * 3)
+        .execute()
+    )
+    comm_ids: list[str] = []
+    for r in (parts.data or []):
+        oid = r.get("object_id")
+        if oid:
+            comm_ids.append(str(oid))
+    comm_ids = sorted(set(comm_ids))[:limit]
+    if not comm_ids:
+        typer.echo("No communications found via participant_in — nothing to do")
+        raise typer.Exit(code=0)
+
+    # 4) Load communications
+    rows = (
+        supabase.table("entities")
+        .select("id, attrs, canonical_name")
+        .eq("entity_type", "communication")
+        .in_("id", comm_ids)
+        .execute()
+    )
+    comms = [r for r in (rows.data or []) if r.get("attrs")]
+
+    def _extract_one(row: dict) -> tuple[str, _SentimentResult | None]:
+        cid = str(row.get("id"))
+        body = _pick_body(row.get("attrs") or {})
+        if not body:
+            return cid, None
+        return cid, _gemini_sentiment(body)
+
+    typer.echo(f"Processing {len(comms)} communications for org='{org_name}' with concurrency={concurrency}")
+    t0 = time.time()
+    results: dict[str, _SentimentResult] = {}
+
+    with ThreadPoolExecutor(max_workers=concurrency) as ex:
+        futs = [ex.submit(_extract_one, r) for r in comms]
+        for fut in as_completed(futs):
+            cid, res = fut.result()
+            if res:
+                results[cid] = res
+
+    typer.echo(f"Gemini completed: {len(results)}/{len(comms)} in {time.time()-t0:.1f}s")
+
+    if dry_run or not results:
+        typer.echo("Dry-run or no results — skipping writes")
+        raise typer.Exit(code=0)
+
+    # 5) Write facts (+ source_records) sequentially
+    now = _now_iso()
+    wrote = 0
+    for cid, s in results.items():
+        sr_id = str(uuid.uuid4())
+        supabase.table("source_records").insert({
+            "id": sr_id,
+            "source_type": "gemini_sentiment_extraction",
+            "source_id": f"sentiment:{cid}",
+            "event_type": "fact_proposal",
+            "raw_content": _json.dumps(s.model_dump()),
+            "timestamp": now,
+            "metadata": {
+                "system": "gemini_sentiment_extraction",
+                "method": "llm_inference",
+                "extracted_at": now,
+                "confidence": s.confidence,
+            },
+        }).execute()
+
+        fact_id = str(uuid.uuid4())
+        try:
+            supabase.table("facts").insert({
+                "id": fact_id,
+                "subject_id": cid,
+                "predicate": "sentiment",
+                "object_literal": s.model_dump(),
+                "confidence": max(min(float(s.confidence), 1.0), 0.0),
+                "source_id": sr_id,
+                "derivation": "llm_inference",
+                "valid_from": now,
+                "status": "live",
+            }).execute()
+            wrote += 1
+        except Exception as exc:
+            if "no_temporal_overlap" in str(exc) or "23P01" in str(exc):
+                # A live sentiment fact exists already — skip gracefully
+                continue
+            raise
+
+    typer.echo(f"Wrote {wrote} sentiment facts")
+
+    # 6) Validation preview — show 5 examples
+    preview = comm_ids[:5]
+    rows = (
+        supabase.table("facts")
+        .select("subject_id, object_literal")
+        .eq("predicate", "sentiment")
+        .is_("valid_to", "null")
+        .in_("subject_id", preview)
+        .execute()
+    )
+    for r in (rows.data or [])[:5]:
+        typer.echo(f"{r['subject_id']}: {r.get('object_literal')}")
+
+
+@cli.command("cleanup-pseudo-entities")
+def cmd_cleanup_pseudos(
+    dry_run: bool = typer.Option(True, help="Preview only — pass --no-dry-run to actually delete"),
+    limit_show: int = typer.Option(40, help="How many candidate names to print"),
+) -> None:
+    """Soft-delete entities whose canonical_name matches NER-pseudo heuristics.
+
+    Uses `engine._is_pseudo_entity` — same filter that prevents new pseudos.
+    Cascades: facts where these entities appear as subject_id or object_id are
+    flipped to status='invalidated' so they don't poison live trust scores.
+    """
+    from datetime import datetime, timezone
+    from server.ontology.engine import _is_pseudo_entity
+
+    db = get_supabase()
+    res = (
+        db.table("entities")
+        .select("id, entity_type, canonical_name")
+        .is_("deleted_at", None)
+        .execute()
+    )
+    rows = res.data or []
+    victims = [r for r in rows if _is_pseudo_entity(r["entity_type"], r["canonical_name"])]
+
+    typer.echo(f"scanned {len(rows)} live entities")
+    typer.echo(f"would soft-delete {len(victims)} pseudo-entities:")
+    for v in victims[:limit_show]:
+        typer.echo(f"  [{v['entity_type']:12s}] {v['canonical_name']}")
+    if len(victims) > limit_show:
+        typer.echo(f"  … and {len(victims) - limit_show} more")
+    if dry_run:
+        typer.echo("(dry-run — re-run with --no-dry-run to apply)")
+        return
+
+    if not victims:
+        return
+
+    ids = [v["id"] for v in victims]
+    now_iso = datetime.now(tz=timezone.utc).isoformat()
+
+    # 1) Hard-delete facts touching these entities (subject or object). The
+    # `fact_status` enum has no "invalidated" value, and these facts are NER
+    # junk — keeping them as superseded/draft would just confuse the trust
+    # math. Safer to drop them outright.
+    fact_deleted = 0
+    for i in range(0, len(ids), 100):
+        batch = ids[i : i + 100]
+        s = db.table("facts").delete().in_("subject_id", batch).execute()
+        o = db.table("facts").delete().in_("object_id", batch).execute()
+        fact_deleted += len(s.data or []) + len(o.data or [])
+
+    # 2) Soft-delete the entities themselves (recoverable via deleted_at).
+    for i in range(0, len(ids), 100):
+        batch = ids[i : i + 100]
+        db.table("entities").update({"deleted_at": now_iso}).in_("id", batch).execute()
+
+    typer.echo(f"soft-deleted entities: {len(ids)}")
+    typer.echo(f"deleted orphan facts: {fact_deleted}")
 
 
 def main() -> None:

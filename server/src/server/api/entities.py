@@ -326,7 +326,7 @@ def get_entity_provenance(
     if source_ids:
         src_res = (
             db.table("source_records")
-            .select("id, source_type, event_type, timestamp, metadata")
+            .select("id, source_type, source_uri, source_native_id, ingested_at, extraction_status")
             .in_("id", source_ids)
             .execute()
         )
@@ -339,9 +339,14 @@ def get_entity_provenance(
     sources = [{
         "source_id": str(s.get("id")),
         "source_type": s.get("source_type"),
-        "event_type": s.get("event_type"),
-        "timestamp": s.get("timestamp"),
-        "metadata": s.get("metadata") or {},
+        # `event_type` was the old column name; map to extraction_status so the
+        # response shape stays stable for the frontend.
+        "event_type": s.get("extraction_status"),
+        "timestamp": s.get("ingested_at"),
+        "metadata": {
+            "source_uri": s.get("source_uri"),
+            "source_native_id": s.get("source_native_id"),
+        },
         "fact_count": fact_count_by_source.get(str(s.get("id")), 0),
     } for s in src_rows]
     sources.sort(key=lambda s: str(s.get("timestamp") or ""), reverse=True)

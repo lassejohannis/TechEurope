@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EntityTypeBadge } from '@/components/entity/EntityTypeBadge'
+import { SentimentBadge } from '@/components/entity/SentimentBadge'
 import { FactRow } from '@/components/entity/FactRow'
 import { useEntity } from '@/hooks/useEntity'
 
@@ -100,6 +101,19 @@ export default function EntityDetail({ entityId }: Props) {
       ? (subjectFromAttrs ?? subjectFromFacts ?? data.canonical_name)
       : data.canonical_name
   const visibleAliases = data.aliases.filter((alias) => alias && alias !== displayName)
+  const sentimentFact = liveFacts.find((f) => f.predicate === 'sentiment')
+  const sentimentLabel: string | undefined = ((): string | undefined => {
+    const lit = (sentimentFact as any)?.object_literal
+    if (!lit) return undefined
+    if (typeof lit === 'string') return lit
+    if (typeof lit === 'object') return String(lit.label ?? lit.value ?? '').trim() || undefined
+    return undefined
+  })()
+  const sentimentConfidence: number | undefined = ((): number | undefined => {
+    const lit = (sentimentFact as any)?.object_literal
+    const c = typeof lit === 'object' ? (lit?.confidence as unknown) : undefined
+    return typeof c === 'number' ? c : undefined
+  })()
 
   return (
     <div className="flex flex-col gap-4 p-4">
@@ -108,7 +122,12 @@ export default function EntityDetail({ entityId }: Props) {
           <div className="flex items-start justify-between gap-2">
             <div className="flex flex-col gap-1.5">
               <EntityTypeBadge type={data.entity_type} />
-              <h2 className="text-lg font-semibold leading-tight">{displayName}</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg font-semibold leading-tight">{displayName}</h2>
+                {data.entity_type === 'communication' && (
+                  <SentimentBadge label={sentimentLabel} confidence={sentimentConfidence} />
+                )}
+              </div>
               {visibleAliases.length > 0 && (
                 <p className="text-xs text-muted-foreground">
                   Also known as: {visibleAliases.join(', ')}
