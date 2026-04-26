@@ -583,7 +583,7 @@ input, textarea { outline: none; }
 .hf-expand-btn:hover { color: var(--text-primary); }
 
 /* ── Tasks Page ──────────────────────────────────────────────────────────── */
-.tasks-page { max-width: 640px; margin: 0 auto; padding: 28px 24px 80px; }
+.tasks-page { max-width: 640px; margin: 0 auto; padding: 28px 24px 80px; overflow-y: auto; }
 .tasks-header { margin-bottom: 20px; }
 .tasks-title { font-size: 22px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.4px; }
 .tasks-date { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
@@ -643,7 +643,7 @@ input, textarea { outline: none; }
 }
 
 /* ── Accounts Page ───────────────────────────────────────────────────────── */
-.accounts-page { max-width: 860px; margin: 0 auto; padding: 28px 24px 80px; }
+.accounts-page { max-width: 860px; margin: 0 auto; padding: 28px 24px 80px; overflow-y: auto; }
 .accounts-header { margin-bottom: 20px; }
 .accounts-title { font-size: 22px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.4px; }
 
