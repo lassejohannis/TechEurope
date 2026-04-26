@@ -18,9 +18,11 @@ class InvoicePDFConnector(BaseConnector):
     source_type = "invoice_pdf"
 
     def discover(self, path: Path) -> Iterator[dict]:
-        # path is a directory containing invoice_*.pdf
+        # path is a directory tree — recursive search lets us find
+        # `Customer_Relation_Management/Customer_orders/invoice_*.pdf`
+        # under the EnterpriseBench root.
         p = Path(path)
-        for pdf in p.glob("invoice_*.pdf"):
+        for pdf in p.rglob("invoice_*.pdf"):
             stem = pdf.stem  # invoice_<customer_id>_<...>
             parts = stem.split("_")
             customer_id = parts[1] if len(parts) > 1 else None
