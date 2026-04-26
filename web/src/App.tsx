@@ -4,6 +4,7 @@ import BrowsePage from '@/pages/browse/BrowsePage'
 import SearchPage from '@/pages/search/SearchPage'
 import ReviewPage from '@/pages/review/ReviewPage'
 import WorkflowPage from '@/pages/workflow/WorkflowPage'
+import ConnectPage from '@/pages/connect/ConnectPage'
 
 const router = createBrowserRouter([
   {
@@ -17,6 +18,7 @@ const router = createBrowserRouter([
       { path: 'review', element: <ReviewPage /> },
       { path: 'review/:conflictId', element: <ReviewPage /> },
       { path: 'workflow', element: <WorkflowPage /> },
+      { path: 'connect', element: <ConnectPage /> },
     ],
   },
 ])
