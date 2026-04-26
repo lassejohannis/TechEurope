@@ -1,0 +1,5 @@
+Es muss ganz oben noch sein: live demo unter chickentendr.club
+
+---
+
+unter partners ist noch die presentation, mache sie in den obersten ordner und verlinke die noch im readme

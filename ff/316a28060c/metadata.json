@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "ff316a28060c",
+  "strategy": "manual-commit",
+  "branch": "Lasse",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "Qontext-BER-Hack-Pitch.pdf",
+    "README.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ff/316a28060c/0/metadata.json",
+      "transcript": "/ff/316a28060c/0/full.jsonl",
+      "content_hash": "/ff/316a28060c/0/content_hash.txt",
+      "prompt": "/ff/316a28060c/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 26,
+    "cache_creation_tokens": 8036,
+    "cache_read_tokens": 847323,
+    "output_tokens": 3256,
+    "api_call_count": 11
+  }
+}
