@@ -468,3 +468,48 @@ async def projection_health(
     if proj is None:
         return {"status": "down", "reason": "neo4j not configured"}
     return await proj.healthcheck()
+
+
+# ----------------------------------------------------------------------
+# Agent token issuance — wraps the CLI helper so the Connect page can
+# generate tokens via HTTP. The plain-text secret is returned ONCE.
+# ----------------------------------------------------------------------
+
+
+_ALLOWED_SCOPES = {"read", "write", "admin"}
+
+
+class IssueTokenRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    scopes: list[str] = Field(default_factory=lambda: ["read"])
+
+
+class IssuedTokenResponse(BaseModel):
+    token: str
+    token_id: str
+    name: str
+    scopes: list[str]
+
+
+@router.post("/tokens", response_model=IssuedTokenResponse, status_code=201)
+def create_token(req: IssueTokenRequest):
+    """Mint a new agent token. Returns the plain-text secret one time only.
+
+    Open in demo mode (`API_AUTH_DISABLED=true`) so the Connect onboarding
+    flow can mint a starter token without a chicken-and-egg auth loop.
+    """
+    invalid = set(req.scopes) - _ALLOWED_SCOPES
+    if invalid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown scopes: {sorted(invalid)}. Allowed: {sorted(_ALLOWED_SCOPES)}",
+        )
+    from server.auth.tokens import issue_token
+
+    token_id, full_token = issue_token(req.name, req.scopes)
+    return IssuedTokenResponse(
+        token=full_token,
+        token_id=token_id,
+        name=req.name,
+        scopes=req.scopes,
+    )

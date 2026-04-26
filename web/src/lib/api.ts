@@ -338,3 +338,19 @@ export function notifySourceChange(sourceRecordId: string): Promise<{ marked_sta
     body: JSON.stringify({ source_record_id: sourceRecordId }),
   })
 }
+
+// ── Connect: agent token issuance ────────────────────────────────────────────
+
+export type IssuedToken = {
+  token: string
+  token_id: string
+  name: string
+  scopes: string[]
+}
+
+export function issueAgentToken(name: string, scopes: string[]): Promise<IssuedToken> {
+  return apiFetch<IssuedToken>('/api/admin/tokens', {
+    method: 'POST',
+    body: JSON.stringify({ name, scopes }),
+  })
+}

@@ -8,12 +8,14 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   EllipsisVertical,
+  Plug,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
   { to: '/review', label: 'Overview', Icon: House },
   { to: '/browse', label: 'Context vaults', Icon: Folder },
   { to: '/workflow', label: 'Data sources', Icon: Orbit },
+  { to: '/connect', label: 'Connect', Icon: Plug },
 ] as const
 
 export default function AppShell() {
