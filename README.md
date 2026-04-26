@@ -1,14 +1,21 @@
 <div align="center">
 
-# Qontext — the structured company memory for AI agents
+<img src="web/public/logo-mark.svg" width="80" alt="The Layer" />
+
+# The Layer
+### the structured company memory for AI agents
 
 **Big Hack Berlin 2026 · Tech Europe Hack · Qontext Track**
 
+🌐 **Live demo:** [chickentendr.club](https://chickentendr.club) (production deploy on Vultr)
+
 A two-layer platform that turns fragmented enterprise data (email, CRM, HR, policy PDFs, chat, tickets) into a structured, bi-temporal, provenance-first **context base** that AI agents can query — without runtime reconstruction, without hallucinated joins, without losing the audit trail.
 
-[Demo video (Loom)](https://www.loom.com/share/86df369f9a74441ca0441c108bac57eb) · [Architecture](#architecture) · [Why this design](#why) · [Quickstart](#quickstart) · **[Partner deep-dives →](./partners/)**
+[Demo video (Loom)](https://www.loom.com/share/86df369f9a74441ca0441c108bac57eb) · [Architecture](#architecture) · [Why this design](#why) · [Quickstart](#quickstart) · [Deploy](./deploy/) · **[Partner deep-dives →](./partners/)**
 
 </div>
+
+> **Note on dataset scope:** for the live demo and the numbers below we deliberately ran the pipeline against a **subset** of the full EnterpriseBench dataset (≈100 records per source-type via `--limit 10` per resolve pass) rather than all 31,713 source records. The pipeline is built to handle the full set — every connector is idempotent and re-ingest is safe — but a 48h sprint timebox favoured "all source-types end-to-end on a small slice" over "one source-type fully resolved". The architecture, cascade, and ontology paths are identical at full scale; only the resolved-entity counts change.
 
 ---
 
@@ -512,6 +519,18 @@ uv run server cleanup-pseudo-entities --no-dry-run
 ```
 
 Open http://localhost:5173/connect → generate a token → paste the snippet into Claude Desktop → ask "what do we know about Inazuma?".
+
+### Production deploy (Vultr / any Docker host)
+
+```bash
+cp deploy/env.production.example .env
+# edit .env with real keys
+docker compose up -d --build
+```
+
+Three containers: Caddy (auto-TLS) → React static + FastAPI server. Postgres + Neo4j stay on Supabase / Aura. Full deploy guide in [`deploy/README.md`](./deploy/README.md).
+
+The live demo at `chickentendr.club` runs this exact compose stack on a $12/mo Vultr instance.
 
 ---
 
