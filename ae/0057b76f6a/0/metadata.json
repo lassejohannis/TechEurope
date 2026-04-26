@@ -1,0 +1,52 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "ae0057b76f6a",
+  "session_id": "60294954-bc73-44f3-a951-6633f66d8e32",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-26T03:56:11.325774Z",
+  "branch": "Lasse",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "server/src/server/ontology/propose.py"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "20db257c6f80",
+  "token_usage": {
+    "input_tokens": 2326,
+    "cache_creation_tokens": 4615079,
+    "cache_read_tokens": 744716745,
+    "output_tokens": 958084,
+    "api_call_count": 1594
+  },
+  "session_metrics": {
+    "turn_count": 102
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-26T03:56:11.064743Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 27,
+    "human_modified": 1,
+    "human_removed": 0,
+    "total_committed": 27,
+    "total_lines_changed": 29,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 1,
+      "user_lines_removed": 1,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/scheduled_tasks.lock": 1
+      },
+      "user_removed_per_file": {
+        ".claude/scheduled_tasks.lock": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "ae0057b76f6a",
+  "strategy": "manual-commit",
+  "branch": "Lasse",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "server/src/server/ontology/propose.py"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ae/0057b76f6a/0/metadata.json",
+      "transcript": "/ae/0057b76f6a/0/full.jsonl",
+      "content_hash": "/ae/0057b76f6a/0/content_hash.txt",
+      "prompt": "/ae/0057b76f6a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 2326,
+    "cache_creation_tokens": 4615079,
+    "cache_read_tokens": 744716745,
+    "output_tokens": 958084,
+    "api_call_count": 1594
+  }
+}
