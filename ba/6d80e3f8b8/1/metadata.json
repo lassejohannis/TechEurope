@@ -1,0 +1,181 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "ba6d80e3f8b8",
+  "session_id": "019dc82e-3003-73c3-941c-2314b7a8ca5d",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-26T06:42:59.724255Z",
+  "branch": "Paul",
+  "checkpoints_count": 15,
+  "files_touched": [
+    "server/src/server/api/admin.py",
+    "server/src/server/api/entities.py",
+    "server/src/server/api/facts.py",
+    "server/src/server/api/resolutions.py",
+    "server/src/server/api/search.py",
+    "web/src/components/layout/AppShell.tsx",
+    "web/src/components/layout/ThreeColumnLayout.tsx",
+    "web/src/hooks/useConflicts.ts",
+    "web/src/lib/api.ts",
+    "web/src/pages/browse/ActionPanel.tsx",
+    "web/src/pages/browse/BrowsePage.tsx",
+    "web/src/pages/browse/VfsTree.tsx",
+    "web/src/pages/review/ConflictDetail.tsx",
+    "web/src/pages/review/ConflictInbox.tsx",
+    "web/src/pages/review/DecisionPanel.tsx",
+    "web/src/pages/review/ReviewPage.tsx",
+    "web/src/pages/search/SearchPage.tsx",
+    "web/src/pages/workflow/WorkflowPage.tsx",
+    "web/src/types/index.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.3-codex",
+  "turn_id": "a5fff6914eff",
+  "token_usage": {
+    "input_tokens": 691165,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 8696192,
+    "output_tokens": 44789,
+    "api_call_count": 98
+  },
+  "session_metrics": {
+    "turn_count": 15
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-26T06:42:59.681709Z",
+    "agent_lines": 1977,
+    "agent_removed": 232,
+    "human_added": 911,
+    "human_modified": 58,
+    "human_removed": 0,
+    "total_committed": 2946,
+    "total_lines_changed": 3350,
+    "agent_percentage": 65.94029850746269,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 60,
+      "user_lines_removed": 31,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "server/src/server/api/facts.py": 29,
+        "web/src/lib/api.ts": 8,
+        "web/src/pages/browse/BrowsePage.tsx": 8,
+        "web/src/pages/browse/VfsTree.tsx": 15
+      },
+      "user_removed_per_file": {
+        "web/src/pages/browse/BrowsePage.tsx": 28,
+        "web/src/pages/browse/VfsTree.tsx": 3
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 449,
+      "agent_lines_removed": 62
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 550,
+      "agent_lines_removed": 61
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 612,
+      "agent_lines_removed": 61
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 632,
+      "agent_lines_removed": 73
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 643,
+      "agent_lines_removed": 73
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 729,
+      "agent_lines_removed": 73
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 729,
+      "agent_lines_removed": 97
+    },
+    {
+      "checkpoint_number": 9,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 848,
+      "agent_lines_removed": 97
+    },
+    {
+      "checkpoint_number": 10,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 850,
+      "agent_lines_removed": 99
+    },
+    {
+      "checkpoint_number": 11,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 899,
+      "agent_lines_removed": 99
+    },
+    {
+      "checkpoint_number": 12,
+      "user_lines_added": 139,
+      "user_lines_removed": 27,
+      "agent_lines_added": 1218,
+      "agent_lines_removed": 232,
+      "user_added_per_file": {
+        "web/src/pages/workflow/WorkflowPage.tsx": 139
+      },
+      "user_removed_per_file": {
+        "web/src/pages/workflow/WorkflowPage.tsx": 27
+      }
+    },
+    {
+      "checkpoint_number": 13,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1348,
+      "agent_lines_removed": 264
+    },
+    {
+      "checkpoint_number": 14,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1348,
+      "agent_lines_removed": 264
+    },
+    {
+      "checkpoint_number": 15,
+      "user_lines_added": 128,
+      "user_lines_removed": 0,
+      "agent_lines_added": 2063,
+      "agent_lines_removed": 290,
+      "user_added_per_file": {
+        "web/src/pages/browse/ActionPanel.tsx": 128
+      }
+    }
+  ]
+}
