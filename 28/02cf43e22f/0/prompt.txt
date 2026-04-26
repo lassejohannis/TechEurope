@@ -1,0 +1,13 @@
+kannst du für mich lokal remotion hinzufügen ins projekt und in gitignore dann packen, wir machen in einem neuen ordner dann ein Projket auf um ein demo video zu kreiren.
+
+---
+
+Kannst du erstmal ein logo erstellen für uns: Wir wollen uns The Layer nennen und brauchen dazu auch noch ein Symbol. Einfach ein schwarzes Logo
+
+---
+
+Kannst du schonmal anfangen, die UI eins zu eins für das Video zu kopieren bloß ohne Logik und besser animiert?
+
+---
+
+Mache weiter

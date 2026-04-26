@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "2802cf43e22f",
+  "strategy": "manual-commit",
+  "branch": "Lasse",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "web/index.html",
+    "web/public/favicon.svg",
+    "web/public/logo-mark.svg",
+    "web/public/logo.svg",
+    "web/src/components/layout/AppShell.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/28/02cf43e22f/0/metadata.json",
+      "transcript": "/28/02cf43e22f/0/full.jsonl",
+      "content_hash": "/28/02cf43e22f/0/content_hash.txt",
+      "prompt": "/28/02cf43e22f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 98,
+    "cache_creation_tokens": 145579,
+    "cache_read_tokens": 3850564,
+    "output_tokens": 43509,
+    "api_call_count": 69
+  }
+}
