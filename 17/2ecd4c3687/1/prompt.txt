@@ -1,0 +1,58 @@
+Gebe mir eine Person die über 40 connections hat
+
+Antwort: Ich habe deine Anfrage kaskadierend über den Graph-RAG ausgewertet.
+
+Top Treffer:
+• Kunal Verma · person · 0 Tickets · /persons/kunal-verma
+• Abhishek Gupta · person · 0 Tickets · abhishek.gupta@inazuma.com EN12 emp_0703 /persons/abhishek-gupta Engineering
+• Patrick O'Connor · person · 0 Tickets · patrick.o'connor@inazuma.com EN09 emp_0225 /persons/patrick-o-connor Engineering
+• Junior Software Engineer at Inazuma.co, beginning his career in software development. Experienced in foundational software engineering practices, Agile methodologies, and leveraging data-driven insights for product development. Enthusiastic about digital innovation and personalized consumer experiences, eager to collaborate with cross-functional teams. · document · 0 Tickets · /documents/junior-software-engineer-at-inazuma-co-beginning-his-career-in-software-develop
+• Junior Software Engineer at Inazuma.co, recently started his career in Software Engineering. Foundational experience in coding, software development, and problem-solving. Eager to learn, collaborate, and contribute to creating personalized consumer experiences. · document · 0 Tickets · /documents/junior-software-engineer-at-inazuma-co-recently-started-his-career-in-software-
+• Software Engineer with 6+ years of experience in Engineering, specializing in software development for D2C platforms. Proficient in coding and system architecture design, with a proven track record in agile methodologies and leading cross-functional teams. Experienced in creating scalable and efficient software solutions that enhance consumer engagement and streamline business operations, contributing to Inazuma.co's mission of delivering personalized experiences. · document · 0 Tickets · /documents/software-engineer-with-6-years-of-experience-in-engineering-specializing-in-sof
+Kaskade
+
+1. Hybrid Search geliefert: 6 Kandidaten
+
+
+Kunal Verma
+
+person · Score 61.4 · Tickets 0
+
+
+Abhishek Gupta
+
+person · Score 43.4 · Tickets 0
+
+
+Patrick O'Connor
+
+person · Score 43.3 · Tickets 0
+
+
+Junior Software Engineer at Inazuma.co, beginning his career in software development. Experienced in foundational software engineering practices, Agile methodologies, and leveraging data-driven insights for product development. Enthusiastic about digital innovation and personalized consumer experiences, eager to collaborate with cross-functional teams.
+
+document · Score 35.0 · Tickets 0
+
+
+Junior Software Engineer at Inazuma.co, recently started his career in Software Engineering. Foundational experience in coding, software development, and problem-solving. Eager to learn, collaborate, and contribute to creating personalized consumer experiences.
+
+document · Score 35.0 · Tickets 0
+
+
+Software Engineer with 6+ years of experience in Engineering, specializing in software development for D2C platforms. Proficient in coding and system architecture design, with a proven track record in agile methodologies and leading cross-functional teams. Experienced in creating scalable and efficient software solutions that enhance consumer engagement and streamline business operations, contributing to Inazuma.co's mission of delivering personalized experiences.
+
+document · Score 35.0 · Tickets 0
+
+Stimmt das? Weil die haben ja nur ein score von über 40 und nicht connections. Was sind überhaupt score?
+
+---
+
+fixe das
+
+---
+
+Was gibt es noch alles für Edge Cases? Was muss ich noch beachten, wenn ich so einen Chat habe, gerade auch wenn es um Filtern von Sachen geht?
+
+---
+
+Teste die einfach alle mal, oder geh die alle mal durch, und dementsprechend bauen wir dann den Agent oder passen wir dann das Chatinterface daran an.

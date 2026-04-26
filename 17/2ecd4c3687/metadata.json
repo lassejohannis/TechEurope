@@ -3,7 +3,7 @@
   "checkpoint_id": "172ecd4c3687",
   "strategy": "manual-commit",
   "branch": "Paul",
-  "checkpoints_count": 8,
+  "checkpoints_count": 12,
   "files_touched": [
     "dev.sh",
     "docs/todo.md",
@@ -13,6 +13,8 @@
     "server/src/server/cli.py",
     "server/src/server/ontology/engine.py",
     "server/src/server/ontology/propose.py",
+    "web/package.json",
+    "web/scripts/search-edge-cases.ts",
     "web/src/components/conflict/ConflictCard.tsx",
     "web/src/components/entity/ConfidencePill.tsx",
     "web/src/components/entity/EntityTypeBadge.tsx",
@@ -20,6 +22,7 @@
     "web/src/components/layout/ThreeColumnLayout.tsx",
     "web/src/hooks/useConflicts.ts",
     "web/src/hooks/useEntity.ts",
+    "web/src/hooks/useFact.ts",
     "web/src/lib/api.ts",
     "web/src/pages/browse/ActionPanel.tsx",
     "web/src/pages/browse/BrowsePage.tsx",
@@ -28,6 +31,7 @@
     "web/src/pages/review/ConflictDetail.tsx",
     "web/src/pages/review/ConflictInbox.tsx",
     "web/src/pages/search/SearchPage.tsx",
+    "web/src/pages/search/searchLogic.ts",
     "web/src/pages/workflow/WorkflowPage.tsx"
   ],
   "sessions": [
@@ -36,13 +40,19 @@
       "transcript": "/17/2ecd4c3687/0/full.jsonl",
       "content_hash": "/17/2ecd4c3687/0/content_hash.txt",
       "prompt": "/17/2ecd4c3687/0/prompt.txt"
+    },
+    {
+      "metadata": "/17/2ecd4c3687/1/metadata.json",
+      "transcript": "/17/2ecd4c3687/1/full.jsonl",
+      "content_hash": "/17/2ecd4c3687/1/content_hash.txt",
+      "prompt": "/17/2ecd4c3687/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 470403,
+    "input_tokens": 565093,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 3974912,
-    "output_tokens": 20202,
-    "api_call_count": 50
+    "cache_read_tokens": 5218304,
+    "output_tokens": 36874,
+    "api_call_count": 77
   }
 }
