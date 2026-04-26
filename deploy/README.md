@@ -24,7 +24,7 @@ git clone https://github.com/lassejohannis/TechEurope.git
 cd TechEurope
 
 # 2. Create the production .env from the template
-cp deploy/.env.production.example .env
+cp deploy/env.production.example .env
 # Edit .env — fill in SUPABASE_*, GEMINI_API_KEY, PIONEER_API_KEY, NEO4J_*, WEBHOOK_SECRET_PEPPER, etc.
 # DO NOT commit this file — it's already in .gitignore via ".env"
 nano .env
