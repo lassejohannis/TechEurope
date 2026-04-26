@@ -1,0 +1,57 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "955019e3e61b",
+  "session_id": "f9c84bb7-ed12-46a3-a752-695d6f709874",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-26T10:27:35.819563Z",
+  "branch": "Lasse",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "README.md",
+    "docs/diagrams/architecture.md",
+    "docs/team-prep.md",
+    "partners/README.md",
+    "partners/aikido/README.md",
+    "partners/entire/README.md",
+    "partners/gemini/README.md",
+    "partners/pioneer/README.md",
+    "partners/tavily/README.md"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "31875b0adca4",
+  "token_usage": {
+    "input_tokens": 31,
+    "cache_creation_tokens": 101118,
+    "cache_read_tokens": 1407169,
+    "output_tokens": 14539,
+    "api_call_count": 21
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-26T10:27:35.778954Z",
+    "agent_lines": 828,
+    "agent_removed": 157,
+    "human_added": 739,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1567,
+    "total_lines_changed": 1724,
+    "agent_percentage": 57.13457076566125,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 3,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".gitignore": 3
+      }
+    }
+  ]
+}
