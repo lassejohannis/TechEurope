@@ -142,7 +142,7 @@ def _attrs_to_facts(entity_id: str, attrs: dict[str, Any]) -> list[dict[str, Any
     mapping = [
         ("annual_recurring_revenue_eur", attrs.get("arr_eur")),
         ("renewal_date",                 attrs.get("renewal_date")),
-        ("subscription_tier",            attrs.get("current_product") or attrs.get("segment")),
+        ("subscription_tier",            attrs.get("segment")),
         ("industry",                     attrs.get("industry")),
     ]
     facts = []
@@ -353,7 +353,7 @@ def daily_briefing() -> dict[str, Any]:
         else:
             revenue_str = "—"
         btype = (attrs.get("business_type") or "").lower()
-        segment = "Enterprise" if btype == "enterprise" else "SMB" if btype == "smb" else "Mid-Market"
+        segment = "Enterprise" if btype == "enterprise" else "SMB" if btype in ("smb", "sme", "startup", "non-profit") else "Mid-Market"
 
         items.append({
             "id": f"briefing:{e['id']}",
