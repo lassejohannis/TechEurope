@@ -110,13 +110,18 @@ def _enrich_entity_pairs(db, rows: list[dict]) -> list[dict]:
     }
     if not ids:
         return rows
-    e_res = (
-        db.table("entities")
-        .select("id, entity_type, canonical_name, attrs")
-        .in_("id", list(ids))
-        .execute()
-    )
-    by_id = {e["id"]: e for e in (e_res.data or [])}
+    by_id: dict[str, dict] = {}
+    id_list = list(ids)
+    for i in range(0, len(id_list), 200):
+        chunk = id_list[i:i + 200]
+        e_res = (
+            db.table("entities")
+            .select("id, entity_type, canonical_name, attrs")
+            .in_("id", chunk)
+            .execute()
+        )
+        for entity in (e_res.data or []):
+            by_id[entity["id"]] = entity
     for row in rows:
         row["entity_1"] = by_id.get(row.get("entity_id_1"))
         row["entity_2"] = by_id.get(row.get("entity_id_2"))
@@ -137,16 +142,20 @@ def _enrich_fact_conflicts(db, rows: list[dict]) -> list[dict]:
         for row in rows:
             row["facts"] = []
         return rows
-    f_res = (
-        db.table("facts")
-        .select(
-            "id, subject_id, predicate, object_id, object_literal, "
-            "confidence, source_id, valid_from, recorded_at, status"
+    facts: list[dict] = []
+    fact_id_list = list(all_fact_ids)
+    for i in range(0, len(fact_id_list), 200):
+        chunk = fact_id_list[i:i + 200]
+        f_res = (
+            db.table("facts")
+            .select(
+                "id, subject_id, predicate, object_id, object_literal, "
+                "confidence, source_id, valid_from, recorded_at, status"
+            )
+            .in_("id", chunk)
+            .execute()
         )
-        .in_("id", list(all_fact_ids))
-        .execute()
-    )
-    facts = f_res.data or []
+        facts.extend(f_res.data or [])
     src_ids = list({f["source_id"] for f in facts if f.get("source_id")})
     sr_res = (
         db.table("source_records")
@@ -178,6 +187,7 @@ def _enrich_fact_conflicts(db, rows: list[dict]) -> list[dict]:
 def list_entity_pair_resolutions(
     status: Literal["pending", "merged", "rejected"] = "pending",
     limit: int | None = Query(default=None, ge=1, le=5000),
+    offset: int = Query(default=0, ge=0),
     db = Depends(get_db),
 ):
     """Return entity-pair pending decisions (Tier-5 ambiguity inbox)."""
@@ -196,10 +206,10 @@ def list_entity_pair_resolutions(
         .order("created_at", desc=True)
     )
     if limit is not None:
-        query = query.limit(limit)
+        query = query.range(offset, offset + limit - 1)
     res = query.execute()
     rows = _enrich_entity_pairs(db, list(res.data or []))
-    return {"items": rows, "total": total}
+    return {"items": rows, "total": total, "limit": limit, "offset": offset}
 
 
 @router.post("/api/resolutions/{resolution_id}/decide")
@@ -267,6 +277,7 @@ def decide_entity_pair(
 def list_fact_resolutions(
     status: Literal["pending", "auto_resolved", "human_resolved", "rejected"] = "pending",
     limit: int | None = Query(default=None, ge=1, le=5000),
+    offset: int = Query(default=0, ge=0),
     db = Depends(get_db),
 ):
     """Return fact-conflict pending decisions."""
@@ -285,10 +296,10 @@ def list_fact_resolutions(
         .order("resolved_at", desc=True)
     )
     if limit is not None:
-        query = query.limit(limit)
+        query = query.range(offset, offset + limit - 1)
     res = query.execute()
     rows = _enrich_fact_conflicts(db, list(res.data or []))
-    return {"items": rows, "total": total}
+    return {"items": rows, "total": total, "limit": limit, "offset": offset}
 
 
 @router.post("/api/fact-resolutions/{resolution_id}/decide")

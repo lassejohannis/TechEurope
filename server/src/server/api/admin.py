@@ -145,6 +145,7 @@ def refresh_browse_tree(
         _persist_fact,
         _persist_relationship_fact,
     )
+    from server.resolver.cascade import CandidateEntity
     from server.ontology.engine import apply_mapping
     from server.ontology.propose import infer_source_mapping, persist_proposal, validate_proposal
     from server.resolver.cascade import resolve as cascade_resolve
@@ -232,6 +233,33 @@ def refresh_browse_tree(
         "record_errors": 0,
     }
 
+    def _fallback_document_candidate(rec: dict[str, Any]) -> list[CandidateEntity]:
+        payload = rec.get("payload") or {}
+        if not isinstance(payload, dict):
+            payload = {}
+        source_type = str(rec.get("source_type") or "document")
+        # Auto-create a generic document entity for previously unseen source shapes.
+        title = (
+            payload.get("title")
+            or payload.get("subject")
+            or payload.get("document_title")
+            or payload.get("filename")
+            or payload.get("file_name")
+            or payload.get("name")
+        )
+        canonical_name = str(title).strip() if title else ""
+        if not canonical_name:
+            rid = str(rec.get("id") or "")
+            canonical_name = f"{source_type.replace('_', ' ').title()} {rid[:8] or 'Document'}"
+        attrs = {
+            "document_type": source_type,
+            "source_record_id": str(rec.get("id") or ""),
+        }
+        for key in ("mime_type", "file_type", "path", "uri", "author", "created_at"):
+            if payload.get(key) is not None:
+                attrs[key] = payload.get(key)
+        return [CandidateEntity(entity_type="document", canonical_name=canonical_name, attrs=attrs, source_id=str(rec.get("id") or ""))]
+
     for rec in records:
         try:
             stats["processed_records"] += 1
@@ -241,6 +269,8 @@ def refresh_browse_tree(
                 candidates, pending_facts = apply_mapping(rec, cfg)
             else:
                 candidates, pending_facts = extract_candidates(rec, llm_extract=req.llm_extract)
+                if not candidates and not pending_facts:
+                    candidates = _fallback_document_candidate(rec)
 
             if not candidates and not pending_facts:
                 continue

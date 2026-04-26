@@ -9,7 +9,7 @@ const router = createBrowserRouter([
     path: '/',
     element: <AppShell />,
     children: [
-      { index: true, element: <Navigate to="/tasks" replace /> },
+      { index: true, element: <Navigate to="/accounts" replace /> },
       { path: 'tasks', element: <TasksPage /> },
       { path: 'accounts', element: <AccountsPage /> },
       { path: 'accounts/:accountId', element: <AccountPage /> },

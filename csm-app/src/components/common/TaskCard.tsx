@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   Mail, AlertTriangle, Check,
@@ -19,12 +18,12 @@ const SIGNAL_ICONS: Record<SignalType, React.ReactNode> = {
 
 interface TaskCardProps {
   item: BriefingItem
+  onOpenDetail: (itemId: string) => void
   onSendEmail?: () => void
   onEscalate?: () => void
 }
 
-export default function TaskCard({ item, onSendEmail, onEscalate }: TaskCardProps) {
-  const navigate = useNavigate()
+export default function TaskCard({ item, onOpenDetail, onSendEmail, onEscalate }: TaskCardProps) {
   const markHandled = useUiStore((s) => s.markHandled)
   const handledItems = useUiStore((s) => s.handledItems)
   const [exiting, setExiting] = useState(false)
@@ -33,7 +32,7 @@ export default function TaskCard({ item, onSendEmail, onEscalate }: TaskCardProp
 
   function handleCardClick(e: React.MouseEvent) {
     if ((e.target as HTMLElement).closest('.priority-icon-btn')) return
-    navigate(`/accounts/${encodeURIComponent(item.account_id)}`)
+    onOpenDetail(item.id)
   }
 
   function handleMarkHandled(e: React.MouseEvent) {
@@ -56,7 +55,7 @@ export default function TaskCard({ item, onSendEmail, onEscalate }: TaskCardProp
           role="button"
           tabIndex={0}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') navigate(`/accounts/${encodeURIComponent(item.account_id)}`)
+            if (e.key === 'Enter') onOpenDetail(item.id)
           }}
         >
           <div className={`signal-icon-wrap ${item.priority}`}>

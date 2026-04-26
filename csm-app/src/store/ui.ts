@@ -9,9 +9,11 @@ export interface Toast {
 interface UiState {
   selectedAccountId: string | null
   handledItems: Set<string>
+  taskNotes: Record<string, string>
   toasts: Toast[]
   selectAccount: (id: string | null) => void
   markHandled: (id: string) => void
+  setTaskNote: (taskId: string, note: string) => void
   addToast: (message: string, variant?: Toast['variant']) => void
   removeToast: (id: string) => void
 }
@@ -19,6 +21,7 @@ interface UiState {
 export const useUiStore = create<UiState>()((set) => ({
   selectedAccountId: null,
   handledItems: new Set<string>(),
+  taskNotes: {},
   toasts: [],
   selectAccount: (id) => set({ selectedAccountId: id }),
   markHandled: (id) =>
@@ -27,6 +30,8 @@ export const useUiStore = create<UiState>()((set) => ({
       next.add(id)
       return { handledItems: next }
     }),
+  setTaskNote: (taskId, note) =>
+    set((s) => ({ taskNotes: { ...s.taskNotes, [taskId]: note } })),
   addToast: (message, variant = 'success') =>
     set((s) => {
       const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2)}`
