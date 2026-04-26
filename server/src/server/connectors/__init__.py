@@ -66,3 +66,8 @@ try:
     CONNECTOR_REGISTRY[getattr(CollaborationConnector, "source_type")] = CollaborationConnector
 except Exception:
     pass
+try:
+    from .tavily import TavilySearchConnector  # noqa: F401
+    CONNECTOR_REGISTRY[getattr(TavilySearchConnector, "source_type")] = TavilySearchConnector
+except Exception:
+    pass

@@ -53,6 +53,7 @@ class FactResponse(BaseModel):
     object_literal: Any | None = None
     confidence: float
     derivation: str
+    extraction_method: str | None = None
     valid_from: datetime
     valid_to: datetime | None = None
     recorded_at: datetime

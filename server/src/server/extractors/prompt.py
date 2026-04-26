@@ -97,8 +97,8 @@ PREDICATE WHITELIST (use ONLY these for `predicate`; never invent new ones):
 ENTITY IDS:
 - Format: "<type>:<slug>"
 - slug = canonical_name, lowercased, non-alphanumerics → "-", trimmed.
-- "Ravi Kumar"      → "person:ravi-kumar"
-- "Inazuma.co"      → "org_unit:inazuma-co"
+- "Jane Doe"        → "person:jane-doe"
+- "Acme.co"         → "org_unit:acme-co"
 - "MacBook Pro 16"  → "product:macbook-pro-16"
 
 EXTRACTION RULES:
@@ -114,32 +114,32 @@ EXTRACTION RULES:
 5. If a chunk has nothing extractable (just headers or pleasantries), return empty arrays.
 
 CONFIDENCE CALIBRATION:
-- 1.0  explicitly stated  ("Ravi Kumar, HR Manager"            → title=HR Manager)
+- 1.0  explicitly stated  ("Jane Doe, HR Manager"               → title=HR Manager)
 - 0.8  strongly implied   (signature shows title + department)
-- 0.6  inferred           ("ravi.kumar@inazuma.com"            → works_for inazuma, conf 0.6)
+- 0.6  inferred           ("jane.doe@acme.com"                  → works_for acme, conf 0.6)
 - skip if you would have to guess
 
 EXAMPLE 1 (source_type: email):
 Input:
-"From: Ravi Kumar <ravi.kumar@inazuma.com>
+"From: Jane Doe <jane.doe@acme.com>
 Subject: HR Synergy
-Hi Rohan, scheduled meeting with Deepa about employee retention.
-Ravi Kumar, HR Manager, Inazuma.co, Bangalore"
+Hi Bob, scheduled meeting with Carol about employee retention.
+Jane Doe, HR Manager, Acme.co, Berlin"
 
 Output:
 {{
   "entities": [
-    {{"id": "person:ravi-kumar", "type": "person", "canonical_name": "Ravi Kumar", "aliases": [], "attributes": {{"email": "ravi.kumar@inazuma.com"}}}},
-    {{"id": "person:rohan", "type": "person", "canonical_name": "Rohan", "aliases": []}},
-    {{"id": "person:deepa", "type": "person", "canonical_name": "Deepa", "aliases": []}},
-    {{"id": "org_unit:inazuma-co", "type": "org_unit", "canonical_name": "Inazuma.co", "aliases": []}}
+    {{"id": "person:jane-doe", "type": "person", "canonical_name": "Jane Doe", "aliases": [], "attributes": {{"email": "jane.doe@acme.com"}}}},
+    {{"id": "person:bob", "type": "person", "canonical_name": "Bob", "aliases": []}},
+    {{"id": "person:carol", "type": "person", "canonical_name": "Carol", "aliases": []}},
+    {{"id": "org_unit:acme-co", "type": "org_unit", "canonical_name": "Acme.co", "aliases": []}}
   ],
   "facts": [
-    {{"subject": "person:ravi-kumar", "predicate": "title",            "object": "HR Manager",      "object_type": "string", "confidence": 1.0}},
-    {{"subject": "person:ravi-kumar", "predicate": "located_in",       "object": "Bangalore",       "object_type": "string", "confidence": 1.0}},
-    {{"subject": "person:ravi-kumar", "predicate": "works_for",        "object": "org_unit:inazuma-co", "object_type": "entity", "confidence": 1.0}},
-    {{"subject": "person:ravi-kumar", "predicate": "sent_email_to",    "object": "person:rohan",    "object_type": "entity", "confidence": 1.0}},
-    {{"subject": "person:ravi-kumar", "predicate": "has_meeting_with", "object": "person:deepa",    "object_type": "entity", "confidence": 1.0}}
+    {{"subject": "person:jane-doe", "predicate": "title",            "object": "HR Manager",         "object_type": "string", "confidence": 1.0}},
+    {{"subject": "person:jane-doe", "predicate": "located_in",       "object": "Berlin",             "object_type": "string", "confidence": 1.0}},
+    {{"subject": "person:jane-doe", "predicate": "works_for",        "object": "org_unit:acme-co",   "object_type": "entity", "confidence": 1.0}},
+    {{"subject": "person:jane-doe", "predicate": "sent_email_to",    "object": "person:bob",         "object_type": "entity", "confidence": 1.0}},
+    {{"subject": "person:jane-doe", "predicate": "has_meeting_with", "object": "person:carol",       "object_type": "entity", "confidence": 1.0}}
   ]
 }}
 

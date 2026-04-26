@@ -25,6 +25,25 @@ _CONFIG_SLUG_KEYS = (
 
 
 def slugify_name(value: str) -> str:
+    """Lowercase + non-alphanumeric → '-' slugify.
+
+    Strips a leading `<known_type>:` prefix first because some extractors
+    (notably Pioneer's GLiNER2) emit canonical_name as a fully-qualified
+    entity id like `person:jane-doe` instead of just `Jane Doe`. Without
+    this strip we end up with VFS paths like `/persons/person:jane-doe`.
+    The list is sourced from the approved entity_type_config rows so it
+    grows with the autonomous-ontology evolution.
+    """
+    if isinstance(value, str) and ":" in value:
+        head, tail = value.split(":", 1)
+        try:
+            _, type_to_slug = get_type_slug_maps()
+            if head in type_to_slug:
+                value = tail
+        except Exception:
+            # Cache not loadable yet — skip the strip; downstream still
+            # produces a valid slug even with the prefix included.
+            pass
     slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
     return slug or "unnamed"
 

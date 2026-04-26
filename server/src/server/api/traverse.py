@@ -1,8 +1,8 @@
 """POST /query/traverse — Graph traversal via JSON-DSL (Req 7.2).
 
-DSL example:
+DSL example (any approved entity_type works):
   {
-    "start": {"entity_type": "company", "canonical_name": "Acme"},
+    "start": {"entity_type": "organization", "canonical_name": "Acme Corp"},
     "steps": [
       {"predicate": "works_at", "direction": "inbound", "target_type": "person"}
     ],
