@@ -7,7 +7,6 @@ even when env vars are absent (useful for unit tests and dry-run imports).
 from __future__ import annotations
 
 import logging
-from functools import lru_cache
 from typing import Any
 
 from server.config import settings
@@ -116,11 +115,96 @@ def _embed_single(normalized: str, dimensions: int) -> list[float] | None:
     return None
 
 
-@lru_cache(maxsize=2048)
+# L1 cache: process-local dict (in-memory, fast). Cleared on process restart.
+_EMBEDDING_L1: dict[tuple[str, int], tuple[float, ...] | None] = {}
+
+
+def _embedding_cache_key(normalized: str, dimensions: int) -> str:
+    """sha256(dim:normalized) — stable across processes, used as PK in DB cache."""
+    import hashlib
+    raw = f"{dimensions}:{normalized}".encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _embedding_l2_get(content_hash: str) -> tuple[float, ...] | None:
+    """L2 cache hit: read embedding from `embedding_cache` table.
+
+    Cache misses are silent (return None) — DB issues should never break
+    the embedding pipeline. Bumps hit_count for diagnostics.
+    """
+    try:
+        db = get_db()
+        res = (
+            db.table("embedding_cache")
+            .select("embedding")
+            .eq("content_hash", content_hash)
+            .limit(1)
+            .execute()
+        )
+        if res.data and res.data[0].get("embedding"):
+            try:
+                db.rpc("embedding_cache_touch", {"p_hash": content_hash}).execute()
+            except Exception:
+                pass  # touch is best-effort
+            raw = res.data[0]["embedding"]
+            # pgvector returns a list-of-floats or stringified vector depending
+            # on PostgREST version; normalize either shape.
+            if isinstance(raw, str):
+                raw = [float(x) for x in raw.strip("[]").split(",") if x.strip()]
+            return tuple(float(x) for x in raw)
+    except Exception as exc:
+        logger.debug("embedding_l2 read failed (will fall through to API): %s", exc)
+    return None
+
+
+def _embedding_l2_put(
+    content_hash: str, normalized: str, dimensions: int, vector: tuple[float, ...]
+) -> None:
+    """L2 cache write — best-effort, never raises."""
+    try:
+        db = get_db()
+        db.table("embedding_cache").upsert(
+            {
+                "content_hash": content_hash,
+                "normalized_text": normalized[:500],  # truncate for storage hygiene
+                "dimensions": dimensions,
+                "embedding": list(vector),
+            },
+            on_conflict="content_hash",
+        ).execute()
+    except Exception as exc:
+        logger.debug("embedding_l2 write failed: %s", exc)
+
+
 def _cached_embed(normalized: str, dimensions: int) -> tuple[float, ...] | None:
-    """LRU-cached embedding. Tuple to be hashable; converted back at call site."""
+    """Two-level cached embedding:
+
+    L1 (in-process dict) → L2 (Postgres `embedding_cache` table) → Gemini API.
+
+    Same name across processes (e.g. "Ravi Kumar" in 100s of source records)
+    pays the embedding API once total — afterwards every lookup is a DB
+    SELECT or in-memory hit.
+    """
+    if not normalized:
+        return None
+    k = (normalized, dimensions)
+    if k in _EMBEDDING_L1:
+        return _EMBEDDING_L1[k]
+
+    content_hash = _embedding_cache_key(normalized, dimensions)
+    cached = _embedding_l2_get(content_hash)
+    if cached is not None:
+        _EMBEDDING_L1[k] = cached
+        return cached
+
     vec = _embed_single(normalized, dimensions)
-    return tuple(vec) if vec is not None else None
+    if vec is None:
+        _EMBEDDING_L1[k] = None
+        return None
+    result = tuple(vec)
+    _EMBEDDING_L1[k] = result
+    _embedding_l2_put(content_hash, normalized, dimensions, result)
+    return result
 
 
 def embed_text(text: str, dimensions: int = 768) -> list[float] | None:
