@@ -1079,3 +1079,7 @@ Mir gefällt das System noch nicht so zu hundert Prozent, kannst du mal beispiel
 ---
 
 a volles design, lets plan
+
+---
+
+Also, ich würde gerne mergen mit main und auf main pushen. Aber ganz vorsichtig. Gibt es irgendwelche Konflikte?
