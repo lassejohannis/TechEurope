@@ -92,5 +92,9 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_URL", "SUPABASE_DB_URL"),
     )
 
+    # Auto-sentiment (on-demand when opening a communication detail)
+    auto_sentiment_enabled: bool = True
+    auto_sentiment_max_chars: int = 8000
+
 
 settings = Settings()

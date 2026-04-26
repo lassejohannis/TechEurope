@@ -10,7 +10,7 @@ from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Re
 from pydantic import BaseModel, Field
 
 from server.auth import Principal, require_scope
-from server.db import get_db
+from server.db import get_db, get_gemini
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 logger = logging.getLogger(__name__)
@@ -31,6 +31,157 @@ class RefreshBrowseRequest(BaseModel):
     infer_mappings: bool = True
     auto_approve_mappings: bool = True
     llm_extract: bool = False
+
+
+class AutoSentimentRequest(BaseModel):
+    company: str = Field(default="", description="Company name ilike filter; empty = all communications")
+    limit: int = Field(default=200, ge=1, le=2000)
+    concurrency: int = Field(default=10, ge=1, le=20)
+
+
+@router.post("/auto-sentiment", status_code=202)
+def auto_sentiment(
+    req: AutoSentimentRequest = Body(default=AutoSentimentRequest()),
+    bg: BackgroundTasks = None,
+    db=Depends(get_db),
+    principal: Principal = Depends(require_scope("write")),
+) -> dict[str, object]:
+    """Run sentiment extraction for Communications linked to a company's people.
+
+    Best-effort background job; returns 202 immediately with a summary.
+    """
+    # Validate Gemini availability early
+    try:
+        get_gemini()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"GEMINI_API_KEY not set or unavailable: {exc}")
+
+    def _job():
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import json as _json
+        import uuid
+        from google.genai import types as genai_types
+        from server.db import get_gemini as _get_gem
+
+        # Determine communication scope
+        if req.company:
+            # Filter via organization → persons → participant_in
+            org = (
+                db.table("entities").select("id, canonical_name").eq("entity_type", "organization").ilike("canonical_name", f"%{req.company}%").limit(1).execute()
+            )
+            if not org.data:
+                return
+            org_id = str(org.data[0]["id"])  # type: ignore[index]
+
+            works = db.table("facts").select("subject_id").eq("predicate", "works_at").eq("object_id", org_id).is_("valid_to", "null").execute()
+            person_ids = sorted({str(r["subject_id"]) for r in (works.data or []) if r.get("subject_id")})
+            if not person_ids:
+                return
+            parts = db.table("facts").select("object_id").eq("predicate", "participant_in").is_("valid_to", "null").in_("subject_id", person_ids[:1000]).limit(req.limit * 3).execute()
+            comm_ids = sorted({str(r["object_id"]) for r in (parts.data or []) if r.get("object_id")})[: req.limit]
+            if not comm_ids:
+                return
+            rows = db.table("entities").select("id, attrs, canonical_name").eq("entity_type", "communication").in_("id", comm_ids).execute()
+        else:
+            # All communications (latest N)
+            rows = db.table("entities").select("id, attrs, canonical_name").eq("entity_type", "communication").order("updated_at", desc=True).limit(req.limit).execute()
+        comms = [r for r in (rows.data or []) if r.get("attrs")]
+
+        def _pick(attrs: dict, name: str) -> str:
+            for k in ("body", "transcript", "text", "content", "summary", "description"):
+                v = (attrs or {}).get(k)
+                if isinstance(v, str) and len(v.strip()) >= 50:
+                    return v
+            # Fallback: canonical_name when it looks like a subject/sentence or email preview
+            if isinstance(name, str) and len(name.strip()) >= 20:
+                return name
+            return ""
+
+        def _sent(text: str):
+            if not text.strip():
+                return None
+            client = _get_gem()
+            schema = {
+                "type": "object",
+                "properties": {
+                    "label": {"type": "string", "enum": ["positive", "neutral", "negative"]},
+                    "score": {"type": "number"},
+                    "confidence": {"type": "number"},
+                },
+                "required": ["label", "score", "confidence"],
+                "additionalProperties": False,
+            }
+            resp = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=[f"Analyze the sentiment of this business communication. Return only valid JSON with three fields: label, score, confidence.\n\nText:\n{text[:8000]}"] ,
+                config=genai_types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=schema,
+                    temperature=0.1,
+                ),
+            )
+            try:
+                return _json.loads(resp.text or "{}")
+            except Exception:
+                return None
+
+        results: dict[str, dict] = {}
+        with ThreadPoolExecutor(max_workers=req.concurrency) as ex:
+            futs = {ex.submit(_sent, _pick(r.get("attrs") or {}, str(r.get("canonical_name") or ""))): str(r.get("id")) for r in comms}
+            for fut in as_completed(futs):
+                cid = futs[fut]
+                try:
+                    data = fut.result()
+                    if not data:
+                        continue
+                    lab = str((data.get("label") or "").strip().lower())
+                    if lab not in ("positive", "neutral", "negative"):
+                        continue
+                    results[cid] = data
+                except Exception:
+                    continue
+
+        # Ensure predicate
+        try:
+            db.table("edge_type_config").upsert(
+                {"id": "sentiment", "config": {"description": "Sentiment label/score for a communication"}, "approval_status": "approved", "from_type": "communication", "to_type": None},
+                on_conflict="id",
+            ).execute()
+        except Exception:
+            pass
+
+        now = datetime.now(tz=timezone.utc).isoformat()
+        for cid, data in results.items():
+            sr_id = str(uuid.uuid4())
+            db.table("source_records").upsert({
+                "id": sr_id,
+                "source_type": "gemini_sentiment_extraction",
+                "source_native_id": f"sentiment:{cid}",
+                "payload": data,
+                "content_hash": sr_id,
+                "extraction_status": "extracted",
+            }).execute()
+            try:
+                db.table("facts").insert({
+                    "id": str(uuid.uuid4()),
+                    "subject_id": cid,
+                    "predicate": "sentiment",
+                    "object_literal": data,
+                    "confidence": float(data.get("confidence") or 0.0),
+                    "source_id": sr_id,
+                    "derivation": "llm_inference",
+                    "valid_from": now,
+                    "status": "live",
+                }).execute()
+            except Exception:
+                pass
+
+    if bg is not None:
+        bg.add_task(_job)
+    else:
+        _job()
+
+    return {"status": "accepted", "company": req.company or "<all>", "limit": req.limit, "concurrency": req.concurrency}
 
 
 @router.post("/reload-ontologies", status_code=200)

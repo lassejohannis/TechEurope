@@ -21,7 +21,8 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from server.db import get_db
+from server.db import get_db, get_gemini
+from server.config import settings
 from server.models import (
     ProposeFactRequest,
     ProposeFactResponse,
@@ -386,18 +387,23 @@ def propose_fact(req: ProposeFactRequest, db=Depends(get_db)):
     now = datetime.now(tz=timezone.utc).isoformat()
 
     # 1. Create SourceRecord for audit trail
+    import hashlib, json as _json
     sr_id = str(uuid.uuid4())
+    sr_payload_obj = {
+        "method": req.source_method,
+        "note": req.note,
+        "predicate": req.predicate,
+        "object_id": req.object_id,
+        "object_literal": req.object_literal,
+        "confidence": req.confidence,
+    }
     sr_payload = {
         "id": sr_id,
-        "source_type": req.source_system,
-        "source_id": f"{req.source_system}:{sr_id}",
-        "event_type": "fact_proposal",
-        "raw_content": req.note or f"Proposed: {req.predicate}",
-        "timestamp": now,
-        "metadata": {
-            "method": req.source_method,
-            "proposed_by": req.source_system,
-        },
+        "source_type": req.source_system or "human_input",
+        "source_native_id": f"{req.source_system}:{sr_id}",
+        "payload": sr_payload_obj,
+        "content_hash": hashlib.sha256(_json.dumps(sr_payload_obj, sort_keys=True).encode("utf-8")).hexdigest(),
+        "extraction_status": "extracted",
     }
     try:
         db.table("source_records").insert(sr_payload).execute()
@@ -492,6 +498,17 @@ def vfs_patch(path: str, req: VfsPatchRequest, db=Depends(get_db)):
         },
     }).execute()
 
+    # Optional auto-sentiment when a communication body/transcript changes
+    if entity_type == "communication":
+        try:
+            text_fields = {"body", "transcript", "text", "content", "summary", "description"}
+            touched = text_fields.intersection(set(updated))
+            if touched:
+                _auto_sentiment_for_attrs(db, entity_id, new_attrs)
+        except Exception:
+            # best-effort: UI must not break on LLM/DB hiccups
+            pass
+
     db.table("entities").update({"attrs": new_attrs}).eq("id", entity_id).execute()
 
     return VfsPatchResponse(
@@ -501,6 +518,117 @@ def vfs_patch(path: str, req: VfsPatchRequest, db=Depends(get_db)):
         attrs_removed=removed,
         audit_record=sr_id,
     )
+
+
+def _pick_body(attrs: dict, fallback_name: str | None = None) -> str:
+    for key in ("body", "transcript", "text", "content", "summary", "description"):
+        v = (attrs or {}).get(key)
+        if isinstance(v, str) and len(v.strip()) >= 50:
+            return v
+    if isinstance(fallback_name, str) and len(fallback_name.strip()) >= 20:
+        return fallback_name
+    return ""
+
+
+def _ensure_sentiment_predicate(db) -> None:
+    try:
+        db.table("edge_type_config").upsert(
+            {
+                "id": "sentiment",
+                "config": {"description": "Sentiment label/score for a communication"},
+                "approval_status": "approved",
+                "from_type": "communication",
+                "to_type": None,
+            },
+            on_conflict="id",
+        ).execute()
+    except Exception:
+        pass
+
+
+def _auto_sentiment_for_attrs(db, entity_id: str, attrs: dict) -> None:
+    """Compute sentiment for a communication and write a Fact. Best-effort.
+
+    Requires GEMINI_API_KEY; silently no-ops if unavailable or text is missing.
+    """
+    try:
+        client = get_gemini()
+    except Exception:
+        return
+    # Prefer dedicated text fields; otherwise fall back to canonical_name
+    try:
+        name_res = db.table("entities").select("canonical_name").eq("id", entity_id).single().execute()
+        cname = (name_res.data or {}).get("canonical_name") if name_res and name_res.data else None
+    except Exception:
+        cname = None
+    body = _pick_body(attrs, cname if isinstance(cname, str) else None)
+    if not body:
+        return
+    body = body[: max(100, min(settings.auto_sentiment_max_chars if hasattr(settings, 'auto_sentiment_max_chars') else 8000, 8000))]
+
+    _ensure_sentiment_predicate(db)
+
+    try:
+        from google.genai import types as genai_types
+        schema = {
+            "type": "object",
+            "properties": {
+                "label": {"type": "string", "enum": ["positive", "neutral", "negative"]},
+                "score": {"type": "number"},
+                "confidence": {"type": "number"},
+            },
+            "required": ["label", "score", "confidence"],
+            "additionalProperties": False,
+        }
+        prompt = (
+            "Analyze the sentiment of this business communication.\n"
+            "Return only valid JSON with three fields: label, score, confidence.\n\nText:\n"
+            f"{body}"
+        )
+        resp = client.models.generate_content(
+            model=getattr(settings, "gemini_model", "gemini-2.0-flash") or "gemini-2.0-flash",
+            contents=[prompt],
+            config=genai_types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=schema,
+                temperature=0.1,
+            ),
+        )
+        import json as _json, uuid
+        data = _json.loads(resp.text or "{}")
+        label = str((data.get("label") or "").strip().lower())
+        if label not in ("positive", "neutral", "negative"):
+            return
+        conf = float(data.get("confidence") or 0.0)
+
+        # Write source_record + fact
+        sr_id = str(uuid.uuid4())
+        db.table("source_records").upsert({
+            "id": sr_id,
+            "source_type": "gemini_sentiment_extraction",
+            "source_native_id": f"sentiment:{entity_id}",
+            "payload": data,
+            "content_hash": sr_id,
+            "extraction_status": "extracted",
+        }).execute()
+        now = datetime.now(tz=timezone.utc).isoformat()
+        try:
+            db.table("facts").insert({
+                "id": str(uuid.uuid4()),
+                "subject_id": entity_id,
+                "predicate": "sentiment",
+                "object_literal": data,
+                "confidence": max(min(conf, 1.0), 0.0),
+                "source_id": sr_id,
+                "derivation": "llm_inference",
+                "valid_from": now,
+                "status": "live",
+            }).execute()
+        except Exception:
+            # Likely duplicate under temporal overlap — ignore
+            pass
+    except Exception:
+        return
 
 
 # ---------------------------------------------------------------------------

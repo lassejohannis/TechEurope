@@ -68,6 +68,16 @@ async function triggerRefresh() {
   } catch { return false }
 }
 
+async function triggerAutoSentiment() {
+  try {
+    // Fire-and-forget background job (202 Accepted)
+    await fetch('/api/admin/auto-sentiment', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company: '', limit: 200, concurrency: 10 }),
+    }).catch(() => null)
+  } catch { /* ignore */ }
+}
+
 // ── Design tokens ────────────────────────────────────────────────────────────
 // [backDark, frontLight, frontDark, accentColor]
 const PALETTE: Record<string, [string, string, string, string]> = {
@@ -280,6 +290,7 @@ export default function VfsTree({ selectedEntityId }: { selectedEntityId: string
     void triggerRefresh().then(ok => {
       if (ok) queryClient.invalidateQueries({ queryKey: ['browse', 'tree'] })
     })
+    void triggerAutoSentiment()
   }, [queryClient])
 
   return (
