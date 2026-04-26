@@ -3,8 +3,9 @@
   "checkpoint_id": "2802cf43e22f",
   "strategy": "manual-commit",
   "branch": "Lasse",
-  "checkpoints_count": 1,
+  "checkpoints_count": 6,
   "files_touched": [
+    "deploy/Dockerfile.server",
     "web/index.html",
     "web/public/favicon.svg",
     "web/public/logo-mark.svg",
@@ -17,13 +18,19 @@
       "transcript": "/28/02cf43e22f/0/full.jsonl",
       "content_hash": "/28/02cf43e22f/0/content_hash.txt",
       "prompt": "/28/02cf43e22f/0/prompt.txt"
+    },
+    {
+      "metadata": "/28/02cf43e22f/1/metadata.json",
+      "transcript": "/28/02cf43e22f/1/full.jsonl",
+      "content_hash": "/28/02cf43e22f/1/content_hash.txt",
+      "prompt": "/28/02cf43e22f/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 98,
-    "cache_creation_tokens": 145579,
-    "cache_read_tokens": 3850564,
-    "output_tokens": 43509,
-    "api_call_count": 69
+    "input_tokens": 6863,
+    "cache_creation_tokens": 6367099,
+    "cache_read_tokens": 1034866547,
+    "output_tokens": 1439729,
+    "api_call_count": 2336
   }
 }
