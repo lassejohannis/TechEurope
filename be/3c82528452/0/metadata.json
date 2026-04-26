@@ -1,0 +1,64 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "be3c82528452",
+  "session_id": "60294954-bc73-44f3-a951-6633f66d8e32",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-26T10:33:30.20676Z",
+  "branch": "Lasse",
+  "checkpoints_count": 3,
+  "files_touched": [
+    ".gitignore",
+    "server/src/server/api/cypher.py",
+    "server/src/server/connectors/crm_mock.py",
+    "server/src/server/connectors/document 2.py",
+    "server/src/server/connectors/document.py",
+    "server/src/server/connectors/email_mock.py",
+    "server/src/server/connectors/hr_mock.py",
+    "server/src/server/connectors/itsm_mock.py",
+    "server/src/server/eval/reporter.py",
+    "server/src/server/sync/neo4j_projection.py",
+    "server/src/server/util/__init__.py",
+    "server/src/server/util/safe_path.py"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "3ebefb12a9df",
+  "token_usage": {
+    "input_tokens": 6715,
+    "cache_creation_tokens": 6205964,
+    "cache_read_tokens": 1016464343,
+    "output_tokens": 1385063,
+    "api_call_count": 2242
+  },
+  "session_metrics": {
+    "turn_count": 189
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-26T10:33:29.808586Z",
+    "agent_lines": 79,
+    "agent_removed": 280,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 79,
+    "total_lines_changed": 359,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 79,
+      "agent_lines_removed": 280
+    }
+  ]
+}
