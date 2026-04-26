@@ -6,10 +6,11 @@ FROM node:20-alpine AS builder
 WORKDIR /build
 
 # Cache deps
-# --legacy-peer-deps because openapi-typescript@7 declares peer typescript@^5
-# while we ship typescript@6 — the runtime is fine, only npm's resolver is strict.
+# `npm install` over `npm ci` because the lockfile drifted away from
+# package.json on the main branch. --legacy-peer-deps keeps openapi-typescript@7
+# (peer typescript@^5) compatible with our typescript@6.
 COPY web/package.json web/package-lock.json* ./
-RUN npm ci --no-audit --no-fund --legacy-peer-deps
+RUN npm install --no-audit --no-fund --legacy-peer-deps
 
 # Source
 COPY web/ ./
