@@ -1,0 +1,58 @@
+werden meine commits von entiree nun getrackt?
+
+---
+
+suche genau raus wie hier das chat interface aussieht. So dass ich es in claude code geben kann und so ein design auch hier hinzufügt.
+
+https://github.com/paul-eltrop/thinCC-
+
+---
+
+okay perfekt. Implementiere das nun in dem search tab. Ok, perfekt, implementiere das nun in den search tab, so dass, wenn ich etwas suche oder so eingebe, quasi auf dem graph-rack basierend geantwortet wird. Das ist wirklich schon zu wissen, von hinten dran mitzulaufen, gerade auch von diesen zehn to-do-Schritten, oder ich weiß nicht mehr, wo die workstreams alles mitlaufen. Wenn ich zum Beispiel sage "irgendwie Senior Engineer mit mehr als drei Tickets", dass es dann auch wirklich so kaskadierend für mich abgearbeitet wird. Es muss alles schon definiert sein und muss nur noch eine Methode zusammen aufgerufen werden. Jetzt irgendwie
+
+---
+
+[Image #1] okay mach die Box auf der Graph page viel besser aussehend. Und trotzdem der inhalt wieder gegeben wird
+
+---
+
+mach die Attribute alle in eine einzelne Zeile und füge lieber ein button mit extract raw data hinzu. Auf den man drücken kann und wenn man ihn gedrückt hat dann die raw data direkt kopiert
+
+---
+
+nein die Attribute werden immer noch so angezeigt: attrs
+{"email":"ramesh.pradhan@inazuma.com","emp_id":"emp_1010","vfs_path":"/persons/ramesh-pradhan"}
+
+So sollen eigenstäbdig angezeigt. Außerdem funktionierrt die copied anzeige zwar aber lass sie besser aussehen
+
+---
+
+okay nun gebe den Attributen aber normale Namen:
+Attributes
+
+entity_type
+person
+aliases
+Neeraj Sharma, neeraj.sharma@inazuma.com, emp_0136
+canonical_name
+Neeraj Sharma
+id
+person:neeraj-sharma
+last_synced
+2026-04-25T23:28:02.860000000+00:00
+attrs.email
+neeraj.sharma@inazuma.com
+attrs.emp_id
+emp_0136
+attrs.vfs_path
+/persons/neeraj-sharma
+emp_id
+emp_0136
+
+---
+
+employee Id kommt zweimal vor
+
+---
+
+was ist ein label in dem Kontext?
