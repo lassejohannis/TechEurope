@@ -1,0 +1,985 @@
+Welche branches gibt es jetzt noch, die ich einmal mit meinem mergen sollte? Nur Kathi oder?
+
+---
+
+Yes los gehts
+
+---
+
+Kannst du einmal von vorne bis hinten durchchecken, was jetzt schon funktioniert und was nicht vom FLow
+
+---
+
+Dann plane alle changes, du kannst das alles umändern.
+
+---
+
+Also wir challenegen jetzt einmal von vorne bis hinten das Produkt durch und schreiben überall hin was jetzt noch gebaut werden mus und was davon schon steht damit wir gleich neu Aufgaben verteilen können
+
+---
+
+Lass uns mal ganz vorne anfangen und das nach und nach in die Team briefing technical reinschreiben: Man muss jegliche Art von Dokument einspeisen können oder Konnektoren zu Apps haben, die Daten einspeisen, was existiert davon schon und was nicht?
+
+---
+
+Kannst du nochmal in die Anforderungen schauen, wenn sich Dateien ändern oder neue Informationen hinzukommen, dann muss sich das ja updaten, ist das schon drinnen? Beziehungsweise checkst du was ich meine, ich verstehe das selber noch nicht so ganz
+
+---
+
+ALles reinschreiben
+
+---
+
+OK dann haben wir jetzt den injection part besprochen, was passiert als nächstes im Flow
+
+---
+
+Erkläre das nochmal einfacher: Wir haben hardcoded entitiy und fact typen und edges die theoretisch per hand anpassbar sind oder?
+
+---
+
+Muss es nicht eigentlich am besten einen Agent geben, der jede information die reinkommt in eine passende entity mit facts baut und custom edges gibt im ersten schritt damit es perfekt ist?
+
+---
+
+Muss es nicht eigentlich am besten einen Agent geben, der jede information die reinkommt in eine passende entity mit facts baut und custom edges gibt im ersten schritt damit es perfekt ist?
+
+---
+
+Muss es nicht eigentlich am besten einen Agent geben, der jede information die reinkommt in eine passende entity mit facts baut und custom edges gibt im ersten schritt damit es perfekt ist? Bzw einen deterministischen Ansatz, der immer passende Entitys und facts baut?
+
+---
+
+Macht es nicht Sinn deterministisch einen passenden entity typen zu finden und wenn das nicht existiert erstellt ein LLM einen neuen Typen?
+
+---
+
+Gleiches für facts und edges
+
+---
+
+Vollversion reinschreiben als to do
+
+---
+
+So was ist der nächste Schritt im Flow? Gleiches combinen und indifferenzen versuchen zu fixen?
+
+---
+
+Also es sollten gleiche entities gemerged werden und konflikte versucht behoben zu werden, wenn nötig human in the loop. ist das richtig?
+
+---
+
+Schreibe das full in die to dos
+
+---
+
+Ok dann wollen wir ein Surface, dass alle Nodes und Edges darstellt richtig?
+
+---
+
+Schreibe plan a full auf to do
+
+---
+
+Und dann als letztes noch die Schnittstelle für Software und AI um auf unser Kontextsystem zuzugreifen? Was fehlt da noch?
+
+---
+
+Ergänze das alles komplett als todo
+
+---
+
+Los gehts überlege für alle genaue fixes und wie das anzugehen ist. Schreibe es dann dazu
+
+---
+
+ja
+
+---
+
+Ja
+
+---
+
+Können wir einmal immer aufschreiben einfach nur was noch wo gemacht werden muss von vorne bis hinten ganz sauber,die datei ist viel zu lang. Ich will keine Dauern, keine Wichtigkeiten. Stumpfe Aufzählung von vorne bis hinten vom Workflow so kompakt und klar wie möglich ohne schnickschnack
+
+---
+
+jo
+
+---
+
+3. Entity Resolution (Lasse)
+
+T3 Embedding-API-Fix (embed_text() 404 auf text-embedding-004 → korrekter Endpoint)
+T4 Logic-Fix in cascade.py (relationship_hint statt match)
+Pre-Normalize in embed_text() (lowercase, Suffix-Strip, Whitespace-Collapse)
+Resolver schreibt Tier-A-Embedding beim Entity-Insert
+Backfill-Script für die 306 entities ohne Embedding
+build_inference_text(entity_id) für Tier B
+Tier-B-Backfill für entities mit ≥5 Facts
+inference_needs_refresh boolean + Trigger
+Lazy Re-Embed-Loop CLI
+communication-Entity-Typ + Resolver-Modul für Email-Threads
+document-Entity-Typ + Resolver-Modul für Policy-PDFs
+Volllauf des Resolvers mit Bulk-Insert (28k records)
+Pioneer-Tier-3.5 scharf schalten sobald Modell ready
+LLM-Fact-Extraction aus Email-Body (gemini_structured.extract_email_facts) Wir kümmern uns hier rum, lass planen
+
+---
+
+Cross-Source Merge & Conflict Resolution (Lasse)
+
+Migration 009: GIST-EXCLUDE durch partial-unique-index ersetzen + detect_fact_conflict-Trigger
+auto_resolve.py mit 4-Tier-Cascade (Recency / Authority / Confidence / Cross-Confirm)
+CLI uv run server resolve-conflicts
+cross_confirmation_count View
+Endpoints: GET /api/resolutions, POST /api/resolutions/{id}/decide
+Endpoints: GET /api/fact-resolutions, POST /api/fact-resolutions/{id}/decide
+Frontend ConflictInbox auf echte API umstellen
+Trust-Weight-Editor im Frontend (read-only)
+1-2 echte Demo-Konflikte vor-präparieren dann planen wir jetzt 5 komplett das demo präparieren brauchen wir noch nicht
+
+---
+
+Aber das heißt jetzt sind alle Entity, Facts und Edge Typen noch hardcoded?
+
+---
+
+4. Autonome Ontologie-Evolution (Paul)
+
+Migration 008: type_config-Tabellen erweitern (auto_proposed, approval_status, proposed_by_source_id, similarity_to_nearest, from_type, to_type)
+propose.classify_or_propose_type(payload, kind) Funktion
+Embedding-Similarity-Reject (Distanz < 0.4 = zu ähnlich)
+Auto-Approve-Threshold (confidence ≥ 0.95 + similarity < 0.3 + ≥3 records)
+Integration in extract.py (Tier 2 + 3 Cascade)
+Endpoints /api/admin/pending-types + decide
+Frontend Inbox um 2 Tabs erweitern (entity-types, edge-types)
+Synonym-Detection-Pass (async)
+FK-Constraints entities.entity_type → entity_type_config + facts.predicate → edge_type_config
+Trigger der nur approved-Types akzeptiert
+
+Wir gehen jetzt hier ran, lass aber davor durchsprechen wie das sein muss, damit es skalierbar ist und wir wirklich für jeden typ von datenset gute ergebnisse bekommen und nicht hardcoded auf unser Beispiel sind. Mein Vorschlag: Es wird immer versucht jeweils Entity, Facts und Edges passend auszuwählen, wenn nicht möglich wird jeweils neuer Typ von AI erstellt + deterministische Anleitung zum mappen wie wir das gerade für unsere haben. Macht das Sinn, lass das erstmal nur besprechen
+
+---
+
+Kannst du mir die Fragen in diesem Antwort format stellen die du hast?
+
+---
+
+ja ok
+
+---
+
+Probiere Phase G, ich glaube, dass das model down ist. Dann musst du ein anderes nutzen. Versuche es kurz
+
+---
+
+Ich will, dass du dich genau damit befasst, wie wir gemini möglichst effizient und schonend benutzen und dich nochmal damit außeinandersetzen, ob wir nicht auch pioneer verwenden können
+
+---
+
+Lass mal nur die Änderungen planen, die gemeini möglichst effiziennt machen und gemini cappen, sodass es dann pausiert zur not, dass es nicht außversehen zu viele anfragen stellt
+
+---
+
+Ja lets go
+
+---
+
+Sind alle wirklich abgearbeitet?
+
+---
+
+Tue das
+
+---
+
+nochmal auf main nachziehen, ist eins hinter meinem
+
+---
+
+Ok jetzt sind alle todos abgeschlossen, ich möchte dass du alles von vorne bis hinten ausführlich testest und schaust ob alles zusammenpasst und wo es noch hakt
+
+---
+
+frontend nicht fixen, das wird gerade umgebaut, mache 1b und du kannst die datenkonsistenz lösen in dem du erstmal alles zurücksetzt an daten. Zu 3: warum schlägt es fehl?
+
+---
+
+kannst du einmal das zeug aus dem neuen main commit holen
+
+---
+
+/loop check resolver progress and end-to-end test
+
+---
+
+Also gut lass uns jetzt vor dem Feinschliff des Backends einmal nochmal die Case anschauen und die Anforderungen und unsere Vision und schauen wie gut das Backend da schon aligned ist. Wie gut ist es, kann dieses Backend den Win holen von seinem technischen aufbau und so weiter, schaue nochmal die ganzen mds an und so weiter und mache eine analyse
+
+---
+
+Plane die kritischen Bug fixes
+
+---
+
+/loop check resolver progress and end-to-end test
+
+---
+
+Ok jetzt schreibe mir nochmal eine detaillierte Anleitung und unseren Stand für eine Claude Cowork Session, damit ich nochmal eine Deep Research machen kann, er soll Repos Artikel und so weiter fiinden die wir dann prüfen um zu sehen inwiefern wir state of die art sind und ob wir noch änderungen im backend machen können für den Wow Effekt
+
+---
+
+# Qontext — SOTA-Vergleich & Pitch-Briefing
+
+**Stand:** Sonntag, 26.04.2026 — ~10h vor Submission
+**Scope:** Backend-Differentiator-Audit für Big Berlin Hack 2026, Track Qontext
+**Methode:** 3 parallele Deep-Research-Agenten auf Repos / arXiv / Vendor-Docs (Cluster A+B+F, C+D+E+I, G+H+J)
+
+---
+
+## 1. Executive Summary (≤200 Wörter)
+
+Ihr seid **nicht hinter SOTA, aber auch nicht klar vorn — ihr seid orthogonal-pragmatisch**. Drei Punkte sind echte Differentiator-Kandidaten, die kein anderes Memory-Framework so kombiniert: (1) **Deterministisch-zuerst 5-Tier-Cascade** in Postgres+pgvector — Splink/Zingg sind probabilistisch-only, Cognee/Graphiti/Mem0 LLM-zuerst; (2) **JSONata-Mapping-Config, AI-inferred, HITL-approved, persistent** — alle Konkurrenten nutzen entweder hardcoded Pydantic-Klassen (Graphiti), manuelle OWL/RDF (Cognee) oder uncontrolled prompt-extraction (MS GraphRAG); (3) **Bi-temporal `tstzrange + EXCLUDE GIST` + Hash-getriggerte lazy Re-Derivation** — Graphiti bringt Bi-temporal in Neo4j (ohne DB-Constraints), TrustGraph hat Provenance ohne Bi-Temporal, niemand kombiniert beides mit Auto-Refresh-Trigger.
+
+**Schwachstellen:** Stage 2/3 Hybrid-Search noch nicht live; `propose_fact` nicht im MCP-Surface; Trust-Score-Formel nicht peer-reviewed; keine Benchmarks gegen Zep/Mem0/Letta. Aktive Konkurrenten **Graphiti (25.4k★)**, **Mem0 (54.1k★)**, **TrustGraph v2 (Mar 2026)** sind alle frisch released.
+
+**Pitch-Linie:** "Enterprise-Ready Memory-Infrastructure mit deterministischer ER + emergenter Schema-Evolution + Postgres-native Bi-Temporal — ohne LLM-Tax pro Lookup." Drei demobare Wow-Features (siehe §4) sind in 4h drin.
+
+---
+
+## 2. Vergleichs-Tabelle: 8 Achsen vs. SOTA
+
+| # | Achse | Eure Implementation | SOTA-Vertreter | Status |
+|---|-------|---------------------|----------------|--------|
+| 1 | **Entity Resolution** | 5-Tier deterministisch-zuerst (Hard-ID → Alias → pgvector kNN → GLiNER → Heuristik → Inbox), Postgres-native | Splink (probabilistic Fellegi-Sunter, 2.1k★, MOJ-prod); Zingg (ML hybrid, 1.2k★); Cognee/Graphiti/Mem0 (LLM-zuerst); ICAART-2025 Cascade-Paper | **Orthogonal/parity** — niemand hat exakt euren Tier-Aufbau, aber kein peer-reviewed Edge bei Accuracy. Pitch-tauglich als "Enterprise pragmatism" |
+| 2 | **Ontologie-Evolution** | JSONata-Mapping AI-inferred (Gemini structured output), persistent in `entity_type_config`/`edge_type_config`, HITL-approve, Holdout-Validation | MS GraphRAG (LLM extracts everything, no config persistence); Cognee (manual OWL/RDF input); Graphiti (Pydantic-Code prescribed/learned); TrustGraph (Ontology RAG, agent-driven) | **Vorn** — JSONata + AI-Inference + Approval-Inbox als Trio ist nirgends dokumentiert. Klarster Differentiator |
+| 3 | **Bi-Temporality** | `validity tstzrange` + EXCLUDE GIST, Trigger-Supersede, lazy `needs_refresh` | XTDB v2 (SQL:2011, 2.9k★, Compliance-fokus); Graphiti (Event+Ingestion, Neo4j-edges, kein DB-Constraint); Letta/Mem0/Cognee (Append-Log oder quasi-temporal); TrustGraph (Reification, kein bi-temporal) | **Vorn** — Postgres-Constraint-basierte Bi-Temporality ist einzigartig in der AI-Memory-Welt |
+| 4 | **Provenance** | NOT NULL `source_id` + `qualifiers.derivation` + `last_hash_seen`; RPC `get_fact_provenance_json` mit Source-Quote; Hash-Trigger setzt `needs_refresh` | TrustGraph v2 (4-level chain, UI-Provenance, kein Hash-Refresh); Mem0 (Audit Logs, 2-level); MS GraphRAG/LightRAG (silent); W3C PROV-O (Standard, in AI-Memory nicht adoptiert); PROV-AGENT Paper (e-Science 2025) | **Vorn (knapp)** — Hash-Tracking + auto-Refresh ist neu. TrustGraph hat tieferes UI, ihr habt automatisierte Konsistenz |
+| 5 | **Storage** | Postgres + pgvector HNSW als Single-Truth, Neo4j optional als Read-Projektion | LightRAG (Qdrant+DuckDB); Mem0 (Postgres+Qdrant); Cognee/Graphiti (Neo4j-zentriert); MS GraphRAG (parquet+optional Postgres) | **Parity-pragmatisch** — pgvector reicht für eure Größe (10ms p50 @ 30k); Single-Truth-Argument ist defensibel |
+| 6 | **Hybrid Search** | Stage 1 Gemini Embed→pgvector kNN ✅; Stage 2 Mention-Extraction (GLiNER/Gemini-Fallback) 🟡; Stage 3 Cross-Encoder-Rerank 🟡 | 2026 SOTA = BM25+Dense+Rerank (Cohere v3.5 ELO 1629, mxbai-rerank-v2 BEIR 57.49, ZeroEntropy 1638); LightRAG Dual-Level; NodeRAG PPR | **Hinter** — Stage 2/3 fehlt; Stage 1 alleine ist 2024-Standard, nicht 2026. **In 2-3h aufholbar mit mxbai-rerank** |
+| 7 | **Agent-Surface** | 5 MCP Tools (search_memory, get_entity, get_fact, get_fact_provenance, list_recent_changes) + REST | Anthropic Memory MCP (4 Tools: create_entity/add_relation/add_observation/search_nodes, kein Provenance-Tool); Graphiti MCP (search_kg/get_entity/get_fact); Cognee MCP (in dev) | **Vorn (knapp)** — `get_fact_provenance` und `list_recent_changes` haben Konkurrenten nicht; aber `propose_fact` fehlt im MCP-Surface (REST-only). **Gap schließen!** |
+| 8 | **HITL / Conflict-Resolution** | `pending_inbox` + `approval_status` für Types/Mappings/Facts; Trust-Score = avg(confidence) × min(source_count/3, 1) × exp(-age/30d) | SystemER (VLDB 2019, Crowd-feedback, Explainability); Active Learning ALMSER 2024; Wikidata Edit-History (kein algorithmisches Decay); TrustGraph Workbench (Explainability-Panel) | **Vorn-praktisch** — Trust-Score-Formel selbst-erfunden, aber sinnvoll. Inbox-UX existiert nirgends so explizit für Mapping-Configs. Decide-Endpoint fehlt noch |
+
+**Legende:** ✅ done, 🟡 teilweise, **vorn** = klarer SOTA-Differentiator, **parity** = vergleichbar zu SOTA, **hinter** = fehlt etwas Sichtbares
+
+---
+
+## 3. Top-10 Repos: 1-Satz-Verdikt + Klauen/Kopieren/Ignorieren
+
+| # | Repo | Stars | Last Activity | Warum für uns interessant | Verdikt |
+|---|------|-------|---------------|---------------------------|---------|
+| 1 | [mem0ai/mem0](https://github.com/mem0ai/mem0) | 54.1k | Apr 2026 (v3.0.1) | Größte Memory-Community; Hybrid-Retrieval (BM25+Dense+Entity-Boost) seit v2.0; Graph-basiert; LLM-Conflict-Resolver | **AKTIVER KONKURRENT** — beobachten, LLM-Resolver-Pattern für ambige Facts klauen wenn Zeit |
+| 2 | [HKUDS/LightRAG](https://github.com/HKUDS/LightRAG) | 34.3k | Apr 2026 | Dual-Level Retrieval (Entity + Text-Chunk parallel); 6000× Token-Effizienz vs. MS GraphRAG; EMNLP 2025 Findings | **KOPIEREN** — Dual-Level-Pattern für Stage 1+2 |
+| 3 | [microsoft/graphrag](https://github.com/microsoft/graphrag) | 32.5k | Apr 2026 | Foundational Entity-KG + Community-Summary-Architektur; LLM extracts everything | **KLAUEN** — Community-Summary-Idee als Pre-Computation für VFS-Folder. Architektur-Pattern, nicht Code |
+| 4 | [getzep/graphiti](https://github.com/getzep/graphiti) | 25.4k | Apr 2026 (v0.28.1) | Bi-temporal KG mit Event+Ingestion-Time, MCP-Server, Real-Time Streaming, Pydantic-Entity-Types | **AKTIVER KONKURRENT (#1)** — direkteste Konkurrenz; Edge-Validity-Modeling-Pattern klauen, aber Postgres-Pfad als unser Edge spielen |
+| 5 | [letta-ai/letta](https://github.com/letta-ai/letta) | 22.3k | Mar 2026 (v0.16.7) | 3-Tier Memory (Core/Archival/Recall), VFS-style Filesystem-Memory, Editor-UX | **KOPIEREN** — VFS-Pfad-Konvention für unsere Memory-Adressierung; 3-Tier-Memory-Mental-Model im Pitch |
+| 6 | [topoteretes/cognee](https://github.com/topoteretes/cognee) | 16.8k | Apr 2026 | "6 Lines of Code"-UX; pluggable Backends; ECL-Pipeline-Konzept | **KOPIEREN** — UX-Mantra ("Memory in 6 Zeilen"); Architektur ignorieren |
+| 7 | [Terry-Xu-666/NodeRAG](https://github.com/Terry-Xu-666/NodeRAG) | 412 | Mar 2025 | arXiv 2504.11544; Heterogeneous Graph (Entity, Chunk, Event, Summary als Nodes); Personalized PageRank Retrieval; **NodeRAG > LightRAG > GraphRAG auf MuSiQue (46.29% vs 41.71% vs 36%)** | **KLAUEN** — Heterogeneous-Node-Architektur passt zu unserem reified-fact-Modell; PPR als Stage-2-Reranker-Alternative |
+| 8 | [trustgraph-ai/trustgraph](https://github.com/trustgraph-ai/trustgraph) | 2.0k | Apr 2026 | RDF + Reification; End-to-End-Provenance; Workbench mit Explainability-Panel; v2 released Mar 28, 2026 | **KOPIEREN** — Provenance-UI-Pattern (4-level: Doc→Page→Chunk→Subgraph); RDF/SPARQL-Hype ignorieren |
+| 9 | [moj-analytical-services/splink](https://github.com/moj-analytical-services/splink) | 2.1k | Apr 2026 | UK MOJ Production-ER; Fellegi-Sunter EM-Algorithmus; OpenUK Award 2025; benchmarked auf ABS 3.5B records | **KOPIEREN (Spezial)** — wenn unser pgvector-Tier Recall-Probleme hat: Splink-Comparison-Vector-Pattern für T3.5-Fallback |
+| 10 | [anthropics/claude-cookbooks](https://github.com/anthropics/claude-cookbooks) | n/a | Apr 2026 | Memory-Tool-Cookbook; VFS-Memory-Pattern (`/memories/`); Context-Editing-Patterns | **KOPIEREN** — Anthropic-konforme MCP-Tool-Signaturen für Distribution. **Macht uns mit Claude Desktop kompatibel** |
+
+**Bewusst nicht in Top-10:**
+- **OpenSPG/KAG (8.7k★)** — zu enterprise/SPARQL-lastig, niedrige Hackathon-Relevanz
+- **MemGPT (legacy)** — superseded by Letta
+- **HippoRAG** — Repo unklar, kleine Community
+- **Bee Agent (3.2k★)** — Memory ist nachgedacht, nicht Kern
+- **Zingg (1.2k★)** — überlappt zu sehr mit Splink
+
+---
+
+## 4. Wow-Features sortiert nach Impact × 4h-Machbarkeit
+
+### Ranking-Matrix (Hackathon-Relevanz für die letzten 10h Backend)
+
+| Feature | Impact (Pitch-Wow) | Machbarkeit ≤4h | Score | Demo-tauglich? |
+|---------|--------------------|------------------|-------|-----------------|
+| **A. Schema-Wachstum live (neuer Source-Type → AI-Mapping → Approve → Graph wächst)** | ★★★★★ (THE Differentiator) | ★★★★ (Engine existiert, Demo-Path fehlt) | **20** | ✅ 60s |
+| **B. MCP-Server live mit Claude Desktop** | ★★★★★ (memorable Moment) | ★★★★★ (FastMCP existiert) | **25** | ✅ 90s |
+| **C. Time-Travel-Endpoint + Lazy-Re-Derivation Demo** | ★★★★ (zeigt Bi-Temporal + Provenance) | ★★★ (Schema da, 2 Endpoints fehlen) | **12** | ✅ 45s |
+| D. Cross-Source-Bridge-Inferenz (Trust-Score-Boost) | ★★★ | ★★★ | 9 | mittel |
+| E. Conflict-Inbox `decide`-Endpoint + Demo | ★★★ | ★★★★ | 12 | ja, aber unsexy |
+| F. DSPy/LangGraph self-tuning Cascade | ★★ | ★ | 2 | nein, unsichtbar |
+| G. Rights-aware retrieval (visibility-tag) | ★★ | ★★ | 4 | weak |
+
+### Top-3 mit How-To
+
+#### **Wow-Feature #1: MCP-Server live an Claude Desktop**
+*Score 25 — höchster Impact, höchste Machbarkeit, irreversibler Wow-Moment im Pitch*
+
+**Warum:** Anthropic-Cookbook-Memory + Graphiti haben gerade MCP-Server released. Wenn ihr den eigenen MCP-Server auf einem Laptop laufen lasst und live vor der Jury Claude Desktop oder Cursor an euer Memory anstöpselt, ist das ein 90-Sekunden-Pitch-Moment, den niemand überbieten kann. Das Konzept "Bring your own Memory to any Agent" ist genau die Botschaft.
+
+**How-To (≤2h Backend):**
+1. **`propose_fact` ins MCP-Surface heben** — REST-Endpoint existiert; in `mcp_server.py` einen weiteren `@server.tool()`-Decorator mit demselben Pydantic-Schema anhängen. Tool-Name: `propose_fact`. Beschreibung muss explizit sagen "submit a candidate fact for HITL review".
+2. **Tool-Description-Polishing** — alle 6 Tools (search_memory, get_entity, get_fact, get_fact_provenance, list_recent_changes, propose_fact) mit klaren Use-Case-Strings versehen, sonst rated Claude sie schlecht. Convention: `<verb>_<noun>`, snake_case.
+3. **`stdio`-Transport im FastMCP** — sicherstellen, dass `mcp.run(transport="stdio")` funktioniert; das ist was Claude Desktop braucht.
+4. **`claude_desktop_config.json`-Snippet** vorbereiten (Pfad: `~/Library/Application Support/Claude/`):
+   ```json
+   {"mcpServers": {"qontext": {"command": "uv", "args": ["run", "python", "-m", "qontext.mcp_server"], "cwd": "/path/to/repo"}}}
+   ```
+5. **Demo-Skript:** Claude Desktop offen, dann `"Use Qontext to find every fact about Acme Corp's renewal status"` → Claude ruft `search_memory` + `get_fact_provenance`, zeigt Source-Quote inkl. Hash. **Goosebumps**.
+
+**Risiko:** Claude Desktop benötigt MCP-Permission-Approval beim ersten Start — ggf. vor dem Pitch einmal connecten.
+
+---
+
+#### **Wow-Feature #2: Schema-Wachstum live (autonome Ontologie)**
+*Score 20 — euer einzigartigster Differentiator, demonstriert das JSONata + AI + HITL Trio*
+
+**Warum:** Niemand sonst hat persistierbare AI-erzeugte Mapping-Configs mit HITL-Approval. MS GraphRAG schluckt alles unkontrolliert, Cognee will manuelle Ontologie, Graphiti hardcoded Pydantic. Eine 60-Sekunden-Demo, in der ein neuer Source-Type (z.B. ein Slack-DM-Export oder ein neues CRM-Feld) reinrollt, Gemini 2.5 ein JSONata-Mapping vorschlägt, das im UI/CLI sichtbar wird, ein Mensch approve-clickt und dann sofort neue Edges im Graph auftauchen — das ist der "Holy Shit"-Moment.
+
+**How-To (≤4h Backend, parallel zu Frontend-Polish):**
+1. **Demo-Source-Type wählen, der noch nicht da ist** — z.B. `forum_post` oder `support_chat` mit 5-10 hand-curated Sample-Records. Schreibt `seed_data/forum_post_samples.json`.
+2. **CLI-Script `scripts/demo_schema_growth.py`** — bash-able Demo-Skript:
+   - `step 1: ingest forum_post records → triggers infer_source_mapping`
+   - `step 2: print proposed JSONata mapping JSON (pretty-formatted)`
+   - `step 3: print holdout-validation result (X/Y records correctly mapped)`
+   - `step 4: wait for ENTER (= human approve)`
+   - `step 5: apply mapping → emit count of new entities/facts created`
+3. **`/api/source_type_mappings/{id}/approve` Endpoint** — falls noch nicht da, simpler PATCH-Endpoint, der `approval_status='approved'` setzt und einen `approved_by`/`approved_at`-Eintrag schreibt.
+4. **Realtime-Hook fürs Frontend** — Supabase Realtime auf `source_type_mappings`-Tabelle, damit das UI live "Pending → Approved → Active"-State zeigt. Wenn das Frontend-Team das nicht in 4h schafft: CLI-Output reicht für Demo.
+5. **Pitch-Slide:** Vor/Nach-Graph-Visualisierung — Anzahl Source-Types vorher (4) → nachher (5) mit gewachsenem Schema.
+
+**Risiko:** Gemini-Inference muss zuverlässig laufen; Budget Singleton mit Fallback-Cooldown verhindert Demo-Failure. Lokales Cache-Result für Worst-Case vorbereiten.
+
+---
+
+#### **Wow-Feature #3: Time-Travel + Lazy-Re-Derivation Combo**
+*Score 12 — solide, demonstriert Bi-Temporal + Provenance gleichzeitig*
+
+**Warum:** Bi-temporal `tstzrange + EXCLUDE GIST` ist seltener als Graphiti's Edge-Validity. `as_of`-Query ist 30 Sekunden Demo-Gold. Lazy-Re-Derivation ist 30 Sekunden mehr. Beide nutzen schon-existierende Schema-Features.
+
+**How-To (≤2h Backend):**
+1. **`GET /api/entities/{id}?as_of=<ISO timestamp>`** — neue Query-Param. SQL: `SELECT * FROM facts WHERE subject = $1 AND validity @> $2::tstz`. Ergebnis-Rendering identisch zu jetzigem Endpoint.
+2. **`POST /api/source_records/{id}` (Update-Path) muss Hash-Diff triggern** — wahrscheinlich ist der Trigger schon da. Verifizieren mit `SELECT count(*) FROM facts WHERE needs_refresh = true` vor/nach Update.
+3. **Demo-Datenpunkt vorbereiten:** Ein Acme-Mitarbeiter, der Q1 2026 die Renewal-Owner-Rolle hatte, jetzt eine andere. `as_of=2026-01-15` → alter Owner; `as_of=now` → neuer Owner.
+4. **Demo-Skript für Lazy-Re-Derivation:**
+   - `step 1: fetch fact "Acme renewal status: pending" with provenance`
+   - `step 2: simulate source-update (PATCH source_record to "completed")`
+   - `step 3: show that derived facts are flagged needs_refresh = true`
+   - `step 4: re-fetch fact → re-derived inline, new provenance chain`
+5. **Pitch-Slide:** Side-by-side `as_of=Q1` vs. `now` Entity-View. Subtitle: *"Memory that knows what it knew."*
+
+**Risiko:** Trigger-Logik testen, dass `last_hash_seen` wirklich content_hash-Diff erkennt. 1h Buffer für Edge-Cases.
+
+---
+
+### Wow-Features 4-7 (für Notfall-Bonus, **nicht Top-Priorität**)
+
+- **D. Cross-Source-Bridge-Trust-Boost:** SQL-View, die Facts mit `source_count >= 2 AND distinct(source_type) >= 2` flaggt. UI-Badge "Cross-Confirmed". 30min Implementierung, aber unklar, ob die Jury den Subtilitätsunterschied versteht.
+- **E. Conflict-Inbox `decide`-Endpoint:** `POST /api/resolutions/{id}/decide` mit `{action: 'merge'|'split'|'ignore', target_entity_id?: uuid}`. Das ist ehrlich gesagt **must-have** für ein vollständiges HITL-Storytelling, aber eher Hygiene als Wow.
+- **F. DSPy/LangGraph self-tuning:** Klassisches "looks fancy on slides, invisible in demo" — überspringen.
+- **G. Rights-aware retrieval:** `visibility_tag` enum-Spalte auf facts; Filter im Resolver. Macht euch nur dann zur Killer-Story, wenn ihr eine konkrete RBAC-Demo nachstellt — sonst Buzzword.
+
+---
+
+## 5. Citation-Empfehlungen für den Pitch
+
+Diese 6 Quellen sind 2024-2026, peer-reviewed oder von etablierten Labs, und decken eure Behauptungen rückwärts ab:
+
+| # | Citation | Verwendung im Pitch |
+|---|----------|---------------------|
+| 1 | **Rasmussen et al. (2025) — "Zep: A Temporal Knowledge Graph Architecture for Agent Memory"**, [arXiv:2501.13956](https://arxiv.org/abs/2501.13956) | "Bi-temporale Memory ist nicht spinnert — Zep zeigt 18.5% Verbesserung auf LongMemEval. Wir gehen einen Schritt weiter mit Postgres-Constraints." |
+| 2 | **Guo et al. (2024) — "LightRAG: Simple and Fast Retrieval-Augmented Generation"**, [arXiv:2410.05779](https://arxiv.org/abs/2410.05779), EMNLP 2025 Findings | "Graph + Vector Dual-Level Retrieval ist 6000× token-effizienter als naive GraphRAG. Wir adaptieren das Pattern in Stage 1+2." |
+| 3 | **Xu et al. (2025) — "NodeRAG: Structuring Graph-based RAG with Heterogeneous Nodes"**, [arXiv:2504.11544](https://arxiv.org/abs/2504.11544) | "Heterogeneous Node-Types (Entity + Chunk + Event + Summary) schlagen single-type Graphs auf MuSiQue. Unser reified-fact-Schema folgt der gleichen Logik." |
+| 4 | **Souza et al. (2025) — "PROV-AGENT: Unified Provenance for Tracking AI Agent Interactions"**, [arXiv:2508.02866](https://arxiv.org/abs/2508.02866), e-Science 2025 | "W3C PROV-O wird gerade auf MCP-Agents adaptiert. Wir exposen Provenance als first-class MCP-Tool — vor allen anderen." |
+| 5 | **ICAART 2025 — "Improving Quality of Entity Resolution Using a Cascade Approach"**, [SciTePress PDF](https://www.scitepress.org/Papers/2025/130774/130774.pdf) | "Cascade-Approach (Confidence-höchste Methoden zuerst) ist peer-reviewed Standard. Unsere 5 Tiers folgen exakt der Logik." |
+| 6 | **Anthropic Engineering Blog (Apr 2026) — Memory Tool für Claude Managed Agents**, [platform.claude.com/docs/agents-and-tools/memory-tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool) | "Path-based Memory (`/memories/`) ist jetzt Anthropic-Standard. Unser MCP-Server ist Claude-Desktop-kompatibel out-of-the-box." |
+
+**Optional/Bonus:** "BoostER: LLM-as-ER-Verifier" (ACM WebConf 2024); "Match, Compare, or Select" (COLING 2025); MemoryAgentBench (ICLR 2026).
+
+---
+
+## 6. Rote Flags — Was die Jury fragen wird
+
+| # | Frage / Lücke | Mitigation |
+|---|---------------|-----------|
+| 1 | **"Wo sind eure Benchmark-Zahlen vs. Mem0/Letta/Graphiti?"** Ihr habt keine. Zep claimt 94.8% LongMemEval-Score. | "10h-Hackathon. Architektur-Demo statt Bench. **Wir laden gerne offen** — unser Postgres-Setup ist reproducibel."  Zeigt stattdessen p50-Latenz (<10ms pgvector) und live-Demo. |
+| 2 | **"Warum nicht Splink + Graphiti einfach kombinieren statt selbst bauen?"** | "Splink ist probabilistisch-only (kein deterministischer T1), Graphiti ist Neo4j-zentriert (kein Postgres-Constraint-Vorteil). Unser Cut: minimal coupling, single-truth-Postgres, Tier-Cascade exakt steuerbar." |
+| 3 | **"`propose_fact` nicht im MCP-Surface — warum?"** | **Vor dem Pitch fixen** (siehe Wow-Feature #1, Schritt 1). Wenn nicht: "Bewusst REST-only für audit-logging, MCP-Variante in v1.1." |
+| 4 | **"GLiNER2-Fine-Tune-Status?"** | Status verifizieren. Wenn nicht ready: "T3.5 ist als Pioneer-Slot reserviert — Fallback ist Gemini-Regex via T3, das wir live messen." |
+| 5 | **"Trust-Score-Formel — wo ist die Validation?"** | "Empirisch motiviert: confidence × coverage × age-decay. 30d-Halbwertzeit ist Domain-Knowledge. Tunbar pro Tenant, kein Hardcode. Peer-Review nach Hackathon, nicht währenddessen." |
+| 6 | **"JSONata ist niche — warum nicht jq oder Pydantic?"** | "JSONata ist deklarativ + editier-im-UI-fähig (Pydantic = Code-Bind), expressiver als jq. AWS Step Functions hat es 2024 als Standard adoptiert. Wir nutzen es als Konfig-DSL, nicht als Runtime-Filter." |
+| 7 | **"TrustGraph v2 (Mar 2026) hat Provenance + Reification — wie unterscheidet ihr euch?"** | "TrustGraph: RDF/SPARQL, Workbench-UI, kein Bi-Temporal, kein Hash-Refresh-Trigger. Unser Edge: Auto-Konsistenz beim Source-Update + Postgres-native Constraints." |
+| 8 | **"Stage 2/3 Hybrid Search nicht live — eure Search ist veraltet?"** | "Stage 1 (pgvector kNN) reicht für 28k Records, p50<10ms. Stage 2/3 ist Cross-Encoder-Plug-in — mxbai-rerank-v2 BEIR 57.49, in 1h integriert wenn relevant." Notfalls: Cohere-Rerank-Demo zeigen. |
+| 9 | **"Conflict-Inbox `decide`-Endpoint fehlt — der Workflow ist nicht komplett."** | **Muss vor Submission stehen.** Simpel: PATCH approval_status. 30min. Sonst Glaubwürdigkeitsschaden. |
+| 10 | **"Dual-Write zu Neo4j ungetestet bei Last."** | "Bewusst Read-Projektion via Supabase Realtime, kein Dual-Write. Postgres bleibt Truth bei jeder Race Condition." |
+
+---
+
+## 7. Konkrete Action-Items für die nächsten 10h (priorisiert)
+
+```
+H+0 ─ H+1   ► (Hygiene)   /api/resolutions/{id}/decide endpoint        [Red Flag #9]
+H+1 ─ H+2   ► (Wow #1)    propose_fact als MCP-Tool exponieren          [Red Flag #3 + Wow #1]
+H+2 ─ H+4   ► (Wow #2)    demo_schema_growth.py + forum_post seed       [Wow #2]
+H+4 ─ H+6   ► (Wow #3)    /api/entities/{id}?as_of= + lazy-refresh test [Wow #3]
+H+6 ─ H+7   ► (Pitch)     MCP claude_desktop_config.json + Connection-Test
+H+7 ─ H+8   ► (Pitch)     Slide-Deck mit Vergleichstabelle (§2) + 3 Demos
+H+8 ─ H+9   ► (Buffer)    Edge-Cases, Gemini-Budget-Smoke-Test
+H+9 ─ H+10  ► (Submit)    Tag, push, video-record fallback demo
+```
+
+**Falls etwas droppt, dann in dieser Reihenfolge:** Wow-Feature #3 → Wow-Feature #2 → Conflict-Inbox decide → Wow-Feature #1.
+
+`propose_fact` als MCP-Tool **muss bleiben**, sonst lässt euch jeder informierte Juror auflaufen.
+
+---
+
+## 8. TL;DR-Pitch-Linie (für Slide 1)
+
+> **Qontext: Enterprise Memory ohne LLM-Tax pro Lookup.**
+> Deterministisch-zuerst Entity Resolution. Schema, das mit AI-Inference + Mensch-Approval wächst. Bi-temporal in Postgres mit Auto-Konsistenz. Provenance pro Fact, exposed als MCP-Tool. — Mem0 hat 54k Stars, Graphiti hat 25k, wir haben **die einzige Memory-Infrastruktur, die deterministisch genug für SAP-Daten und smart genug für Mail-Threads ist**.
+
+---
+
+**Sources & Methodik:**
+- 3 parallele general-purpose Research-Agenten, ~80k Tokens total, ~7 Minuten Wallclock
+- Verifizierte Repos: Star-Counts April 2026 via GitHub-Search-Snapshots
+- arXiv-IDs gegen-geprüft (2 Citation-IDs sind plausibel, nicht 1:1 verifiziert — markiere im Pitch als "in der Literatur nahezu zeitgleich" wenn Spitzenredner ist)
+- Eigene Architektur-Beschreibung 1:1 aus deinem Briefing übernommen, nicht modifiziert
+
+Schau dir das genau an und sage auf welchem Stand wir sind
+
+---
+
+Was ist mit der Entity Resolution, sollten wir da wechseln?
+
+---
+
+Also gibt es Sachen die wir jetzt noch ändern sollten oder sollen wir jetzt nur noch mehr features ums backend rumbauen
+
+---
+
+Gehe mal an die vier roten Fehler ran und prüfe und plane sie falls sie einen fix benötigen
+
+---
+
+Perfekt ja dann lass merge mit main machen und beides up to date machen
+
+---
+
+jetzt stimmt glaube ich schon wieder was nicht mit den autoren oder?
+
+---
+
+ne egal passt. Ich möchte mich jetzt nochmal über die anforderungen von qontext kümmern, sie wollen ja das unser model allgemeingültig ist und nicht nur auf die Daten funktionieren die sie uns gegeben haben, Ich möchte, dass du das alles nochmals prüfst und das backend von vorne bis hinten durchgehst und sagst wo wir skalierbar und allgemeingültig sind und wo vielleicht noch nicht
+
+---
+
+Dann lass uns alle 5 Punkte genauestens planen und fixen.
+
+---
+
+Ok und die Schnittstellen vor der Injection sind Hardcoded (macht ja auch sinn werden in der realität ja connections zu anderen softwares sein richtig)
+
+---
+
+ne jetzt kümmern wir uns noch um Partner tool, wir müssen irgendwie noch pioneer einbauen und Tavily, was anderes fällt mir nicht ein. Was sagst du? Wir brauchen nämlich drei genutzt techpartner und haben bis jetzt nur google
+
+---
+
+Welche Aufgaben übernimmt es jeweils an den Stellen?
+
+---
+
+Können wir auch einen anderen tech partner noch einfacher verwenden?
+
+---
+
+Wo hat tavily einen wirklichen Mehrwert und es wirkt nicht so als ob es halt genutzt werden musste.
+
+---
+
+Ok dann machen wir tavily voll und pioneer bei free text oder wie auch immer
+
+---
+
+und weiter
+
+---
+
+kannst du in env schonmal die neuen zeilen anlegen
+
+---
+
+ok ist drinnen
+
+---
+
+Ich will jetzt, dass du von vorne bis hinten komplett jeden Schritt durchtestet und mir jeweils die Qualität des Ergebnisses sagst, wie gut ist unser Model gerade, werden wirklich alle wichtigen Infos gemapped aus den Daten, werden sie auch richtig dargestellt und können sie auch richtig retrieved werden über die Schnittstellen am Ende
+
+---
+
+Plane die erste Runde an fixes für alle punkte
+
+---
+
+wie weit ist der Plan?
+
+---
+
+wir warten kurz und dann machen wir die nächste runde an quali tests im gleichen stil wie davor
+
+---
+
+<task-notification>
+<task-id>bmoky6lkc</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-lassejohannis-Desktop-TechEurope/60294954-bc73-44f3-a951-6633f66d8e32/tasks/bmoky6lkc.output</output-file>
+<status>completed</status>
+<summary>Background command "resolve 200 records for each previously-empty source_type" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bxne6vltn</task-id>
+<tool-use-id>toolu_01JXg8MYzggzNDHsbidf8Hk1</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-lassejohannis-Desktop-TechEurope/60294954-bc73-44f3-a951-6633f66d8e32/tasks/bxne6vltn.output</output-file>
+<status>completed</status>
+<summary>Background command "wait for sale chunk to finish" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bggq7dy72</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-lassejohannis-Desktop-TechEurope/60294954-bc73-44f3-a951-6633f66d8e32/tasks/bggq7dy72.output</output-file>
+<status>completed</status>
+<summary>Background command "wait for resolve runs" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b5xb12off</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-lassejohannis-Desktop-TechEurope/60294954-bc73-44f3-a951-6633f66d8e32/tasks/b5xb12off.output</output-file>
+<status>failed</status>
+<summary>Background command "final API smoke" failed with exit code 143</summary>
+</task-notification>
+
+---
+
+ja easy
+
+---
+
+Aber ist das denn jetzt skalierbar, wenn es studen dauert um die gesamten Daten einzuspeisen theoretisch wenn man das will?
+
+---
+
+[Image #1] machen wir nicht auch immer noch viel zu viele requests an gemini, woran liegt das?
+
+---
+
+ja
+
+---
+
+was mich nun auch noch interessiert, haben wir jetzt einen connector für jeden typ an daten aus den testdaten und decken das jetzt gut ab?
+
+---
+
+Was heißt das bei den 4 die nie gefüttert wurden?
+
+---
+
+ja und weitere Frage: Würde Gemini jetzt schon neue Edge types und Entity Types erstellen wenn wir alle konnektoren einmal mit einer kleinen anzahl an tests laufen lassen, bzw. hat es das schon getan?
+
+---
+
+Irgendwas ist gerade abgestürzt, wo waren wir stehengeblieben, stimmt noch alles?
+
+---
+
+Ja mache aber nue jeweils 5 test beispiele
+
+---
+
+aber es kann ja nicht sein, dass noch kein einziges pdf fertig ist, irgendwas stimmt da nicht
+
+---
+
+ich will dass du wesentlich kürzere tests machst
+
+---
+
+/loop check ingest status and continue mapping inference + resolve for document/invoice when done
+
+---
+
+müssen wir das jetzt noch fixen?
+
+---
+
+also ingest hat jetzt gute quali
+
+---
+
+wollen wir das schnell noch fixen?
+
+---
+
+OK was müssen wir uns als nächstes anschauen, ich würde sagen, es ist wichtig, dass das mergen von etitys und konflikte sauber gefunden werden und funktioniern, ist das gerade der Fall?
+
+---
+
+ok plane das jeweils
+
+---
+
+kannst du schauen ob wir clean mit den neuesten stand mergen können, was sind die unterschiede
+
+---
+
+Haben wir jetzt ein gut funktionierendes Backend?
+
+---
+
+Feuer nochmal von vore bis hinten Tests ab und dann schauen wir was bedarf hat gefixed zu werden
+
+---
+
+Wird jetzt gescheit Pioneer und das andere verwendet, einmal prüfen
+
+---
+
+Wenn wir genug für Demo haben, dann passt das erstmal
+
+---
+
+Es gibt gerade neun verschiedene entity types?
+
+---
+
+Aber macht das sinn, dass es nur diese 5 types gibt? bei den neun sources? kannst du das einmal genau ideaten
+
+---
+
+Aber kann man sie gerade auch theoretisch auch manuell im frontend approven? sind sie offene stellen?
+
+---
+
+Wenn wir jetzt alle daten reseten würden und von vorne anfangen, dann würden sie wahrscheinlich irgendwann angezeigt werden oder?
+
+---
+
+Grunfsätzliche Frage: Wenn ein human in the loop für approval gebraucht wird, was passiert dann mit dem laufenen flow?
+
+---
+
+Also wenn man einen neuen entity type oder so noch nicht angenommen hat, dann wird erstmal mit anderen weitergemacht und späte reevaluatet oder was?
+
+---
+
+Also was genau bedeutet das?
+
+---
+
+Wäre es nicht smart immer so zu tuen als wäre es approved und die neuen Sachen nur so lange noch nicht anzeigen, der anspruch ist ja auch so, dass wenn ein neuer type vorgeschlagen wird, dass es dann auch Sinn macht
+
+---
+
+Wollen wir einfach einmal alle Daten löschen zu wirklich allem und dann gleich neu von anfang etwas befüllen
+
+---
+
+ja mach
+
+---
+
+[Image #2] Problem, was machen wir
+
+---
+
+Error: Failed to run sql query: ERROR: 25006: cannot execute TRUNCATE TABLE in a read-only transaction
+
+---
+
+Was ist denn passiert genau, wir müssen das doch fixen können
+
+---
+
+habe wieder zugriff und sehe alles, wie lösche ich per sql befehl alle datensätze
+
+---
+
+Error: Failed to run sql query: FATAL: 53100: could not write init file: No space left on device
+
+---
+
+Also der 2gb speicher ist voll und daher ist alles im read only modus, wie kann ich das aufheben um sachen zu löschen
+
+---
+
+Versuche A
+
+---
+
+lassejohannis@MacBook-Air-von-Lasse TechEurope % cd /Users/lassejohannis/Desktop/TechEurope                     
+  supabase db reset --linked
+Initialising login role...
+unexpected login role status 400: {"message":"Failed to create login role: ERROR:  25006: cannot execute CREATE ROLE in a read-only transaction\nCONTEXT:  SQL statement \"create role cli_login_postgres noinherit login noreplication\"\nPL/pgSQL function inline_code_block line 9 at SQL statement\n"}
+Connect to your database by setting the env var: SUPABASE_DB_PASSWORD
+lassejohannis@MacBook-Air-von-Lasse TechEurope %
+
+---
+
+Disk metrics refer to the storage usage reported by Postgres. These metrics are updated daily. As you read through this document, we will refer to "database size" and "disk size":
+
+Database size: Displays the actual size of the data within your Postgres database. This can be found on the Database Reports page.
+
+Disk size: Shows the overall disk space usage, which includes both the database size and additional files required for Postgres to function like the Write Ahead Log (WAL) and other system log files. You can view this on the Database Settings page.
+
+Database size#
+
+This SQL query will show the size of all databases in your Postgres cluster:
+
+select
+  pg_size_pretty(sum(pg_database_size(pg_database.datname)))
+from pg_database;
+This value is reported in the database report page.
+
+Database size is consumed primarily by your data, indexes, and materialized views. You can reduce your database size by removing any of these and running a Vacuum operation.
+
+Depending on your billing plan, your database can go into read-only mode which can prevent you inserting and deleting data. There are instructions for managing read-only mode in the Disk Management section.
+Disk space usage#
+
+Your database size is part of the disk usage for your Supabase project, there are many components to Postgres that consume additional disk space. One of the primary components, is the Write Ahead Log (WAL). Postgres will store database changes in log files that are cleared away after they are applied to the database. These same files are also used by Read Replicas or other replication methods.
+
+If you would like to determine the size of the WAL files stored on disk, Postgres provides pg_ls_waldir as a helper function; the following query can be run:
+
+select pg_size_pretty(sum(size)) as wal_size from pg_ls_waldir();
+Vacuum operations#
+
+Postgres does not immediately reclaim the physical space used by dead tuples (i.e., deleted rows) in the DB. They are marked as "removed" until a vacuum operation is executed. As a result, deleting data from your database may not immediately reduce the reported disk usage. You can use the Supabase CLI inspect db bloat command to view all dead tuples in your database. Alternatively, you can run the query found in the CLI's GitHub repo in the SQL Editor
+
+# Login to the CLI
+npx supabase login
+# Initialize a local supabase directory
+npx supabase init
+# Link a project
+npx supabase link
+# Detect bloat
+npx supabase inspect db bloat --linked
+If you find a table you would like to immediately clean, you can run the following in the SQL Editor:
+
+vacuum full <table name>;
+Vacuum operations can temporarily increase resource utilization, which may adversely impact the observed performance of your project until the maintenance is completed. The vacuum full command will lock the table until the operation concludes.
+Supabase projects have automatic vacuuming enabled, which ensures that these operations are performed regularly to keep the database healthy and performant.
+
+It is possible to fine-tune the autovacuum parameters, or manually initiate vacuum operations. Running a manual vacuum after deleting large amounts of data from your DB could help reduce the database size reported by Postgres.
+
+Preoccupied space#
+
+New Supabase projects have a database size of ~40-60mb. This space includes pre-installed extensions, schemas, and default Postgres data. Additional database size is used when installing extensions, even if those extensions are inactive.
+
+Disk size#
+
+Supabase uses network-attached storage to balance performance with scalability. The disk scaling behavior depends on your billing plan.
+
+Paid plan behavior#
+
+Projects on the Pro Plan and higher have auto-scaling disks.
+
+Disk size expands automatically when the database reaches 90% of the allocated disk size. The disk is expanded to be 50% larger (for example, 8 GB -> 12 GB).
+
+Auto-scaling is limited to four modifications within a rolling 24-hour window. While a new modification can be initiated immediately after the previous one completes, reaching the quota of four resizes within the current rolling 24-hour window will prevent further scaling until the window allows it. If you reach 95% disk utilization and have exhausted your modification quota, your project will enter read-only mode.
+
+The automatic resize operation will add an additional 50% capped to a maximum of 200 GB. If 50% of your current usage is more than 200 GB then only 200 GB will be added to your disk (for example a size of 1500 GB will resize to 1700 GB).
+Disk size can also be manually expanded on the Database Settings page. The maximum disk size for the Pro/Team Plan is 60 TB. If you need more than this, contact us to learn more about the Enterprise Plan.
+
+You may want to import a lot of data into your database which requires multiple disk expansions. for example, uploading more than 1.5x the current size of your database storage will put your database into read-only mode. If so, it is highly recommended you increase the disk size manually on the Database Settings page.
+Due to restrictions on the underlying cloud provider, disk modifications are limited to four operations within a rolling 24-hour window. While a new modification can be initiated as soon as the previous one completes, you will be unable to make further adjustments if you reach this rolling 24-hour limit until the rolling 24-hour window permits it.
+Free Plan behavior#
+
+Free Plan projects enter read-only mode when your database size exceeds 500 MB. Note that this is the database size limit (the size of your actual Postgres data), not the disk size. Free Plan projects include 1 GB of disk space, but read-only mode is triggered by the 500 MB database size quota. Once in read-only mode, you have these options:
+
+Upgrade to the Pro Plan to increase the database size quota. Disable the Spend Cap if you want your Pro instance to auto-scale beyond the 8 GB disk size limit.
+Disable read-only mode and reduce your database size.
+Read-only mode#
+
+In some cases Supabase may put your database into read-only mode to prevent your database from exceeding the billing or disk limitations.
+
+In read-only mode, clients will encounter errors such as cannot execute INSERT in a read-only transaction. Regular operation (read-write mode) is automatically re-enabled once usage is below 95% of the disk size,
+
+Disabling read-only mode#
+
+You manually override read-only mode to reduce disk size. To do this, run the following in the SQL Editor:
+
+First, change the transaction access mode:
+
+set session characteristics as transaction read write;
+This allows you to delete data from within the session. After deleting data, consider running a vacuum to reclaim as much space as possible:
+
+vacuum;
+Once you have reclaimed space, you can run the following to disable read-only mode:
+
+set default_transaction_read_only = 'off';
+Disk size distribution#
+
+You can check the distribution of your disk size on your project's compute and disk page.
+
+Disk Size Distribution
+
+Your disk size usage falls in three categories:
+
+Database - Disk usage by the database. This includes the actual data, indexes, materialized views, ...
+WAL - Disk usage by the write-ahead log. The usage depends on your WAL settings and the amount of data being written to the database.
+System - Disk usage reserved by the system to ensure the database can operate smoothly. Users cannot modify this and it should only take very little space.
+Reducing disk size#
+
+Disks don't automatically downsize during normal operation. Once you have reduced your database size, they will automatically "right-size" during a project upgrade. The final disk size after the upgrade is 1.2x the size of the database with a minimum of 8 GB. For example, if your database size is 100GB, and you have a 200GB disk, the size after a project upgrade will be 120 GB.
+
+In case you have a large WAL directory, you may modify WAL settings such as max_wal_size. Use at your own risk as changing these settings can have side effects. To query your current WAL size, use SELECT SUM(size) FROM pg_ls_waldir().
+
+In the event that your project is already on the latest version of Postgres and cannot be upgraded, a new version of Postgres will be released approximately every week which you can then upgrade to once it becomes available.wir machen das
+
+---
+
+SET session characteristics as transaction read write; 
+ TRUNCATE                                                             
+    fact_changes,                                                                                                                         
+    fact_resolutions,                                                                                                                     
+    resolutions,
+    facts,                                                                                                                                
+    entities,                                                                      
+    source_type_mapping,                                                                                                                  
+    source_records,                                                                
+    embedding_cache,
+    entity_type_config,                                                                                                                   
+    edge_type_config
+  RESTART IDENTITY CASCADE;   
+VACUUM;Error: Failed to run sql query: FATAL: 53100: could not write init file: No space left on device
+
+---
+
+Kannst du denn sofort alle Tables wieder anlegen, müsste nämlich erst das alte Projekt löschen
+
+---
+
+1. Add MCP server
+Add the MCP server to your project config using the command line.
+Code:
+File: Code
+```
+claude mcp add --scope project --transport http supabase "https://mcp.supabase.com/mcp?project_ref=ogfrqdchizywnnchelep"
+```
+
+2. Authenticate
+After configuring the MCP server, you need to authenticate. In a regular terminal (not the IDE extension) run:
+Details:
+Select the supabase server, then Authenticate to begin the flow.
+Code:
+File: Code
+```
+claude /mcp
+```
+
+3. Install Agent Skills (Optional)
+Agent Skills give AI coding tools ready-made instructions, scripts, and resources for working with Supabase more accurately and efficiently.
+Details:
+npx skills add supabase/agent-skills
+Code:
+File: Code
+```
+npx skills add supabase/agent-skills
+```
+
+Habe schon alle envs geändert
+
+---
+
+wie weit?
+
+---
+
+<task-notification>
+<task-id>bkb6zpkxn</task-id>
+<tool-use-id>toolu_01SM56gPSoZMG1NZ42M9AjG2</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-lassejohannis-Desktop-TechEurope/ddad7a11-b860-4a61-a42f-8e74db6113d0/tasks/bkb6zpkxn.output</output-file>
+<status>completed</status>
+<summary>Background command "Ingest documents with explicit path" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+/loop check ingest status and continue mapping inference + resolve for document/invoice when done
+
+---
+
+Eine Frage, viele verschiedene sind jetzt pro connector durchgelaufen?
+
+---
+
+Haben wir nicht 9 connectoren?
+
+---
+
+<task-notification>
+<task-id>b26bm7x9s</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-lassejohannis-Desktop-TechEurope/ddad7a11-b860-4a61-a42f-8e74db6113d0/tasks/b26bm7x9s.output</output-file>
+<status>completed</status>
+<summary>Background command "Ingest IT tickets" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bnrf5cnr5</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-lassejohannis-Desktop-TechEurope/ddad7a11-b860-4a61-a42f-8e74db6113d0/tasks/bnrf5cnr5.output</output-file>
+<status>completed</status>
+<summary>Background command "Ingest collaboration" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Aber doc policy ist dann noch mega kacke oder? 4 ents ohne facts?
+
+---
+
+Ist manuell überschreiben nicht faken?
+
+---
+
+Ja mache das
+
+---
+
+Ich dachte wir haben überall auf 5 gemaxed
+
+---
+
+was ist der unterschied zwischen ingest und resolve
+
+---
+
+Das heißt aber, das schon die ersten 5 für resolve im letzen connector bereit sein sollten oder?
+
+---
+
+Was ist sinnvoller? lass a nehmen
+
+---
+
+Aber wie können denn aus pdfs 0 facts rauskommen?
+
+---
+
+b machen wenn es schnell geht
+
+---
+
+/loop check ingest status and continue mapping inference + resolve for document/invoice when done
+
+---
+
+Die nutzen doch die selbe Supabase instanz, bei denen sind die changes doch auch
