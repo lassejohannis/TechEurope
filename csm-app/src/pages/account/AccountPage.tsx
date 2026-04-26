@@ -4,13 +4,92 @@ import { Mail, AlertTriangle, UserPlus } from 'lucide-react'
 import { useAccount } from '@/hooks/useAccount'
 import { shouldShowRecoveryEmail, shouldShowEscalation, primaryContactId } from '@/lib/signals'
 import HealthScore from './HealthScore'
-import Timeline from './Timeline'
 import MeetingBrief from './MeetingBrief'
 import RecoveryEmailModal from '@/components/cta/RecoveryEmailModal'
 import StakeholderIntroModal from '@/components/cta/StakeholderIntroModal'
 import EscalationModal from '@/components/cta/EscalationModal'
+import type { AccountCard } from '@/types'
 
 type ActiveModal = 'recovery-email' | 'stakeholder-intro' | 'escalation' | null
+type TrackingStatus = 'done' | 'current' | 'upcoming'
+
+interface TrackingEvent {
+  id: string
+  timestamp: string
+  station: string
+  title: string
+  detail: string
+  status: TrackingStatus
+}
+
+function asValidDate(iso: string | null | undefined): Date | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+function formatTrackingTime(iso: string): string {
+  const date = new Date(iso)
+  return date.toLocaleDateString('de-DE', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }) + ', ' + date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+}
+
+function renewalDate(account: AccountCard): Date | null {
+  const fact = account.facts.find((f) => f.predicate === 'renewal_date')
+  if (typeof fact?.object === 'string') return asValidDate(fact.object)
+  return asValidDate(account.entity.attributes['renewal_date'] as string | undefined)
+}
+
+function buildTrackingEvents(account: AccountCard): TrackingEvent[] {
+  const now = new Date()
+  const renewal = renewalDate(account)
+  const updated = asValidDate(account.entity.updated_at) ?? new Date(now.getTime() - 60 * 60 * 1000)
+  const created = asValidDate(account.entity.created_at) ?? new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
+
+  const events: TrackingEvent[] = [
+    {
+      id: `${account.entity.id}:health`,
+      timestamp: updated.toISOString(),
+      station: 'Health Engine',
+      title: `Status aktualisiert: ${account.executive_summary.status_label}`,
+      detail: account.executive_summary.why,
+      status: 'current',
+    },
+    {
+      id: `${account.entity.id}:action`,
+      timestamp: new Date(updated.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+      station: 'CSM Action Queue',
+      title: 'Nächster Schritt eingeplant',
+      detail: account.executive_summary.next_action,
+      status: 'done',
+    },
+    {
+      id: `${account.entity.id}:onboard`,
+      timestamp: created.toISOString(),
+      station: 'Context Ingestion',
+      title: 'Account im Core Layer angelegt',
+      detail: `Entity ${account.entity.type} mit ${account.facts.length} Facts`,
+      status: 'done',
+    },
+  ]
+
+  if (renewal) {
+    events.push({
+      id: `${account.entity.id}:renewal`,
+      timestamp: renewal.toISOString(),
+      station: 'Contract Station',
+      title: 'Renewal-Datum im Account-Kontext',
+      detail: `Verlängerungstermin ${renewal.toLocaleDateString('de-DE')}`,
+      status: renewal.getTime() > now.getTime() ? 'upcoming' : 'done',
+    })
+  }
+
+  return events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+}
 
 export default function AccountPage() {
   const { accountId } = useParams<{ accountId: string }>()
@@ -53,6 +132,7 @@ export default function AccountPage() {
   const showRecovery = shouldShowRecoveryEmail(account)
   const showEscalation = shouldShowEscalation(account)
   const primaryId = primaryContactId(account)
+  const trackingEvents = buildTrackingEvents(account)
 
   function openStakeholderIntro(contactId: string, contactName: string) {
     setStakeholderTarget({ id: contactId, name: contactName })
@@ -97,15 +177,6 @@ export default function AccountPage() {
         <div style={{ marginBottom: 12 }}>
           <div className="panel-eyebrow" style={{ marginBottom: 16 }}>Meeting Brief</div>
           <MeetingBrief account={account} />
-        </div>
-
-        <div>
-          <div className="panel-eyebrow" style={{ marginBottom: 16 }}>Activity Timeline</div>
-          <Timeline
-            communications={account.recent_communications}
-            tickets={account.open_tickets}
-            facts={account.facts}
-          />
         </div>
       </div>
 
@@ -168,6 +239,30 @@ export default function AccountPage() {
               )
             })}
           </div>
+        </div>
+
+        <div className="sidebar-section">
+          <div className="sidebar-title">Detaillierter Aktivitätsverlauf</div>
+          {trackingEvents.length === 0 ? (
+            <div className="empty-state" style={{ height: 160 }}>Keine Verlaufsschritte vorhanden.</div>
+          ) : (
+            <div className="tracking-timeline">
+              {trackingEvents.map((event, i) => (
+                <div key={event.id} className={`tracking-item ${event.status}`}>
+                  <div className="tracking-rail">
+                    <span className={`tracking-dot ${event.status}`} />
+                    {i < trackingEvents.length - 1 && <span className="tracking-line" />}
+                  </div>
+                  <div className="tracking-body">
+                    <div className="tracking-time">{formatTrackingTime(event.timestamp)}</div>
+                    <div className="tracking-title">{event.title}</div>
+                    <div className="tracking-station">{event.station}</div>
+                    <div className="tracking-detail">{event.detail}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </aside>
 

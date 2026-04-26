@@ -25,6 +25,10 @@ function isServerError(err: unknown): err is ApiError {
   return err instanceof ApiError && err.status >= 500
 }
 
+function isNotFound(err: unknown): err is ApiError {
+  return err instanceof ApiError && err.status === 404
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...init?.headers },
@@ -43,7 +47,15 @@ export async function getAccountCard(accountId: string): Promise<AccountCard> {
     if (!card) throw new ApiError(404, `No mock data for account ${accountId}`)
     return Promise.resolve(card)
   }
-  return apiFetch<AccountCard>(`/api/accounts/${encodeURIComponent(accountId)}`)
+  try {
+    return await apiFetch<AccountCard>(`/api/accounts/${encodeURIComponent(accountId)}`)
+  } catch (err) {
+    if (isServerError(err) || isNotFound(err)) {
+      const card = MOCK_ACCOUNT_CARDS[accountId]
+      if (card) return card
+    }
+    throw err
+  }
 }
 
 // Real endpoint: GET /api/accounts
@@ -136,5 +148,10 @@ export async function getAccountInsights(accountId: string): Promise<AccountInsi
   if (USE_MOCK) {
     return Promise.resolve(MOCK_ACCOUNT_INSIGHTS[accountId] ?? [])
   }
-  return apiFetch<AccountInsight[]>(`/api/accounts/${encodeURIComponent(accountId)}/insights`)
+  try {
+    return await apiFetch<AccountInsight[]>(`/api/accounts/${encodeURIComponent(accountId)}/insights`)
+  } catch (err) {
+    if (isServerError(err) || isNotFound(err)) return MOCK_ACCOUNT_INSIGHTS[accountId] ?? []
+    throw err
+  }
 }
