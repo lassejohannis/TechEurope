@@ -1,0 +1,38 @@
+schau dir die browse abteilung an und ändere das vfs zu so einem aussehen. '/var/folders/2g/2k_6qtld1k371qz07b7lk4_r0000gn/T/TemporaryItems/NSIRD_screencaptureui_MHkEAi/Bildschirmfoto 2026-04-26 um 05.06.38.png'
+Aber behalte alles andere gleich
+
+---
+
+schau auf main, wer das interface von dem context layer geändert hat
+
+---
+
+okay kannst du das wieder zurück machen auf mein letzten Stand auf Paul vor ich main rein gemerged habe
+
+---
+
+ja aber nur auf der Paul branch. Also nicht auf main. So das ich auf Paul wieder die alte Version habe
+
+---
+
+ja
+
+---
+
+oaky wo ist mein stand nun?
+
+---
+
+mach du es
+
+---
+
+okay ja das ist der commit den ich will. Allerdings will ich davon nur das frontend für den context layer. Wie kann ich nun nur diesen Teil wieder in main pushen?
+
+---
+
+was meinst du? Geh mehr ins detail
+
+---
+
+nein, bitte füge auf main nur die web/ dateien von diesem branch hin. also nichts server seitige
