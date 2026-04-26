@@ -249,12 +249,85 @@ def get_account_insights(account_id: str) -> list[dict[str, Any]]:
 @router.get("/briefing/daily")
 def daily_briefing() -> dict[str, Any]:
     db = get_supabase()
-    cnt = db.table("facts").select("id", count="exact").execute().count or 0
-    ent_cnt = db.table("entities").select("id", count="exact").execute().count or 0
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Load all accounts
+    rows: list[dict[str, Any]] = []
+    for entity_type in _ACCOUNT_TYPES:
+        res = (
+            db.table("entities")
+            .select("id, entity_type, canonical_name, attrs")
+            .eq("entity_type", entity_type)
+            .is_("deleted_at", "null")
+            .limit(200)
+            .execute()
+        )
+        rows.extend(res.data or [])
+
+    # Fetch trust scores
+    ids = [r["id"] for r in rows]
+    trust_map: dict[str, float] = {}
+    if ids:
+        for i in range(0, len(ids), 50):
+            chunk = ids[i : i + 50]
+            t_res = db.table("entity_trust").select("id, trust_score").in_("id", chunk).execute()
+            for t in t_res.data or []:
+                trust_map[t["id"]] = float(t.get("trust_score") or 0)
+
+    items = []
+    for e in rows:
+        trust = trust_map.get(e["id"], 0.3)
+        health = _health_from_trust(trust)
+        tier = health["tier"]
+        attrs = e.get("attrs") or {}
+
+        if tier == "red":
+            signal = "sentiment_drop"
+            headline = f"{e.get('canonical_name', e['id'])} needs attention"
+            detail = "Low data coverage — few facts confirmed."
+            action = "Schedule a review call"
+            cta = "escalation"
+        elif tier == "yellow":
+            signal = "engagement_gap"
+            headline = f"{e.get('canonical_name', e['id'])} — engagement gap detected"
+            detail = "Moderate fact coverage; some data gaps remain."
+            action = "Send a check-in email"
+            cta = "recovery-email"
+        else:
+            signal = "upsell_signal"
+            headline = f"{e.get('canonical_name', e['id'])} — healthy account"
+            detail = "Strong fact coverage and source diversity."
+            action = "Schedule QBR"
+            cta = "none"
+
+        items.append({
+            "id": f"briefing:{e['id']}",
+            "account_id": e["id"],
+            "account_name": e.get("canonical_name") or e["id"],
+            "priority": tier,
+            "signal_type": signal,
+            "segment": "Mid-Market",
+            "revenue_impact": "—",
+            "revenue_impact_eur": 0,
+            "renewal_date": attrs.get("renewal_date") or None,
+            "headline": headline,
+            "detail": detail,
+            "recommended_action": action,
+            "evidence_fact_ids": [],
+            "communication_id": None,
+            "created_at": now,
+            "cta_type": cta,
+        })
+
+    # Sort: red first, then yellow, then green
+    order = {"red": 0, "yellow": 1, "green": 2}
+    items.sort(key=lambda x: order.get(x["priority"], 3))
+
     return {
-        "generated_at": "",
-        "items": [],
-        "summary": f"{ent_cnt} entities · {cnt} facts indexed",
+        "generated_at": now,
+        "items": items,
+        "summary": f"{len(rows)} accounts · {len([i for i in items if i['priority'] == 'red'])} need attention",
     }
 
 
