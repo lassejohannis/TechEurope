@@ -47,3 +47,4 @@ data/**/.cache/
 # Local notes (codes, tokens, scratch)
 *.local.md
 *.local.txt
+supabase/.temp/
