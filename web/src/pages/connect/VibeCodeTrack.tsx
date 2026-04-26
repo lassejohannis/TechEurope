@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Download, Sparkles } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { VIBE_AGENTS, type VibeAgent } from './connectors'
 import { buildAgentPrompt } from './AgentPromptTemplate'
@@ -44,11 +44,7 @@ export default function VibeCodeTrack({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
       {/* Step A — Pick your AI agent */}
       <section>
-        <SectionHeader
-          step="A"
-          title="Pick your AI agent"
-          subtitle="The same prompt works in any of these — pick the one you already use."
-        />
+        <SectionHeader step="A" title="Pick your AI agent" />
         <div
           style={{
             display: 'grid',
@@ -63,40 +59,15 @@ export default function VibeCodeTrack({
                 key={a.id}
                 type="button"
                 onClick={() => onSelectAgent(a.id)}
-                style={{
-                  textAlign: 'left',
-                  background: 'white',
-                  border: '1px solid #e5e5e5',
-                  outline: active ? '2px solid #6366f1' : '2px solid transparent',
-                  outlineOffset: -2,
-                  boxShadow: active ? '0 0 0 3px rgba(99,102,241,0.12)' : 'none',
-                  borderRadius: 10,
-                  padding: '12px 14px',
-                  cursor: 'pointer',
-                  transition: 'box-shadow 0.15s ease, outline-color 0.15s ease',
-                  height: 92,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                }}
+                className={[
+                  'text-left rounded-lg border p-3 cursor-pointer transition-all flex flex-col gap-1.5',
+                  active
+                    ? 'border-indigo-400 bg-indigo-50 ring-1 ring-indigo-300'
+                    : 'border-border bg-background hover:bg-muted',
+                ].join(' ')}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 22, lineHeight: 1 }}>{a.emoji}</span>
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>{a.name}</span>
-                </div>
-                <div
-                  style={{
-                    fontSize: 11.5,
-                    color: '#6b7280',
-                    lineHeight: 1.35,
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {a.invokeSummary}
-                </div>
+                <span className="text-sm font-semibold">{a.name}</span>
+                <span className="text-xs text-muted-foreground line-clamp-2">{a.invokeSummary}</span>
               </button>
             )
           })}
@@ -105,44 +76,23 @@ export default function VibeCodeTrack({
 
       {/* Step B — Copy the prompt */}
       <section>
-        <SectionHeader
-          step="B"
-          title="Copy the integration prompt"
-          subtitle="Self-contained — embeds your token, the API base URL, and the tool schemas."
-        />
+        <SectionHeader step="B" title="Copy the integration prompt" />
 
         {!token && <NoTokenBanner />}
 
         <CodeBlock code={prompt} language="markdown" />
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
           <Button onClick={handleDownload} variant="outline">
             <Download size={14} />
             <span style={{ marginLeft: 6 }}>Download as AGENTS.md</span>
           </Button>
-          <span
-            style={{
-              fontSize: 12,
-              color: '#6b7280',
-              alignSelf: 'center',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-            }}
-          >
-            <Sparkles size={12} />
-            Drop the file at your repo root — most agents will pick it up automatically.
-          </span>
         </div>
       </section>
 
       {/* Step C — How to use it */}
       <section>
-        <SectionHeader
-          step="C"
-          title={`Run it in ${selected.name}`}
-          subtitle="Paste the prompt above into the agent — it will scan your project, register the tools, and verify."
-        />
+        <SectionHeader step="C" title={`Run it in ${selected.name}`} />
         <ol
           style={{
             paddingLeft: 22,
@@ -193,7 +143,7 @@ function SectionHeader({
             textTransform: 'uppercase',
           }}
         >
-          Step 2{step}
+          Step {step}
         </span>
         <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>{title}</h3>
       </div>

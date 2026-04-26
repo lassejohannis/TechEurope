@@ -164,7 +164,6 @@ function ConnectorRow({
               gap: 6,
             }}
           >
-            <span style={{ fontSize: 14, lineHeight: 1 }}>{c.emoji}</span>
             <span>{c.name}</span>
           </button>
         )
@@ -209,7 +208,7 @@ function ConnectorDetail({
       >
         <div style={{ minWidth: 0 }}>
           <h4 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>
-            {connector.emoji} {connector.name}
+            {connector.name}
           </h4>
           <p style={{ color: '#6b7280', fontSize: 12.5, margin: '2px 0 0' }}>
             {connector.blurb}

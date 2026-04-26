@@ -1,7 +1,6 @@
-import { useCallback, useState } from 'react'
-import { Plug, Sparkles, Wrench, MessageSquare } from 'lucide-react'
+import { useCallback, useState, type ReactNode } from 'react'
+import { Plug, Wrench, Cpu } from 'lucide-react'
 import type { IssuedToken } from '@/lib/api'
-import { Badge } from '@/components/ui/badge'
 import type { VibeAgent } from './connectors'
 import TokenBar from './TokenBar'
 import VibeCodeTrack from './VibeCodeTrack'
@@ -29,83 +28,37 @@ export default function ConnectPage() {
   )
 
   return (
-    <div
-      style={{
-        height: '100%',
-        flex: 1,
-        minWidth: 0,
-        overflowY: 'scroll',
-        overflowX: 'hidden',
-        scrollbarGutter: 'stable',
-        background: '#f5f5f7',
-        padding: '36px 48px',
-        boxSizing: 'border-box',
-      }}
-    >
-      <div style={{ maxWidth: 1100, margin: '0 auto', minWidth: 0, width: '100%' }}>
-        {/* Hero */}
-        <header style={{ marginBottom: 24 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-            <Plug size={22} style={{ color: '#6366f1' }} />
-            <h1 style={{ fontSize: 30, fontWeight: 700, margin: 0, letterSpacing: -0.4 }}>
-              Connect your agent
-            </h1>
-          </div>
-          <p style={{ color: '#6b7280', fontSize: 15, margin: '4px 0 12px 32px', maxWidth: 640 }}>
-            Two ways: hand the integration to your AI agent, or wire it up yourself with snippets.
-            Either way — under a minute.
-          </p>
-          <div style={{ display: 'flex', gap: 6, marginLeft: 32, flexWrap: 'wrap' }}>
-            <Badge variant="secondary">
-              <Sparkles size={12} style={{ marginRight: 4 }} />
-              MCP server live at /mcp/sse
-            </Badge>
-            <Badge variant="secondary">5 MCP tools</Badge>
-            <Badge variant="secondary">50+ REST endpoints</Badge>
-            <Badge variant="secondary">3 IDE-agent flows</Badge>
-          </div>
-        </header>
+    <div className="flex h-full flex-col overflow-auto">
+      {/* Header */}
+      <div className="flex items-center gap-2 border-b px-4 py-3">
+        <Plug size={15} className="text-indigo-500 shrink-0" />
+        <h1 className="text-sm font-semibold">Connect your agent</h1>
+      </div>
 
-        {/* Token bar */}
-        <div style={{ marginBottom: 22 }}>
-          <TokenBar token={token} onIssued={setToken} />
-        </div>
+      <div className="flex flex-col gap-4 p-4 w-full">
+        {/* Token */}
+        <TokenBar token={token} onIssued={setToken} />
 
         {/* Track tabs */}
-        <div
-          style={{
-            display: 'flex',
-            gap: 0,
-            marginBottom: 0,
-            borderBottom: '1px solid #e5e5e5',
-            paddingLeft: 4,
-          }}
-        >
+        <div className="flex border-b">
           <TrackTab
             id="vibe"
             label="Let an AI agent do it"
-            icon={<MessageSquare size={14} />}
+            icon={<Cpu size={13} />}
             active={track === 'vibe'}
             onSelect={() => setTrack('vibe')}
           />
           <TrackTab
             id="manual"
             label="Wire it up manually"
-            icon={<Wrench size={14} />}
+            icon={<Wrench size={13} />}
             active={track === 'manual'}
             onSelect={() => setTrack('manual')}
           />
         </div>
 
         {/* Track body */}
-        <div
-          style={{
-            paddingTop: 22,
-            minWidth: 0,
-            // Stable height so switching tracks doesn't reflow the page.
-            minHeight: 760,
-          }}
-        >
+        <div>
           {track === 'vibe' ? (
             <VibeCodeTrack
               apiBaseUrl={apiBaseUrl}
@@ -131,7 +84,7 @@ function TrackTab({
 }: {
   id: TrackId
   label: string
-  icon: React.ReactNode
+  icon: ReactNode
   active: boolean
   onSelect: () => void
 }) {
@@ -139,22 +92,13 @@ function TrackTab({
     <button
       type="button"
       onClick={onSelect}
-      aria-selected={active}
-      style={{
-        background: 'transparent',
-        border: 'none',
-        padding: '10px 18px',
-        marginBottom: -1,
-        cursor: 'pointer',
-        fontSize: 14,
-        fontWeight: active ? 600 : 500,
-        color: active ? '#4338ca' : '#6b7280',
-        borderBottom: active ? '2px solid #6366f1' : '2px solid transparent',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-      }}
       data-track={id}
+      className={[
+        'inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium -mb-px border-b-2 transition-colors',
+        active
+          ? 'border-indigo-500 text-indigo-600'
+          : 'border-transparent text-muted-foreground hover:text-foreground',
+      ].join(' ')}
     >
       {icon}
       {label}

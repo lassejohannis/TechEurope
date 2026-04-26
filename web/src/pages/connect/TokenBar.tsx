@@ -47,40 +47,26 @@ export default function TokenBar({ token, onIssued }: Props) {
   }
 
   return (
-    <div
-      style={{
-        background: 'white',
-        borderRadius: 12,
-        border: '1px solid #e5e5e5',
-        padding: '14px 18px',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-        <KeyRound size={14} style={{ color: '#6366f1' }} />
-        <h2 style={{ fontSize: 13, fontWeight: 600, margin: 0, letterSpacing: 0.2 }}>
-          STEP 1 — AGENT TOKEN
-        </h2>
+    <div className="rounded-lg border bg-background p-3 flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <KeyRound size={13} className="text-indigo-500 shrink-0" />
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Step 1 — Agent Token</span>
       </div>
 
       {!token ? (
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 220px', minWidth: 0 }}>
-            <label style={{ display: 'block', fontSize: 11, color: '#6b7280', marginBottom: 3 }}>
-              Name
-            </label>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1 min-w-0 flex-1" style={{ flexBasis: 200 }}>
+            <label className="text-xs text-muted-foreground">Name</label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="my-claude-desktop"
-              style={{ height: 34 }}
+              className="h-8 text-sm"
             />
           </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: 11, color: '#6b7280', marginBottom: 3 }}>
-              Scopes
-            </label>
-            <div style={{ display: 'flex', gap: 6 }}>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">Scopes</label>
+            <div className="flex gap-1.5">
               {ALL_SCOPES.map((s) => {
                 const active = scopes.includes(s)
                 return (
@@ -88,17 +74,12 @@ export default function TokenBar({ token, onIssued }: Props) {
                     key={s}
                     type="button"
                     onClick={() => toggleScope(s)}
-                    style={{
-                      padding: '6px 12px',
-                      height: 34,
-                      borderRadius: 999,
-                      border: active ? '1.5px solid #6366f1' : '1px solid #e5e5e5',
-                      background: active ? '#eef2ff' : 'white',
-                      color: active ? '#4338ca' : '#374151',
-                      fontSize: 12.5,
-                      fontWeight: active ? 600 : 500,
-                      cursor: 'pointer',
-                    }}
+                    className={[
+                      'h-8 px-3 rounded-full text-xs font-medium border transition-colors',
+                      active
+                        ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
+                        : 'border-border bg-background text-foreground hover:bg-muted',
+                    ].join(' ')}
                   >
                     {s}
                   </button>
@@ -106,78 +87,38 @@ export default function TokenBar({ token, onIssued }: Props) {
               })}
             </div>
           </div>
-
-          <Button onClick={handleIssue} disabled={loading || scopes.length === 0}>
-            {loading && <Loader2 size={14} className="animate-spin" style={{ marginRight: 6 }} />}
+          <Button size="sm" onClick={handleIssue} disabled={loading || scopes.length === 0}>
+            {loading && <Loader2 size={13} className="animate-spin mr-1" />}
             Generate token
           </Button>
         </div>
       ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '6px 12px',
-              borderRadius: 999,
-              background: '#f3f4f6',
-              border: '1px solid #e5e7eb',
-              fontSize: 12.5,
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-              minWidth: 0,
-              flex: '1 1 auto',
-              overflow: 'hidden',
-            }}
-          >
-            <span style={{ fontWeight: 600, color: '#111827' }}>{token.name}</span>
-            <span style={{ color: '#9ca3af' }}>·</span>
-            <span style={{ color: '#6b7280' }}>{token.scopes.join(', ')}</span>
-            <span style={{ color: '#9ca3af' }}>·</span>
-            <span
-              style={{
-                color: '#374151',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                minWidth: 0,
-              }}
-            >
-              {token.token}
-            </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 rounded-full bg-muted px-3 py-1.5 text-xs font-mono flex-1 min-w-0 overflow-hidden border">
+            <span className="font-semibold text-foreground shrink-0">{token.name}</span>
+            <span className="text-muted-foreground shrink-0">·</span>
+            <span className="text-muted-foreground shrink-0">{token.scopes.join(', ')}</span>
+            <span className="text-muted-foreground shrink-0">·</span>
+            <span className="truncate text-foreground">{token.token}</span>
           </div>
-
           <Button size="sm" variant="outline" onClick={handleCopy}>
             {copied ? <Check size={13} /> : <Copy size={13} />}
-            <span style={{ marginLeft: 4 }}>{copied ? 'Copied' : 'Copy'}</span>
+            <span className="ml-1">{copied ? 'Copied' : 'Copy'}</span>
           </Button>
           <Button size="sm" variant="outline" onClick={() => onIssued(null)}>
             <RotateCcw size={13} />
-            <span style={{ marginLeft: 4 }}>Re-issue</span>
+            <span className="ml-1">Re-issue</span>
           </Button>
         </div>
       )}
 
-      <p
-        style={{
-          marginTop: 8,
-          marginBottom: 0,
-          fontSize: 11.5,
-          color: token ? '#dc2626' : '#9ca3af',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 5,
-        }}
-      >
-        {token && <AlertTriangle size={11} />}
-        {token
-          ? 'Save this token now — it will not be shown again. Page reload clears it.'
-          : 'Bearer credentials. Stored hashed on the server, returned plain only once.'}
-      </p>
-
-      {error && (
-        <p style={{ marginTop: 6, color: '#dc2626', fontSize: 12 }}>Error: {error}</p>
+      {token && (
+        <p className="flex items-center gap-1 text-xs text-destructive">
+          <AlertTriangle size={11} />
+          Save this token now — it will not be shown again.
+        </p>
       )}
+      {error && <p className="text-xs text-destructive">Error: {error}</p>}
     </div>
   )
 }
