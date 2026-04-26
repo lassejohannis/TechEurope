@@ -229,9 +229,12 @@ def _persist_entity(
     # resolve must not re-call Gemini for entities that already have one.
     embedding = None if has_embedding else _build_tier_a_embedding(candidate)
 
+    # `entities.entity_type` is a generated column (`GENERATED ALWAYS AS type`);
+    # the writable canonical column is `type`. Writing entity_type directly
+    # raises 428C9 from Postgres.
     row: dict[str, object] = {
         "id": eid,
-        "entity_type": canonical_entity_type,
+        "type": canonical_entity_type,
         "canonical_name": candidate.canonical_name,
         "aliases": aliases,
         "attrs": attrs,

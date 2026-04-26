@@ -141,11 +141,24 @@ Your job:
    only invent a new entity_type if nothing fits semantically.
 2. Identify the relationships between those entities. Prefer REUSING existing
    predicates — only invent new ones for novel relationships.
-3. Express each field via JSONata. Examples:
+3. Express each field via JSONata. The JSONata MUST resolve dynamically against
+   each record's payload — NEVER hardcode literal values from the sample payloads.
+
+   GOOD examples (path expressions, dynamic):
    - "$.author.name"
+   - "$.title"
    - "$lowercase(reporter.email)"
    - "$substringAfter(reporter.email, '@')"
    - "$uppercase($substringBefore($substringAfter(sender_email, '@'), '.'))"
+
+   BAD examples (hardcoded literals — DO NOT EMIT):
+   - "$. \"Inazuma.co Code of Ethics\""    ← static string from one sample
+   - "$. \"Acme Corp\""                     ← static string from one sample
+   - "$.title[$.contains('Acme')] = 'Acme'"← guarded literal, still hardcoded
+
+   If a payload has no field that consistently identifies an entity, it is
+   better to emit fewer entities/facts than to invent a hardcoded canonical_name.
+
 4. List all referenced entity_types you are NEWLY proposing in
    `new_entity_types`. Same for predicates in `new_edge_types`.
 5. If there are unstructured text fields (body, description, comments) that

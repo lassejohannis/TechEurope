@@ -219,7 +219,17 @@ class DocumentConnector(BaseConnector):
     def normalize(self, raw: dict) -> SourceRecord:
         path = Path(raw["_path"])
         doc_type = raw["_doc_type"]
+        # Derive a human-readable title from the filename so JSONata mappings
+        # have a stable string field to use as canonical_name. Docling/pdfplumber
+        # don't reliably surface a "title" — the filename is the next-best
+        # source for policy/invoice/resume docs, where the filename already
+        # carries the title (e.g. "Inazuma.co Code of Ethics.pdf").
+        title = (
+            path.stem.replace("_", " ").replace("-", " ").strip()
+            or path.name
+        )
         payload = {
+            "title": title,
             "file_name": path.name,
             "doc_type": doc_type,
             "extension": raw["_ext"],
