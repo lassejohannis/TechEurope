@@ -104,6 +104,7 @@ export default function AccountPage() {
           <Timeline
             communications={account.recent_communications}
             tickets={account.open_tickets}
+            facts={account.facts}
           />
         </div>
       </div>
