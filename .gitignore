@@ -48,3 +48,6 @@ data/**/.cache/
 *.local.md
 *.local.txt
 supabase/.temp/
+
+# Local Remotion demo video project (not part of submission)
+demo-video/

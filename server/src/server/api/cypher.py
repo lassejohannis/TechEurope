@@ -56,7 +56,8 @@ async def run_demo(
             detail=f"unknown demo query; available: {list(DEMO_QUERIES.keys())}",
         )
     proj = _projection(request)
-    assert proj.driver, "projection driver missing"
+    if proj.driver is None:
+        raise HTTPException(status_code=503, detail="projection driver missing")
     cypher = DEMO_QUERIES[name]
     params = {k: v for k, v in {"from_id": from_id, "to_id": to_id}.items() if v}
     async with proj.driver.session(database=proj.cfg.neo4j_database) as session:

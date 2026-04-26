@@ -110,7 +110,8 @@ class Neo4jProjection:
 
     async def _ensure_constraints(self) -> None:
         """Idempotent constraint + index setup."""
-        assert self.driver
+        if self.driver is None:
+            raise RuntimeError("Neo4j driver not initialized; call start() first")
         async with self.driver.session(database=self.cfg.neo4j_database) as s:
             await s.run(
                 "CREATE CONSTRAINT entity_id IF NOT EXISTS "
@@ -133,7 +134,8 @@ class Neo4jProjection:
         both channels are subscribed; the supabase-py async client keeps the
         websockets running in its own background tasks.
         """
-        assert self.supabase, "call start() first"
+        if self.supabase is None:
+            raise RuntimeError("Supabase client not initialized; call start() first")
 
         ch_entities = (
             self.supabase.channel("ws5-entities")
@@ -160,6 +162,7 @@ class Neo4jProjection:
         self._channels.append(ch_facts)
 
         logger.info("Neo4j projection listening on entities + facts")
+
 
     def _dispatch(self, async_handler, payload: dict[str, Any]) -> None:
         """Bridge the sync supabase-py callback into the asyncio loop."""
@@ -205,7 +208,8 @@ class Neo4jProjection:
     # ------------------------------------------------------------------
 
     async def _upsert_entity(self, evt: EventType, row: dict[str, Any]) -> None:
-        assert self.driver
+        if self.driver is None:
+            raise RuntimeError("Neo4j driver not initialized")
         if evt == "DELETE" or (evt == "UPDATE" and row.get("deleted_at")):
             cypher = "MATCH (n:Entity {id:$id}) DETACH DELETE n"
             params = {"id": row["id"]}
@@ -241,7 +245,8 @@ class Neo4jProjection:
         reports_to_emp_id -> :MANAGES, mentions -> :MENTIONS) when they can
         be resolved against existing entity properties.
         """
-        assert self.driver
+        if self.driver is None:
+            raise RuntimeError("Neo4j driver not initialized")
         if evt == "DELETE":
             cypher = "MATCH ()-[r {fact_id:$fact_id}]-() DELETE r"
             params = {"fact_id": row["id"]}
@@ -349,7 +354,8 @@ class Neo4jProjection:
         Full re-sync from Postgres. Idempotent (MERGE) — safe to run on every
         boot to repair a stale projection or bootstrap a fresh Neo4j DB.
         """
-        assert self.supabase, "call start() first"
+        if self.supabase is None:
+            raise RuntimeError("Supabase client not initialized; call start() first")
         await self._replay_table("entities", self._upsert_entity)
         await self._replay_table("facts", self._upsert_fact)
         logger.info("Neo4j projection replay complete")
@@ -363,7 +369,8 @@ class Neo4jProjection:
         """
         from postgrest.exceptions import APIError
 
-        assert self.supabase
+        if self.supabase is None:
+            raise RuntimeError("Supabase client not initialized; call start() first")
         offset = 0
         size = self.cfg.batch_size
         total = 0

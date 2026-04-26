@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Iterator
 
 from server.ingestion_models import ExtractionStatus, SourceRecord
+from server.util.safe_path import safe_open
 from .base import BaseConnector
 
 logger = logging.getLogger(__name__)
@@ -92,7 +93,7 @@ def _extract_with_pdfplumber(path: Path) -> dict:
 
 
 def _extract_csv(path: Path) -> dict:
-    with open(path, newline="", encoding="utf-8-sig") as f:
+    with safe_open(path, newline="", encoding="utf-8-sig", base=path.parent) as f:
         rows = list(csv.DictReader(f))
     return {
         "text": "\n".join(json.dumps(r) for r in rows[:50]),

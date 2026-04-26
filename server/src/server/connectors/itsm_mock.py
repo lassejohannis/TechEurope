@@ -7,13 +7,14 @@ from pathlib import Path
 from typing import Iterator
 
 from server.connectors.base import BaseConnector, SourceRecord
+from server.util.safe_path import safe_open
 
 
 class ITSMConnector(BaseConnector):
     source_type = "it_ticket"
 
     def fetch(self, path: Path) -> Iterator[dict]:
-        with open(path) as f:
+        with safe_open(path, base=path.parent) as f:
             yield from json.load(f)
 
     def normalize(self, raw: dict) -> SourceRecord:

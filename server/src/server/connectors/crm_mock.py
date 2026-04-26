@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Iterator
 
 from server.connectors.base import BaseConnector, SourceRecord
+from server.util.safe_path import safe_open
 
 
 class CRMConnector(BaseConnector):
@@ -34,7 +35,7 @@ class CRMConnector(BaseConnector):
             yield from self._load_file(path, record_type)
 
     def _load_file(self, path: Path, record_type: str) -> Iterator[dict]:
-        with open(path) as f:
+        with safe_open(path, base=path.parent) as f:
             data = json.load(f)
         for record in (data if isinstance(data, list) else []):
             yield {"_record_type": record_type, "_source_file": str(path), **record}

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterator
 
 from server.connectors.base import BaseConnector, SourceRecord
+from server.util.safe_path import safe_open
 
 
 class HRConnector(BaseConnector):
@@ -27,12 +28,12 @@ class HRConnector(BaseConnector):
             yield from self._load_resumes(path)
 
     def _load_employees(self, path: Path) -> Iterator[dict]:
-        with open(path) as f:
+        with safe_open(path, base=path.parent) as f:
             for emp in json.load(f):
                 yield {"_record_subtype": "employee", "_source_file": str(path), **emp}
 
     def _load_resumes(self, path: Path) -> Iterator[dict]:
-        with open(path, newline="", encoding="utf-8") as f:
+        with safe_open(path, newline="", encoding="utf-8", base=path.parent) as f:
             for row in csv.DictReader(f):
                 yield {"_record_subtype": "resume", "_source_file": str(path), **row}
 

@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from server.eval.harness import EvalResult
+from server.util.safe_path import resolve_within
 
 
 def write_html_report(results: list[EvalResult], out: Path) -> None:
@@ -97,4 +98,5 @@ def write_html_report(results: list[EvalResult], out: Path) -> None:
 </body>
 </html>"""
 
-    out.write_text(html, encoding="utf-8")
+    safe_out = resolve_within(out, out.resolve().parent)
+    safe_out.write_text(html, encoding="utf-8")

@@ -7,13 +7,14 @@ from pathlib import Path
 from typing import Iterator
 
 from server.connectors.base import BaseConnector, SourceRecord
+from server.util.safe_path import safe_open
 
 
 class EmailConnector(BaseConnector):
     source_type = "email"
 
     def fetch(self, path: Path) -> Iterator[dict]:
-        with open(path) as f:
+        with safe_open(path, base=path.parent) as f:
             records = json.load(f)
         yield from (records if isinstance(records, list) else records.values())
 
