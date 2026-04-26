@@ -132,6 +132,40 @@ def _executive_summary(tier: str) -> dict[str, Any]:
     return {"status_label": "Healthy", "why": "Good fact coverage across sources.", "impact": "Low risk", "next_action": "Schedule QBR", "cta_type": "none"}
 
 
+def _attrs_to_facts(entity_id: str, attrs: dict[str, Any]) -> list[dict[str, Any]]:
+    """Synthesize lightweight Fact objects from enriched entity attrs.
+
+    The CSM app reads renewal_date / subscription_tier exclusively from facts
+    (no attrs fallback), so we surface key attrs as virtual facts here.
+    No DB write — purely in-memory for API response shaping.
+    """
+    mapping = [
+        ("annual_recurring_revenue_eur", attrs.get("arr_eur")),
+        ("renewal_date",                 attrs.get("renewal_date")),
+        ("subscription_tier",            attrs.get("current_product") or attrs.get("segment")),
+        ("industry",                     attrs.get("industry")),
+    ]
+    facts = []
+    for predicate, value in mapping:
+        if value is None:
+            continue
+        facts.append({
+            "id": f"attr:{entity_id}:{predicate}",
+            "subject": entity_id,
+            "predicate": predicate,
+            "object": value,
+            "object_type": "string",
+            "confidence": 0.85,
+            "status": "live",
+            "derived_from": [],
+            "qualifiers": {},
+            "created_at": "",
+            "updated_at": "",
+            "superseded_by": None,
+        })
+    return facts
+
+
 @router.get("/accounts")
 def list_accounts() -> list[dict[str, Any]]:
     db = get_supabase()
@@ -154,9 +188,11 @@ def list_accounts() -> list[dict[str, Any]]:
     for e in rows:
         health = _csm_health(e["id"], fact_counts.get(e["id"], 0))
         summary = _executive_summary(health["tier"])
+        attrs = e.get("attrs") or {}
+        key_facts = _attrs_to_facts(e["id"], attrs)
         items.append({
             "entity": _map_entity(e),
-            "facts": [],
+            "facts": key_facts,
             "key_contacts": [],
             "open_tickets": [],
             "recent_communications": [],
@@ -307,15 +343,27 @@ def daily_briefing() -> dict[str, Any]:
             action = "Schedule QBR"
             cta = "none"
 
+        arr_eur = int(attrs.get("arr_eur") or 0)
+        if arr_eur >= 1_000_000:
+            revenue_str = f"€{arr_eur // 1_000_000}M ARR"
+        elif arr_eur >= 1_000:
+            revenue_str = f"€{arr_eur // 1_000}k ARR"
+        elif arr_eur > 0:
+            revenue_str = f"€{arr_eur} ARR"
+        else:
+            revenue_str = "—"
+        btype = (attrs.get("business_type") or "").lower()
+        segment = "Enterprise" if btype == "enterprise" else "SMB" if btype == "smb" else "Mid-Market"
+
         items.append({
             "id": f"briefing:{e['id']}",
             "account_id": e["id"],
             "account_name": e.get("canonical_name") or e["id"],
             "priority": tier,
             "signal_type": signal,
-            "segment": "Mid-Market",
-            "revenue_impact": "—",
-            "revenue_impact_eur": 0,
+            "segment": segment,
+            "revenue_impact": revenue_str,
+            "revenue_impact_eur": arr_eur,
             "renewal_date": attrs.get("renewal_date") or None,
             "headline": headline,
             "detail": detail,
