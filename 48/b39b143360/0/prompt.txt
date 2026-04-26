@@ -1099,3 +1099,7 @@ Fix das und sage mir wie gut das retrieven funktioniert. Werden wirklich sinnvol
 ---
 
 Wie genau verhindern wir das solche Pseudo Personen entstehen, müssen wir das model besser prompten und trainieren oder die prompts einfach verbessern?
+
+---
+
+Plane ein
