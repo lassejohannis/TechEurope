@@ -1,0 +1,50 @@
+# Caddy reverse proxy with auto-TLS via Let's Encrypt.
+# Routes:
+#   /api/*    → server:8000   (REST)
+#   /mcp/*    → server:8000   (MCP SSE — flush_interval 0 critical)
+#   /webhooks/* → server:8000 (inbound source-change webhooks)
+#   /docs     → server:8000   (FastAPI Swagger)
+#   /openapi.json → server:8000
+#   /         → web:8080      (Vite-built React SPA)
+#
+# Replace `chickentendr.club` if you change domains.
+
+chickentendr.club, www.chickentendr.club {
+    encode zstd gzip
+
+    # Backend routes
+    @backend {
+        path /api/* /mcp/* /webhooks/* /docs /docs/* /openapi.json /redoc /redoc/*
+    }
+    handle @backend {
+        reverse_proxy server:8000 {
+            # Required for MCP SSE — disables response buffering.
+            flush_interval -1
+            transport http {
+                response_header_timeout 60s
+                read_timeout 0s          # keep SSE connections open
+            }
+            header_up X-Real-IP {remote}
+            header_up X-Forwarded-For {remote}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Everything else → frontend
+    handle {
+        reverse_proxy web:8080
+    }
+
+    # Standard hardening
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Permissions-Policy and CSP intentionally omitted — set per app once routes are stable.
+    }
+
+    log {
+        output file /var/log/caddy/access.log
+        format json
+    }
+}

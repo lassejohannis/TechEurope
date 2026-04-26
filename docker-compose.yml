@@ -1,0 +1,73 @@
+# Production stack: Caddy (TLS) → React static + FastAPI server.
+# Postgres + Neo4j stay on Supabase / Aura — not part of this compose file.
+#
+# Usage:
+#   cp deploy/.env.production.example .env
+#   # edit .env with real keys
+#   docker compose up -d --build
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.server
+    image: thelayer/server:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      # CORS in production — must include the public domain.
+      API_CORS_ORIGINS: "https://chickentendr.club,https://www.chickentendr.club"
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks: [internal]
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.web
+      args:
+        VITE_API_BASE_URL: ""
+        VITE_SUPABASE_URL: "${SUPABASE_URL}"
+        VITE_SUPABASE_ANON_KEY: "${SUPABASE_PUBLISHABLE_KEY}"
+    image: thelayer/web:latest
+    restart: unless-stopped
+    expose:
+      - "8080"
+    networks: [internal]
+    depends_on:
+      server:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - caddy_logs:/var/log/caddy
+    depends_on:
+      - server
+      - web
+    networks: [internal]
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  caddy_data:    # TLS certs persisted across restarts
+  caddy_config:
+  caddy_logs:
