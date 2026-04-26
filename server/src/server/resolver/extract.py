@@ -555,10 +555,21 @@ def extract_candidates(
         result = _extract_sale(payload)
     elif source_type == "it_ticket":
         result = _extract_it_ticket(payload)
-    elif source_type.startswith("doc_"):
-        result = _extract_doc(payload)
     else:
-        return [], []
+        # Fallback for any source_type without a hardcoded extractor
+        # (doc_policy, invoice_pdf, collaboration, …). Goes through the
+        # autonomous mapping pipeline so JSONata + Pioneer free-text mining
+        # both fire honestly.
+        from server.db import get_db
+        from server.ontology.engine import resolve_with_engine
+
+        try:
+            ents, facts = resolve_with_engine(
+                source_record, get_db(), llm_extract=llm_extract
+            )
+        except Exception:
+            ents, facts = [], []
+        result = (ents, facts)
 
     entities, facts = result
     # Stamp source_id on every candidate so downstream persisters know provenance.
