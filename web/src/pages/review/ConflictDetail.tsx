@@ -133,8 +133,12 @@ export default function ConflictDetail({ conflictId, selectedClaimIndex, onSelec
               >
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-medium">Claim {String.fromCharCode(65 + i)}</p>
-                  <Badge variant="outline" className="text-xs">
-                    confidence {(f.confidence * 100).toFixed(0)}%
+                  <Badge
+                    variant="outline"
+                    className="text-xs"
+                    title={`Extraction confidence ${(100 * (f.extraction_confidence ?? f.confidence)).toFixed(0)}%`}
+                  >
+                    score {(100 * (f.verification_score ?? f.confidence)).toFixed(0)}%
                   </Badge>
                 </div>
                 <p className="mt-2 text-sm">→ {formatObject(f)}</p>

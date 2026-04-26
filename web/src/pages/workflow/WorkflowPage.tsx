@@ -31,6 +31,94 @@ function nodeStyle(type: string): [string, string] {
   return PALETTE[type.toLowerCase()] ?? DEFAULT_STYLE
 }
 
+function normalizeProperties(properties: Record<string, unknown>): Record<string, unknown> {
+  const normalized: Record<string, unknown> = { ...properties }
+  for (const [key, value] of Object.entries(normalized)) {
+    if (typeof value !== 'string') continue
+    const t = value.trim()
+    const looksLikeJson =
+      (t.startsWith('{') && t.endsWith('}')) ||
+      (t.startsWith('[') && t.endsWith(']'))
+    if (!looksLikeJson) continue
+    try {
+      normalized[key] = JSON.parse(t)
+    } catch {
+      // Keep original string if it is not valid JSON.
+    }
+  }
+  return normalized
+}
+
+function previewValue(value: unknown): string {
+  if (value == null) return '—'
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) return value.join(', ')
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function flattenProperties(
+  value: Record<string, unknown>,
+  prefix = '',
+): Array<[string, unknown]> {
+  const out: Array<[string, unknown]> = []
+  for (const [k, v] of Object.entries(value)) {
+    const key = prefix ? `${prefix}.${k}` : k
+    if (isPlainObject(v)) {
+      out.push(...flattenProperties(v, key))
+      continue
+    }
+    out.push([key, v])
+  }
+  return out
+}
+
+const ATTRIBUTE_LABELS: Record<string, string> = {
+  entity_type: 'Entity Type',
+  aliases: 'Aliases',
+  canonical_name: 'Canonical Name',
+  id: 'ID',
+  last_synced: 'Last Synced',
+  emp_id: 'Employee ID',
+  'attrs.email': 'Email',
+  'attrs.emp_id': 'Employee ID',
+  'attrs.vfs_path': 'Profile Path',
+}
+
+function formatAttributeLabel(key: string): string {
+  const mapped = ATTRIBUTE_LABELS[key]
+  if (mapped) return mapped
+
+  const tail = key.split('.').pop() ?? key
+  const words = tail.split('_').filter(Boolean)
+  if (words.length === 0) return key
+  return words
+    .map((w) => (w.toLowerCase() === 'id' ? 'ID' : `${w[0].toUpperCase()}${w.slice(1).toLowerCase()}`))
+    .join(' ')
+}
+
+function dedupeAttributeEntries(entries: Array<[string, unknown]>): Array<[string, unknown]> {
+  const seen = new Set<string>()
+  const out: Array<[string, unknown]> = []
+  for (const [key, value] of entries) {
+    const label = formatAttributeLabel(key).toLowerCase()
+    const rendered = previewValue(value).trim().toLowerCase()
+    const fingerprint = `${label}::${rendered}`
+    if (seen.has(fingerprint)) continue
+    seen.add(fingerprint)
+    out.push([key, value])
+  }
+  return out
+}
+
 /* ── Force simulation ───────────────────────────────────────────────────── */
 
 function initSim(nodes: GraphNode[], edges: GraphEdge[], w: number, h: number): SimNode[] {
@@ -222,6 +310,7 @@ export default function WorkflowPage() {
   const [focusId,      setFocusId]      = useState('')
   const [limitStr,     setLimitStr]     = useState('80')
   const [filter,       setFilter]       = useState('')
+  const [copiedNodeId, setCopiedNodeId] = useState<string | null>(null)
 
   const edgeLabelsRef = useRef(false); edgeLabelsRef.current = edgeLabels
   const selectedRef   = useRef<SimNode | null>(null); selectedRef.current = selected
@@ -337,6 +426,34 @@ export default function WorkflowPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graphVersion])
 
+  const selectedConnections = useMemo(() => {
+    if (!selected) return 0
+    return s.current.edges.filter(e => e.source === selected.id || e.target === selected.id).length
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, graphVersion])
+
+  const normalizedSelectedProperties = useMemo(
+    () => (selected ? normalizeProperties(selected.properties) : {}),
+    [selected],
+  )
+
+  const selectedPropertyPreview = useMemo(
+    () => dedupeAttributeEntries(flattenProperties(normalizedSelectedProperties)),
+    [normalizedSelectedProperties],
+  )
+
+  async function handleExtractRawData() {
+    if (!selected) return
+    const raw = JSON.stringify(normalizedSelectedProperties, null, 2)
+    try {
+      await navigator.clipboard.writeText(raw)
+      setCopiedNodeId(selected.id)
+      window.setTimeout(() => setCopiedNodeId((prev) => (prev === selected.id ? null : prev)), 1200)
+    } catch {
+      setCopiedNodeId(null)
+    }
+  }
+
   return (
     <div className="flex h-full flex-col gap-3 overflow-auto p-4">
       {/* Toolbar */}
@@ -390,16 +507,67 @@ export default function WorkflowPage() {
             {!selected ? (
               <p className="text-sm text-muted-foreground">Klicke im Graph auf einen Node.</p>
             ) : (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="inline-block h-3 w-3 rounded-full" style={{ background: nodeStyle(selected.type)[0] }} />
-                  <p className="font-medium">{selected.label}</p>
+              <div className="space-y-3">
+                <div className="rounded-2xl border border-white/60 bg-white/70 p-4 shadow-[0_2px_20px_rgba(15,23,42,0.05)] backdrop-blur-xl">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-block h-3 w-3 rounded-full" style={{ background: nodeStyle(selected.type)[0] }} />
+                    <p className="text-base font-semibold text-slate-900">{selected.label}</p>
+                    <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                      {selected.type}
+                    </span>
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                      {selectedConnections} connections
+                    </span>
+                  </div>
+                  <p className="mt-2 break-all font-mono text-xs text-slate-500">{selected.id}</p>
                 </div>
-                <p className="font-mono text-xs text-muted-foreground">{selected.id}</p>
-                <p className="text-xs text-muted-foreground">Type: {selected.type}</p>
-                <pre className="max-h-52 overflow-auto rounded-md bg-muted/30 p-2 text-xs">
-                  {JSON.stringify(selected.properties, null, 2)}
-                </pre>
+
+                {selectedPropertyPreview.length > 0 && (
+                  <div className="rounded-2xl border border-border/70 bg-background/70 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Attributes
+                    </p>
+                    <div className="space-y-1.5">
+                      {selectedPropertyPreview.map(([key, value]) => (
+                        <div key={key} className="grid grid-cols-[150px_1fr] items-center gap-2 text-xs">
+                          <span className="text-slate-500">{formatAttributeLabel(key)}</span>
+                          <div className="overflow-x-auto">
+                            <span className="block whitespace-nowrap text-slate-800" title={previewValue(value)}>
+                              {previewValue(value)}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="rounded-2xl border border-border/70 bg-background/70 p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Raw Data
+                  </p>
+                  <Button
+                    size="sm"
+                    variant={copiedNodeId === selected.id ? 'secondary' : 'outline'}
+                    className={
+                      copiedNodeId === selected.id
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                        : ''
+                    }
+                    onClick={handleExtractRawData}
+                  >
+                    {copiedNodeId === selected.id ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                        Copied to clipboard
+                      </span>
+                    ) : (
+                      'Extract Raw Data'
+                    )}
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>

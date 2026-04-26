@@ -260,7 +260,13 @@ def _build_tier_a_embedding(candidate) -> list[float] | None:
         text = type_mod.build_search_text(candidate.canonical_name, candidate.attrs)
     else:
         text = candidate.canonical_name
-    return embed_text(text)
+    try:
+        return embed_text(text)
+    except Exception as exc:
+        # Embedding must never block resolver writes in local/dev envs where
+        # GEMINI_API_KEY is missing or temporarily invalid.
+        typer.echo(f"Embedding unavailable: {exc}")
+        return None
 
 
 def _persist_relationship_fact(

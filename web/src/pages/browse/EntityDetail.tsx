@@ -69,11 +69,11 @@ export default function EntityDetail({ entityId }: Props) {
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex flex-col gap-1.5">
-              <EntityTypeBadge type={data.entity.type} />
-              <h2 className="text-lg font-semibold leading-tight">{data.entity.canonical_name}</h2>
-              {data.entity.aliases.length > 0 && (
+              <EntityTypeBadge type={data.entity_type} />
+              <h2 className="text-lg font-semibold leading-tight">{data.canonical_name}</h2>
+              {data.aliases.length > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Also known as: {data.entity.aliases.join(', ')}
+                  Also known as: {data.aliases.join(', ')}
                 </p>
               )}
             </div>
@@ -104,28 +104,8 @@ export default function EntityDetail({ entityId }: Props) {
         </CardContent>
       </Card>
 
-      {data.related_entities.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Related entities
-            </p>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            {data.related_entities.map(({ entity, via_predicate }) => (
-              <div key={entity.id} className="flex items-center justify-between text-sm">
-                <span>{entity.canonical_name}</span>
-                <span className="text-xs text-muted-foreground capitalize">
-                  {via_predicate.replace(/_/g, ' ')}
-                </span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
       <p className="text-xs text-muted-foreground">
-        Path: <span className="font-mono">{data.vfs_path}</span>
+        Path: <span className="font-mono">{String(data.attrs?.vfs_path ?? `/entities/${data.id}`)}</span>
       </p>
     </div>
   )

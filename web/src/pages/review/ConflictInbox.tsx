@@ -16,7 +16,9 @@ export default function ConflictInbox({ selectedId }: Props) {
 
   const factItems = facts.data?.items ?? []
   const pairItems = pairs.data?.items ?? []
-  const total = factItems.length + pairItems.length
+  const factTotal = facts.data?.total ?? 0
+  const pairTotal = pairs.data?.total ?? 0
+  const total = factTotal + pairTotal
   const loading = facts.isPending || pairs.isPending
 
   return (
@@ -52,6 +54,7 @@ export default function ConflictInbox({ selectedId }: Props) {
         <>
           <p className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Fact conflicts
+            {factTotal > factItems.length && ` (showing ${factItems.length}/${factTotal})`}
           </p>
           <ul className="flex flex-col">
             {factItems.map((item) => {
@@ -94,6 +97,7 @@ export default function ConflictInbox({ selectedId }: Props) {
         <>
           <p className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Entity pairs (possible duplicates)
+            {pairTotal > pairItems.length && ` (showing ${pairItems.length}/${pairTotal})`}
           </p>
           <ul className="flex flex-col">
             {pairItems.map((item) => {

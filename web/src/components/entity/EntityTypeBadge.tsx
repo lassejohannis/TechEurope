@@ -1,8 +1,6 @@
 import { Badge } from '@/components/ui/badge'
-import type { EntityType } from '@/types'
-
 interface Props {
-  type: EntityType
+  type: string
 }
 
 export function EntityTypeBadge({ type }: Props) {

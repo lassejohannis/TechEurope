@@ -143,8 +143,17 @@ def _fact_from_spec(spec: dict[str, Any], payload: dict[str, Any]) -> PendingFac
         if val is not None:
             object_literal = val if isinstance(val, (dict, list)) else {"value": val}
 
+    extraction_method = str(spec.get("extraction_method") or "rule")
     confidence = spec.get("confidence")
-    confidence_value = float(confidence) if isinstance(confidence, (int, float)) else 0.85
+    if isinstance(confidence, (int, float)):
+        confidence_value = max(0.0, min(1.0, float(confidence)))
+    else:
+        confidence_value = _default_fact_confidence(
+            predicate=str(predicate),
+            extraction_method=extraction_method,
+            has_entity_object=object_key is not None,
+            has_literal_object=object_literal is not None,
+        )
 
     return PendingFact(
         subject_key=(str(subject_type), subject_name),
@@ -152,8 +161,39 @@ def _fact_from_spec(spec: dict[str, Any], payload: dict[str, Any]) -> PendingFac
         object_key=object_key,
         object_literal=object_literal,
         confidence=confidence_value,
-        extraction_method=str(spec.get("extraction_method") or "rule"),
+        extraction_method=extraction_method,
     )
+
+
+def _default_fact_confidence(
+    *,
+    predicate: str,
+    extraction_method: str,
+    has_entity_object: bool,
+    has_literal_object: bool,
+) -> float:
+    """Derive a default confidence when mapping doesn't set one.
+
+    This avoids collapsing too many facts at a single 0.85 value.
+    """
+    high_precision_predicates = {
+        "email",
+        "emp_id",
+        "employee_id",
+        "tax_id",
+        "domain",
+        "sku",
+        "product_id",
+    }
+    if predicate in high_precision_predicates:
+        return 0.95
+    if extraction_method == "human":
+        return 0.95
+    if has_entity_object:
+        return 0.90
+    if has_literal_object:
+        return 0.78
+    return 0.72
 
 
 # ---------------------------------------------------------------------------

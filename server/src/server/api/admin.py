@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
@@ -12,6 +13,7 @@ from server.auth import Principal, require_scope
 from server.db import get_db
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+logger = logging.getLogger(__name__)
 
 
 class ReingestRequest(BaseModel):
@@ -22,6 +24,13 @@ class ReingestRequest(BaseModel):
 class PendingTypeDecision(BaseModel):
     decision: str = Field(..., pattern="^(approved|rejected)$")
     note: str | None = None
+
+
+class RefreshBrowseRequest(BaseModel):
+    limit: int = Field(default=250, ge=1, le=2000)
+    infer_mappings: bool = True
+    auto_approve_mappings: bool = True
+    llm_extract: bool = False
 
 
 @router.post("/reload-ontologies", status_code=200)
@@ -117,6 +126,177 @@ def reingest_sources(
         "missing_source_records": missing,
         "triggered_by": principal.subject,
     }
+
+
+@router.post("/refresh-browse-tree", status_code=200)
+def refresh_browse_tree(
+    req: RefreshBrowseRequest = Body(default=RefreshBrowseRequest()),
+    db=Depends(get_db),
+    principal: Principal = Depends(require_scope("write")),
+) -> dict[str, Any]:
+    """Run a compact ontology+resolver refresh so Browse shows newly inferable entities.
+
+    Intended for dev/demo UX: frontend can trigger this on reload, then fetch
+    `/api/vfs/*` again to reflect newly created entities.
+    """
+    from server.cli import (
+        _canonical_entity_type,
+        _persist_entity,
+        _persist_fact,
+        _persist_relationship_fact,
+    )
+    from server.ontology.engine import apply_mapping
+    from server.ontology.propose import infer_source_mapping, persist_proposal, validate_proposal
+    from server.resolver.cascade import resolve as cascade_resolve
+    from server.resolver.cascade import write_pending_inbox
+    from server.resolver.extract import extract_candidates
+
+    records_res = (
+        db.table("source_records")
+        .select("id, source_type, payload")
+        .order("ingested_at", desc=True)
+        .limit(req.limit)
+        .execute()
+    )
+    records = records_res.data or []
+    if not records:
+        return {
+            "processed_records": 0,
+            "entities_created": 0,
+            "entities_merged": 0,
+            "entities_inboxed": 0,
+            "facts_created": 0,
+            "relationship_hints": 0,
+            "mappings_inferred": 0,
+            "mappings_auto_approved": 0,
+            "triggered_by": principal.subject,
+        }
+
+    mapping_cache: dict[str, dict | None] = {}
+
+    def _mapping_for(source_type: str) -> dict | None:
+        if source_type in mapping_cache:
+            return mapping_cache[source_type]
+        row_res = (
+            db.table("source_type_mapping")
+            .select("config, status")
+            .eq("source_type", source_type)
+            .limit(1)
+            .execute()
+        )
+        row = (row_res.data or [None])[0]
+        cfg = (row.get("config") or {}) if row and row.get("status") == "approved" else None
+        mapping_cache[source_type] = cfg
+        return cfg
+
+    inferred = 0
+    auto_approved = 0
+    if req.infer_mappings:
+        for stype in sorted({str(r.get("source_type") or "") for r in records if r.get("source_type")}):
+            if _mapping_for(stype) is not None:
+                continue
+            sample_res = (
+                db.table("source_records")
+                .select("id, source_type, payload")
+                .eq("source_type", stype)
+                .limit(8)
+                .execute()
+            )
+            sample_records = sample_res.data or []
+            if len(sample_records) < 2:
+                continue
+
+            proposal = infer_source_mapping(stype, sample_records[:5], db)
+            if proposal is None:
+                continue
+            validation = validate_proposal(proposal, sample_records[5:] or sample_records[:1])
+            status = persist_proposal(
+                proposal,
+                db,
+                sample_ids=[r["id"] for r in sample_records[:5]],
+                validation_stats=validation,
+                auto_approve=req.auto_approve_mappings,
+            )
+            inferred += 1
+            if status == "approved":
+                auto_approved += 1
+                mapping_cache[stype] = proposal.model_dump()
+
+    stats = {
+        "processed_records": 0,
+        "entities_created": 0,
+        "entities_merged": 0,
+        "entities_inboxed": 0,
+        "facts_created": 0,
+        "relationship_hints": 0,
+        "record_errors": 0,
+    }
+
+    for rec in records:
+        try:
+            stats["processed_records"] += 1
+            source_type = str(rec.get("source_type") or "")
+            cfg = _mapping_for(source_type) if source_type else None
+            if cfg is not None:
+                candidates, pending_facts = apply_mapping(rec, cfg)
+            else:
+                candidates, pending_facts = extract_candidates(rec, llm_extract=req.llm_extract)
+
+            if not candidates and not pending_facts:
+                continue
+
+            name_to_id: dict[tuple[str, str], str] = {}
+            for cand in candidates:
+                result = cascade_resolve(cand, db)
+                if result.action == "inbox":
+                    entity_id = _persist_entity(db, cand, None)
+                    if not entity_id:
+                        continue
+                    canonical_type = _canonical_entity_type(cand.entity_type)
+                    name_to_id[(canonical_type, cand.canonical_name)] = entity_id
+                    write_pending_inbox(cand, result, db)
+                    stats["entities_inboxed"] += 1
+                else:
+                    same_type_match = result.matched_id if result.tier in (
+                        "hard_id", "alias", "embedding", "pioneer"
+                    ) else None
+                    entity_id = _persist_entity(db, cand, same_type_match)
+                    if not entity_id:
+                        continue
+                    canonical_type = _canonical_entity_type(cand.entity_type)
+                    name_to_id[(canonical_type, cand.canonical_name)] = entity_id
+                    if same_type_match:
+                        stats["entities_merged"] += 1
+                    else:
+                        stats["entities_created"] += 1
+
+                if result.relationship_hint:
+                    predicate, _target_type, target_id = result.relationship_hint
+                    if _persist_relationship_fact(
+                        db, entity_id, predicate, target_id, rec["id"], result.confidence
+                    ):
+                        stats["relationship_hints"] += 1
+
+            for pf in pending_facts:
+                if _persist_fact(db, pf, name_to_id, rec["id"]):
+                    stats["facts_created"] += 1
+        except Exception as exc:
+            stats["record_errors"] += 1
+            logger.exception(
+                "refresh-browse-tree failed for source_record=%s source_type=%s: %s",
+                rec.get("id"),
+                rec.get("source_type"),
+                exc,
+            )
+
+    summary = {
+        **stats,
+        "mappings_inferred": inferred,
+        "mappings_auto_approved": auto_approved,
+        "triggered_by": principal.subject,
+    }
+    logger.info("refresh-browse-tree done: %s", summary)
+    return summary
 
 
 @router.get("/pending-types", status_code=200)

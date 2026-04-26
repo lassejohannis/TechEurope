@@ -45,6 +45,10 @@ _COLLECTION_ALIASES: dict[str, str] = {
 }
 
 
+def _titleize_slug(slug: str) -> str:
+    return slug.replace("-", " ").replace("_", " ").title()
+
+
 def _missing_column(exc: Exception, column: str) -> bool:
     text = str(exc).lower()
     return column.lower() in text and (
@@ -75,6 +79,21 @@ def _list_active_entities(db, *, entity_type: str | None = None, limit: int = 50
             raise
         logger.warning("entities.deleted_at missing; falling back to status filter in vfs list")
         return _build_base().neq("status", "archived").limit(limit).execute()
+
+
+def _count_active_entities(db, *, entity_type: str) -> int:
+    """Count active entities per type with schema-compatible filters."""
+    def _build_base():
+        return db.table("entities").select("id", count="exact", head=True).eq("entity_type", entity_type)
+
+    try:
+        res = _build_base().is_("deleted_at", "null").execute()
+    except Exception as exc:
+        if not _missing_column(exc, "deleted_at"):
+            raise
+        logger.warning("entities.deleted_at missing; falling back to status filter in vfs count")
+        res = _build_base().neq("status", "archived").execute()
+    return int(res.count or 0)
 
 
 def _get_active_entity_for_patch(db, *, slug: str, entity_type: str):
@@ -153,6 +172,59 @@ def _entity_to_vfs_node(e: dict, path: str) -> VfsNode:
 
 def _path_segments(path: str) -> list[str]:
     return [s for s in path.strip("/").split("/") if s]
+
+
+# ---------------------------------------------------------------------------
+# GET /vfs/_sections — dynamic browse sections from ontology config
+# ---------------------------------------------------------------------------
+
+@router.get("/_sections")
+def vfs_sections(
+    include_empty: bool = Query(default=False, description="Include entity types with zero active entities"),
+    db=Depends(get_db),
+):
+    cfg_res = (
+        db.table("entity_type_config")
+        .select("id, config, approval_status")
+        .eq("approval_status", "approved")
+        .order("id")
+        .execute()
+    )
+    rows = cfg_res.data or []
+
+    sections: list[dict[str, object]] = []
+    for row in rows:
+        entity_type = str(row.get("id") or "").strip()
+        if not entity_type:
+            continue
+        # Keep browse focused on operational entities; document records remain
+        # queryable/searchable but are excluded from the left browse navigation.
+        if entity_type == "document":
+            continue
+        cfg = row.get("config") if isinstance(row.get("config"), dict) else {}
+        count = _count_active_entities(db, entity_type=entity_type)
+        if not include_empty and count == 0:
+            continue
+
+        segment = segment_from_type(entity_type)
+        label = cfg.get("browse_label") if isinstance(cfg.get("browse_label"), str) else None
+        if not label:
+            label = _titleize_slug(segment)
+        sections.append(
+            {
+                "path": f"/{segment}",
+                "label": label,
+                "types": [entity_type],
+                "count": count,
+            }
+        )
+
+    total_entities = sum(int(s["count"]) for s in sections)
+    return {
+        "sections": sections,
+        "total_sections": len(sections),
+        "total_entities": total_entities,
+    }
 
 
 # ---------------------------------------------------------------------------

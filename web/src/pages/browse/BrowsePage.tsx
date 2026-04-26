@@ -13,6 +13,8 @@ export default function BrowsePage() {
       left={<VfsTree selectedEntityId={activeId} />}
       center={<EntityDetail entityId={activeId} />}
       right={<ActionPanel entityId={activeId} />}
+      leftWidthClass="clamp(320px, 28vw, 420px)"
+      rightWidthClass="340px"
     />
   )
 }

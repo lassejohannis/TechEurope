@@ -11,6 +11,8 @@ interface Props {
 }
 
 export function ConflictCard({ label, fact, isSelected, onSelect }: Props) {
+  const rawValue = fact.object_literal ?? fact.object_id
+  const sourceParts = fact.source_id ? fact.source_id.split(':') : []
   return (
     <Card
       className={`cursor-pointer transition-all ${isSelected ? 'ring-2 ring-primary' : 'hover:border-primary/50'}`}
@@ -25,26 +27,21 @@ export function ConflictCard({ label, fact, isSelected, onSelect }: Props) {
             <span className="text-xs text-muted-foreground capitalize">
               {fact.predicate.replace(/_/g, ' ')}
             </span>
-            <span className="font-medium">{fact.object === null ? '—' : String(fact.object)}</span>
+            <span className="font-medium">{rawValue == null ? '—' : String(rawValue)}</span>
           </div>
           <ConfidencePill confidence={fact.confidence} />
         </div>
 
         <div className="flex flex-wrap gap-1">
-          {fact.derived_from.slice(0, 2).map((src) => (
-            <Badge key={src} variant="outline" className="text-xs font-mono">
-              {src.split(':')[0]}
-            </Badge>
-          ))}
-          {fact.derived_from.length > 2 && (
-            <Badge variant="outline" className="text-xs">
-              +{fact.derived_from.length - 2}
+          {sourceParts.length > 0 && (
+            <Badge variant="outline" className="text-xs font-mono">
+              {sourceParts[0]}
             </Badge>
           )}
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Updated {new Date(fact.updated_at).toLocaleDateString()}
+          Updated {new Date(fact.recorded_at).toLocaleDateString()}
         </p>
       </CardContent>
     </Card>
