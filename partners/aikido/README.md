@@ -1,8 +1,5 @@
 # Aikido
 
-**Side-Prize**: 1 000 €.
-**Pflicht-Partner**: ❌ explicitly excluded from the required-3 (per hackathon rules).
-
 ## Status: evaluated, configured, not gating CI
 
 We treat Aikido as a security hygiene layer, not a build-block. The repo has the configuration in place; findings are visible to the team but don't fail the pipeline (Hackathon-Friday code is sometimes ugly and we'd rather ship + fix than block).
@@ -28,7 +25,7 @@ When configured Aikido runs:
 - Supabase RLS on production tables follows the patterns from `.claude/skills/supabase-postgres-best-practices/`.
 - `agent_tokens` are stored as bcrypt hashes (`server/src/server/auth/tokens.py:_hash`) — plain-text returned only once at issue-time.
 
-## Side-Prize criteria (self-assessed)
+## Evaluation criteria (self-assessed)
 
 | Kriterium | Status | Evidence |
 |---|---|---|
@@ -39,7 +36,7 @@ When configured Aikido runs:
 
 ## Honesty notes
 
-Aikido is the partner with the loosest integration in this repo. The hackathon rules explicitly exclude it from the required-3, which means we prioritized our 3 code-deep partners (Gemini, Pioneer, Tavily) and treated Aikido as a hygiene layer rather than a story.
+Aikido is the partner with the loosest integration in this repo — we treated it as a hygiene layer rather than a feature.
 
 If we had another half-day, we would:
 - Write a small `aikido-summary.md` that pulls the latest dashboard JSON and tabulates findings per-severity.

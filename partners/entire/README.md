@@ -1,11 +1,8 @@
 # Entire
 
-**Side-Prize**: $ 1 000.
-**Pflicht-Partner**: ❌ excluded from the required-3 (per side-prize rules — Entire is a developer tool, not a runtime partner).
-
 ## What we use it for
 
-Entire is the **dev loop** the engineering team used during the 48h sprint. It's not in the product code path — it's how we built the product. The story is:
+Entire is the **dev loop** the engineering team used during the sprint. It's not in the product code path — it's how we built the product. The story is:
 
 1. **Multi-agent code review** — `/ultrareview` spins up parallel reviewer agents in Anthropic's cloud against the current branch. We used it for the Connect-page redesign and the Pioneer-pseudo-entity hardening sprint.
 2. **Session-history search** — `entire search --json` lets us query our own git+conversation history. Critical when "what did we decide about Postgres-vs-Neo4j again?" comes up at hour 36.
@@ -26,7 +23,7 @@ This is the crucial bit: Entire as a dev tool means **no product code references
 - **Pioneer pseudo-entity sprint** — `/ultrareview` flagged that our `_HTML_ENTITY_RE` regex was matching `&I` inside "D&I Training", which would have killed legitimate communication titles in the cleanup pass. We tightened the regex before committing.
 - **Connect-page layout-stability bug** — `entire search` against past sessions surfaced a previous CSS `min-width: 0` discussion from a different sprint, which we re-applied to fix the OpenAI-tile content-shift.
 
-## Side-Prize criteria (self-assessed)
+## Evaluation criteria (self-assessed)
 
 | Kriterium | Status | Evidence |
 |---|---|---|
