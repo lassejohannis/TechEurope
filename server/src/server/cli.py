@@ -1285,6 +1285,66 @@ def cmd_sentiment(
         typer.echo(f"{r['subject_id']}: {r.get('object_literal')}")
 
 
+@cli.command("cleanup-pseudo-entities")
+def cmd_cleanup_pseudos(
+    dry_run: bool = typer.Option(True, help="Preview only — pass --no-dry-run to actually delete"),
+    limit_show: int = typer.Option(40, help="How many candidate names to print"),
+) -> None:
+    """Soft-delete entities whose canonical_name matches NER-pseudo heuristics.
+
+    Uses `engine._is_pseudo_entity` — same filter that prevents new pseudos.
+    Cascades: facts where these entities appear as subject_id or object_id are
+    flipped to status='invalidated' so they don't poison live trust scores.
+    """
+    from datetime import datetime, timezone
+    from server.ontology.engine import _is_pseudo_entity
+
+    db = get_supabase()
+    res = (
+        db.table("entities")
+        .select("id, entity_type, canonical_name")
+        .is_("deleted_at", None)
+        .execute()
+    )
+    rows = res.data or []
+    victims = [r for r in rows if _is_pseudo_entity(r["entity_type"], r["canonical_name"])]
+
+    typer.echo(f"scanned {len(rows)} live entities")
+    typer.echo(f"would soft-delete {len(victims)} pseudo-entities:")
+    for v in victims[:limit_show]:
+        typer.echo(f"  [{v['entity_type']:12s}] {v['canonical_name']}")
+    if len(victims) > limit_show:
+        typer.echo(f"  … and {len(victims) - limit_show} more")
+    if dry_run:
+        typer.echo("(dry-run — re-run with --no-dry-run to apply)")
+        return
+
+    if not victims:
+        return
+
+    ids = [v["id"] for v in victims]
+    now_iso = datetime.now(tz=timezone.utc).isoformat()
+
+    # 1) Hard-delete facts touching these entities (subject or object). The
+    # `fact_status` enum has no "invalidated" value, and these facts are NER
+    # junk — keeping them as superseded/draft would just confuse the trust
+    # math. Safer to drop them outright.
+    fact_deleted = 0
+    for i in range(0, len(ids), 100):
+        batch = ids[i : i + 100]
+        s = db.table("facts").delete().in_("subject_id", batch).execute()
+        o = db.table("facts").delete().in_("object_id", batch).execute()
+        fact_deleted += len(s.data or []) + len(o.data or [])
+
+    # 2) Soft-delete the entities themselves (recoverable via deleted_at).
+    for i in range(0, len(ids), 100):
+        batch = ids[i : i + 100]
+        db.table("entities").update({"deleted_at": now_iso}).in_("id", batch).execute()
+
+    typer.echo(f"soft-deleted entities: {len(ids)}")
+    typer.echo(f"deleted orphan facts: {fact_deleted}")
+
+
 def main() -> None:
     import sys
     if len(sys.argv) == 1:

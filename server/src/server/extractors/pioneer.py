@@ -109,6 +109,21 @@ def __getattr__(name: str):
 AVAILABLE: bool = bool(settings.pioneer_api_key and settings.pioneer_model_id)
 
 
+# Per-source-type entity-type whitelist for Pioneer extraction.
+# Source-Types not listed here get the full approved set. Listed types get
+# only their declared subset — keeps "person" out of policy-doc / invoice /
+# CRM scans where NER consistently confuses common nouns for people.
+_SOURCE_TYPE_LABEL_WHITELIST: dict[str, set[str]] = {
+    "doc_policy":  {"organization", "document"},
+    "invoice_pdf": {"organization", "product", "price"},
+    "customer":    {"organization", "person"},
+    "client":      {"organization", "person"},
+    "product":     {"product", "organization", "price"},
+    "sale":        {"product", "organization", "price"},
+    # email, collaboration, hr_record, it_ticket: NOT listed → all approved types
+}
+
+
 def extract(text: str, source_type: str = "unknown") -> ExtractionResult | None:
     """Extract entities + facts from a free-text chunk via Pioneer GLiNER2.
 
@@ -121,11 +136,15 @@ def extract(text: str, source_type: str = "unknown") -> ExtractionResult | None:
     if not text or len(text.strip()) < 20:
         return None
 
+    approved_e = _approved_entity_types()
+    allow = _SOURCE_TYPE_LABEL_WHITELIST.get(source_type)
+    entity_labels = [t for t in approved_e if (not allow) or t in allow]
+
     body = {
         "model": settings.pioneer_model_id,
         "messages": [{"role": "user", "content": text}],
         "schema": {
-            "entities": list(_approved_entity_types()),
+            "entities": entity_labels,
             "relations": list(_approved_edge_types()),
         },
         "include_confidence": True,
