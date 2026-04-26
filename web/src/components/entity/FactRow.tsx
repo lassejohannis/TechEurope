@@ -14,13 +14,41 @@ const STATUS_CLASSES: Record<Fact['status'], string> = {
   draft: 'opacity-60',
   superseded: 'opacity-40 line-through',
   disputed: 'border-l-2 border-destructive pl-2',
-  invalidated: 'opacity-30 line-through',
-  needs_refresh: 'opacity-60 italic',
+  invalidated: 'opacity-40 line-through',
+  needs_refresh: 'opacity-60',
+}
+
+function displayValue(value: unknown): string {
+  if (value == null) return '—'
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+  if (Array.isArray(value)) {
+    return value.map((v) => displayValue(v)).join(', ')
+  }
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    for (const key of ['canonical_name', 'name', 'title', 'label', 'value']) {
+      if (typeof obj[key] === 'string' && obj[key]) return obj[key]
+    }
+    try {
+      const json = JSON.stringify(obj)
+      return json.length > 120 ? `${json.slice(0, 117)}...` : json
+    } catch {
+      return 'structured value'
+    }
+  }
+  return String(value)
+}
+
+function sourceLabel(sourceId: string): string {
+  const [prefix] = sourceId.split(':')
+  return prefix || 'unknown'
 }
 
 export function FactRow({ fact, onFlag }: Props) {
-  const valueStr =
-    fact.object_literal != null ? String(fact.object_literal) : fact.object_id ?? '—'
+  const rawValue = fact.object_literal ?? fact.object_id
+  const valueStr = displayValue(rawValue)
 
   return (
     <div
@@ -33,7 +61,10 @@ export function FactRow({ fact, onFlag }: Props) {
         <span className="font-medium text-muted-foreground capitalize">
           {fact.predicate.replace(/_/g, ' ')}
         </span>
-        <span className="text-foreground">{valueStr}</span>
+        <span className="text-foreground break-words">{valueStr}</span>
+        <span className="text-[11px] text-muted-foreground">
+          Source: {sourceLabel(fact.source_id)}
+        </span>
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5">

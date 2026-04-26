@@ -139,6 +139,8 @@ export interface FactConflictInboxItem {
     object_id: string | null
     object_literal: unknown
     confidence: number
+    extraction_confidence?: number
+    verification_score?: number
     source_id: string
     valid_from: string
     recorded_at: string
@@ -154,16 +156,22 @@ export interface InboxResponse<T> {
 
 export function listEntityPairResolutions(
   status: 'pending' | 'merged' | 'rejected' = 'pending',
-  limit = 50,
+  limit?: number,
 ): Promise<InboxResponse<EntityPairInboxItem>> {
-  return apiFetch(`/api/resolutions?status=${status}&limit=${limit}`)
+  const params = new URLSearchParams()
+  params.set('status', status)
+  if (typeof limit === 'number') params.set('limit', String(limit))
+  return apiFetch(`/api/resolutions?${params.toString()}`)
 }
 
 export function listFactResolutions(
   status: 'pending' | 'auto_resolved' | 'human_resolved' | 'rejected' = 'pending',
-  limit = 50,
+  limit?: number,
 ): Promise<InboxResponse<FactConflictInboxItem>> {
-  return apiFetch(`/api/fact-resolutions?status=${status}&limit=${limit}`)
+  const params = new URLSearchParams()
+  params.set('status', status)
+  if (typeof limit === 'number') params.set('limit', String(limit))
+  return apiFetch(`/api/fact-resolutions?${params.toString()}`)
 }
 
 export function decideEntityPair(

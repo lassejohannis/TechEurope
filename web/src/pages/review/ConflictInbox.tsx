@@ -1,88 +1,139 @@
-import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import Icon from '@/components/qontext/icon'
-import { SourceBadge } from '@/components/qontext/badges'
-import { INAZUMA, type MockConflict } from '@/lib/inazuma-mock'
+import { CheckCircle, AlertCircle, Users } from 'lucide-react'
 
-const SOURCE_MAP: Record<string, [string, string]> = {
-  'conf:1': ['src:crm:acme',      'src:email:2'],
-  'conf:2': ['src:crm:meridian',  'src:email:3'],
-  'conf:3': ['src:hr:E0203',      'src:hr:roster'],
-  'conf:4': ['src:crm:northstar', 'src:email:1'],
-  'conf:5': ['src:crm:acme',      'src:doc:onepage'],
-}
+import { Badge } from '@/components/ui/badge'
+import { useEntityPairInbox, useFactConflictInbox } from '@/hooks/useConflicts'
+import { cn } from '@/lib/utils'
 
 interface Props {
-  activeId: string | null
+  selectedId: string | null
 }
 
-function InboxItem({ c, activeId, onClick }: { c: MockConflict; activeId: string | null; onClick: () => void }) {
-  const [srcA, srcB] = SOURCE_MAP[c.id] ?? []
-  const sources = INAZUMA.sources
-  const isActive = c.id === activeId
-
-  return (
-    <div
-      className={`inbox-item${isActive ? ' active' : ''}${c.unread ? ' unread' : ''}`}
-      onClick={onClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && onClick()}
-    >
-      <div className="inbox-row1">
-        <span className="conf-badge conflict" style={{ padding: '1px 6px' }}>{c.severity}</span>
-        <span className="inbox-subject">{c.subject}</span>
-        <span className="inbox-time">{c.time}</span>
-      </div>
-      <div className="inbox-pred">predicate: <span style={{ color: 'var(--text-primary)' }}>{c.pred}</span></div>
-      <div className="inbox-sources">
-        {srcA && sources[srcA] && <SourceBadge src={sources[srcA]} mini />}
-        {srcA && srcB && <span>vs</span>}
-        {srcB && sources[srcB] && <SourceBadge src={sources[srcB]} mini />}
-        <span style={{ marginLeft: 'auto' }}>2 candidate values</span>
-      </div>
-    </div>
-  )
-}
-
-export default function ConflictInbox({ activeId }: Props) {
+export default function ConflictInbox({ selectedId }: Props) {
   const navigate = useNavigate()
-  const [filter, setFilter] = useState<'pending' | 'resolved' | 'all'>('pending')
-  const conflicts = INAZUMA.conflicts
+  const facts = useFactConflictInbox('pending')
+  const pairs = useEntityPairInbox('pending')
+
+  const factItems = facts.data?.items ?? []
+  const pairItems = pairs.data?.items ?? []
+  const factTotal = facts.data?.total ?? 0
+  const pairTotal = pairs.data?.total ?? 0
+  const total = factTotal + pairTotal
+  const loading = facts.isPending || pairs.isPending
 
   return (
-    <div className="col">
-      <div className="panel-header sticky">
-        <Icon name="inbox" size={14} className="muted" />
-        <span className="panel-title">Conflicts inbox</span>
-        <span className="spacer" />
-        <span className="chip" style={{ background: 'var(--conf-conflict-soft)', color: 'var(--conf-conflict)', fontWeight: 700 }}>
-          {conflicts.length} pending
-        </span>
-      </div>
-
-      <div className="inbox-filter">
-        {(['pending', 'resolved', 'all'] as const).map((f) => (
-          <button key={f} className={filter === f ? 'active' : ''} onClick={() => setFilter(f)}>
-            {f.charAt(0).toUpperCase() + f.slice(1)}{' '}
-            <span className="count">{f === 'pending' ? conflicts.length : f === 'resolved' ? 312 : 317}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="inbox-list">
-        {conflicts.map((c) => (
-          <InboxItem
-            key={c.id}
-            c={c}
-            activeId={activeId}
-            onClick={() => navigate(`/review/${encodeURIComponent(c.id)}`)}
-          />
-        ))}
-        <div style={{ padding: '16px 14px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 12 }}>
-          End of pending queue · auto-resolved 312 conflicts in last 24h
+    <div className="flex flex-col">
+      <div className="border-b px-3 py-2">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Conflict Inbox
+          </p>
+          {total > 0 && (
+            <Badge variant="destructive" className="text-xs">
+              {total}
+            </Badge>
+          )}
         </div>
       </div>
+
+      {loading && (
+        <p className="px-3 py-6 text-sm text-muted-foreground">Loading…</p>
+      )}
+
+      {!loading && total === 0 && (
+        <div className="flex flex-col items-center gap-2 p-6 text-center">
+          <CheckCircle className="size-6 text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">
+            No conflicts to review. Conflicts appear here when two sources
+            disagree on the same fact, or when an entity might already exist.
+          </p>
+        </div>
+      )}
+
+      {!loading && factItems.length > 0 && (
+        <>
+          <p className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Fact conflicts
+            {factTotal > factItems.length && ` (showing ${factItems.length}/${factTotal})`}
+          </p>
+          <ul className="flex flex-col">
+            {factItems.map((item) => {
+              const id = `fact:${item.id}`
+              const isActive = selectedId === id
+              const firstFact = item.facts[0]
+              return (
+                <li key={item.id}>
+                  <button
+                    onClick={() => navigate(`/review/${encodeURIComponent(id)}`)}
+                    className={cn(
+                      'flex w-full flex-col gap-1 px-3 py-3 text-left transition-colors hover:bg-muted/50',
+                      isActive && 'bg-muted',
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium capitalize">
+                        {firstFact?.predicate.replace(/_/g, ' ') ?? 'unknown'}
+                      </span>
+                      <Badge variant="destructive" className="text-xs shrink-0">
+                        <AlertCircle className="mr-1 size-3" />
+                        conflict
+                      </Badge>
+                    </div>
+                    <span className="text-xs text-muted-foreground font-mono truncate">
+                      {firstFact?.subject_id ?? '—'}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {item.facts.length} sources
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </>
+      )}
+
+      {!loading && pairItems.length > 0 && (
+        <>
+          <p className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Entity pairs (possible duplicates)
+            {pairTotal > pairItems.length && ` (showing ${pairItems.length}/${pairTotal})`}
+          </p>
+          <ul className="flex flex-col">
+            {pairItems.map((item) => {
+              const id = `pair:${item.id}`
+              const isActive = selectedId === id
+              return (
+                <li key={item.id}>
+                  <button
+                    onClick={() => navigate(`/review/${encodeURIComponent(id)}`)}
+                    className={cn(
+                      'flex w-full flex-col gap-1 px-3 py-3 text-left transition-colors hover:bg-muted/50',
+                      isActive && 'bg-muted',
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium truncate">
+                        {item.entity_1?.canonical_name ?? '?'}
+                      </span>
+                      <Badge variant="secondary" className="text-xs shrink-0">
+                        <Users className="mr-1 size-3" />
+                        pair
+                      </Badge>
+                    </div>
+                    <span className="text-xs text-muted-foreground truncate">
+                      vs {item.entity_2?.canonical_name ?? '?'}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(item.created_at).toLocaleDateString()}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </>
+      )}
     </div>
   )
 }

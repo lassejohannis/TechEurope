@@ -210,6 +210,7 @@ class Neo4jProjection:
                     n.canonical_name = $canonical_name,
                     n.aliases = $aliases,
                     n.attrs = $attrs,
+                    n.last_synced = datetime()
                     n.emp_id = $emp_id,
                     n.last_synced = datetime()
             """
@@ -391,27 +392,21 @@ class Neo4jProjection:
 # Cypher-Wow-Demo-Queries — preconfigured for the pitch
 # ----------------------------------------------------------------------
 
-# All demo queries are parameterized — no entity literals are baked in. The
-# `org_*` and `*_neighborhood` queries take a `$start_id` (e.g. "organization:acme")
-# at execution time, so the same Cypher works for any company in the graph.
 DEMO_QUERIES: dict[str, str] = {
-    # Manager → direct-reports rollup, scoped to one organization.
-    # Pass $org_id (e.g. "organization:acme") to scope, or $org_id="" for global.
-    "org_manager_rollup": """
+    # Pitch Wow-Query: org network + cross-source evidence in one shot
+    "inazuma_org_network": """
         MATCH (mgr:Entity {entity_type:'person'})-[:MANAGES]->(report:Entity {entity_type:'person'})
-        OPTIONAL MATCH (mgr)-[:WORKS_AT]->(co:Entity {entity_type:'organization'})
-        WHERE $org_id = '' OR co.id = $org_id
+        OPTIONAL MATCH (mgr)-[:WORKS_AT]->(co:Entity {entity_type:'company'})
         RETURN mgr.canonical_name AS manager,
-               co.canonical_name  AS organization,
+               co.canonical_name  AS company,
                collect(report.canonical_name) AS direct_reports,
                count(report) AS report_count
         ORDER BY report_count DESC
         LIMIT 15
     """,
-    # 3-hop neighborhood around any starting entity — shows cross-source traversal.
-    # Pass $start_id (e.g. "organization:acme", "person:jane-doe").
-    "neighborhood_3hop": """
-        MATCH path = (a:Entity {id:$start_id})-[*1..3]-(n:Entity)
+    # 3-hop neighborhood around Inazuma — shows cross-source graph traversal
+    "inazuma_3hop_neighborhood": """
+        MATCH path = (a:Entity {id:'company:inazuma'})-[*1..3]-(n:Entity)
         RETURN n.canonical_name AS name,
                n.entity_type   AS type,
                length(path)    AS hops,
@@ -419,7 +414,7 @@ DEMO_QUERIES: dict[str, str] = {
         ORDER BY hops, type
         LIMIT 30
     """,
-    # Shortest path between two persons.
+    # Shortest path between two persons (pass from_id / to_id as params)
     "shortest_path_persons": """
         MATCH (a:Entity {entity_type:'person', id:$from_id}),
               (b:Entity {entity_type:'person', id:$to_id}),
@@ -427,7 +422,7 @@ DEMO_QUERIES: dict[str, str] = {
         RETURN [n IN nodes(path) | n.canonical_name] AS path,
                length(path) AS hops
     """,
-    # Most connected hub — useful for finding key brokers across sources.
+    # Most connected hub — useful for finding key brokers across sources
     "top_connected_entities": """
         MATCH (n:Entity)-[r]-()
         WITH n, count(r) AS degree
@@ -436,8 +431,7 @@ DEMO_QUERIES: dict[str, str] = {
                n.entity_type   AS type,
                degree
     """,
-    # Email-thread participants — shows participant_in edges from any
-    # source-type whose mapping emits `communication` entities.
+    # Email-thread participants — shows participant_in edges from email connector
     "email_thread_participants": """
         MATCH (p:Entity {entity_type:'person'})-[:PARTICIPANT_IN]->(c:Entity {entity_type:'communication'})
         WITH c, collect(p.canonical_name) AS participants, count(p) AS participant_count

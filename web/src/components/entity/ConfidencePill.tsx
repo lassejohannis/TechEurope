@@ -7,8 +7,14 @@ interface Props {
 }
 
 export function ConfidencePill({ confidence, className }: Props) {
-  const pct = Math.round(confidence * 100)
   const level = confidenceLevel(confidence)
+  const label = level === 'high'
+    ? 'High'
+    : level === 'medium'
+      ? 'Medium'
+      : level === 'low'
+        ? 'Low'
+        : 'Very low'
 
   return (
     <Tooltip>
@@ -21,7 +27,7 @@ export function ConfidencePill({ confidence, className }: Props) {
               className,
             )}
           >
-            {pct}%
+            {label}
           </span>
         }
       />

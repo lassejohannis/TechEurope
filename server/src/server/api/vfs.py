@@ -33,6 +33,7 @@ from server.models import (
 from server.vfs_paths import (
     glob_to_ilike,
     pluralize_entity_type,
+    segment_from_type,
     type_from_segment,
 )
 
@@ -42,6 +43,10 @@ logger = logging.getLogger(__name__)
 _COLLECTION_ALIASES: dict[str, str] = {
     "contacts": "person",
 }
+
+
+def _titleize_slug(slug: str) -> str:
+    return slug.replace("-", " ").replace("_", " ").title()
 
 
 def _missing_column(exc: Exception, column: str) -> bool:
@@ -74,6 +79,21 @@ def _list_active_entities(db, *, entity_type: str | None = None, limit: int = 50
             raise
         logger.warning("entities.deleted_at missing; falling back to status filter in vfs list")
         return _build_base().neq("status", "archived").limit(limit).execute()
+
+
+def _count_active_entities(db, *, entity_type: str) -> int:
+    """Count active entities per type with schema-compatible filters."""
+    def _build_base():
+        return db.table("entities").select("id", count="exact", head=True).eq("entity_type", entity_type)
+
+    try:
+        res = _build_base().is_("deleted_at", "null").execute()
+    except Exception as exc:
+        if not _missing_column(exc, "deleted_at"):
+            raise
+        logger.warning("entities.deleted_at missing; falling back to status filter in vfs count")
+        res = _build_base().neq("status", "archived").execute()
+    return int(res.count or 0)
 
 
 def _get_active_entity_for_patch(db, *, slug: str, entity_type: str):
@@ -131,13 +151,9 @@ def _entity_to_vfs_node(e: dict, path: str) -> VfsNode:
     fallback_path = path
     if not fallback_path:
         seg = pluralize_entity_type(str(e.get("entity_type", "entity")))
-        # Strip the type prefix from the entity id (e.g. "person:jane-doe" → "jane-doe")
-        # so the fallback path doesn't double-include the type ("/persons/person:jane-doe").
-        eid = str(e.get("id", ""))
-        slug = eid.split(":", 1)[1] if ":" in eid else eid
-        fallback_path = f"/{seg}/{slug}"
+        fallback_path = f"/{seg}/{e.get('id')}"
     return VfsNode(
-        path=attrs.get("vfs_path") or fallback_path,
+        path=attrs.get("vfs_path", fallback_path),
         type=e["entity_type"],
         entity_id=str(e["id"]),
         content={
@@ -156,6 +172,59 @@ def _entity_to_vfs_node(e: dict, path: str) -> VfsNode:
 
 def _path_segments(path: str) -> list[str]:
     return [s for s in path.strip("/").split("/") if s]
+
+
+# ---------------------------------------------------------------------------
+# GET /vfs/_sections — dynamic browse sections from ontology config
+# ---------------------------------------------------------------------------
+
+@router.get("/_sections")
+def vfs_sections(
+    include_empty: bool = Query(default=False, description="Include entity types with zero active entities"),
+    db=Depends(get_db),
+):
+    cfg_res = (
+        db.table("entity_type_config")
+        .select("id, config, approval_status")
+        .eq("approval_status", "approved")
+        .order("id")
+        .execute()
+    )
+    rows = cfg_res.data or []
+
+    sections: list[dict[str, object]] = []
+    for row in rows:
+        entity_type = str(row.get("id") or "").strip()
+        if not entity_type:
+            continue
+        # Keep browse focused on operational entities; document records remain
+        # queryable/searchable but are excluded from the left browse navigation.
+        if entity_type == "document":
+            continue
+        cfg = row.get("config") if isinstance(row.get("config"), dict) else {}
+        count = _count_active_entities(db, entity_type=entity_type)
+        if not include_empty and count == 0:
+            continue
+
+        segment = segment_from_type(entity_type)
+        label = cfg.get("browse_label") if isinstance(cfg.get("browse_label"), str) else None
+        if not label:
+            label = _titleize_slug(segment)
+        sections.append(
+            {
+                "path": f"/{segment}",
+                "label": label,
+                "types": [entity_type],
+                "count": count,
+            }
+        )
+
+    total_entities = sum(int(s["count"]) for s in sections)
+    return {
+        "sections": sections,
+        "total_sections": len(sections),
+        "total_entities": total_entities,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +259,7 @@ def vfs_read(
     # --- Direct path lookup via attrs.vfs_path ---
     direct = db.table("entities").select("*").eq(
         "attrs->>vfs_path", f"/{path}"
-    ).is_("deleted_at", "null").limit(1).execute()
+    ).limit(1).execute()
     if direct.data:
         e = direct.data[0]
         return _entity_to_vfs_node(e, f"/{path}")
@@ -204,11 +273,15 @@ def vfs_read(
     entity_type = _COLLECTION_ALIASES.get(type_key, type_from_segment(type_key))
 
     if len(segments) == 1:
-        # List all entities of this type. Pass empty fallback so the helper
-        # uses attrs.vfs_path when set, otherwise builds the canonical
-        # `/{seg}/{slug}` (with the type prefix stripped from the id).
+        # List all entities of this type
         res = _list_active_entities(db, entity_type=entity_type, limit=500, glob=glob)
-        nodes = [_entity_to_vfs_node(e, "") for e in (res.data or [])]
+        nodes = [
+            _entity_to_vfs_node(
+                e,
+                f"/{segment_from_type(str(e['entity_type']))}/{e['id']}",
+            )
+            for e in (res.data or [])
+        ]
         return VfsListResponse(path=f"/{path}", children=nodes, total=len(nodes))
 
     slug = segments[1]
@@ -217,7 +290,7 @@ def vfs_read(
     e_res = None
     try:
         uuid.UUID(slug)
-        e_res = db.table("entities").select("*").eq("id", slug).eq("entity_type", entity_type).is_("deleted_at", "null").single().execute()
+        e_res = db.table("entities").select("*").eq("id", slug).eq("entity_type", entity_type).single().execute()
     except ValueError:
         pass
 
@@ -323,7 +396,7 @@ def vfs_patch(path: str, req: VfsPatchRequest, db=Depends(get_db)):
     """
     segments = _path_segments(path)
     if len(segments) < 2:
-        raise HTTPException(status_code=400, detail="Provide a specific entity path, e.g. /{collection}/{slug}")
+        raise HTTPException(status_code=400, detail="Provide a specific entity path, e.g. /companies/acme")
 
     type_key = segments[0]
     entity_type = _COLLECTION_ALIASES.get(type_key, type_from_segment(type_key))
@@ -401,7 +474,7 @@ def vfs_delete(path: str, reason: str | None = Query(default=None), db=Depends(g
     # Resolve entity
     try:
         uuid.UUID(slug)
-        e_res = db.table("entities").select("id").eq("id", slug).is_("deleted_at", "null").single().execute()
+        e_res = db.table("entities").select("id").eq("id", slug).single().execute()
     except ValueError:
         e_res = db.table("entities").select("id").eq("entity_type", entity_type).ilike(
             "canonical_name", f"%{slug.replace('-', ' ')}%"

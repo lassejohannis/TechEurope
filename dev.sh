@@ -8,6 +8,7 @@ WEB_PID=""
 BACKEND_LOG="${ROOT_DIR}/server/.dev-server.log"
 BACKEND_HEALTH_URL="http://127.0.0.1:8000/api/health"
 BACKEND_STARTUP_TIMEOUT_SECONDS=120
+SERVER_DEPS_STAMP="${ROOT_DIR}/server/.venv/.deps-lock-hash"
 
 find_listeners() {
   local port="$1"
@@ -48,6 +49,34 @@ trap cleanup EXIT INT TERM
 
 free_port 8000
 free_port 5173
+
+ensure_server_deps() {
+  local lock_hash current_hash
+  if [[ ! -f "${ROOT_DIR}/server/uv.lock" || ! -f "${ROOT_DIR}/server/pyproject.toml" ]]; then
+    return 0
+  fi
+  if ! command -v shasum >/dev/null 2>&1; then
+    return 0
+  fi
+
+  lock_hash="$(shasum "${ROOT_DIR}/server/uv.lock" "${ROOT_DIR}/server/pyproject.toml" | shasum | awk '{print $1}')"
+  current_hash=""
+  if [[ -f "${SERVER_DEPS_STAMP}" ]]; then
+    current_hash="$(cat "${SERVER_DEPS_STAMP}" 2>/dev/null || true)"
+  fi
+
+  if [[ "${lock_hash}" != "${current_hash}" ]]; then
+    echo "Dependency lock changed. Running 'uv sync' in server/ ..."
+    (
+      cd "${ROOT_DIR}/server"
+      uv sync
+    )
+    mkdir -p "$(dirname "${SERVER_DEPS_STAMP}")"
+    printf "%s" "${lock_hash}" > "${SERVER_DEPS_STAMP}"
+  fi
+}
+
+ensure_server_deps
 
 echo "Starting backend on :8000 and frontend on :5173"
 echo "Backend log file: ${BACKEND_LOG}"

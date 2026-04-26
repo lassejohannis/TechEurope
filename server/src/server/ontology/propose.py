@@ -61,7 +61,7 @@ class FactSpec(BaseModel):
     object_canonical_name: str | None = None
     object_type: str | None = None
     object_literal: str | None = Field(default=None, description="JSONata for scalar/json target")
-    confidence: float = 0.85
+    confidence: float | None = None
     extraction_method: Literal["rule"] = "rule"
 
 

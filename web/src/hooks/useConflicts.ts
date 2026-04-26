@@ -11,7 +11,12 @@ import {
 export function useEntityPairInbox(status: 'pending' | 'merged' | 'rejected' = 'pending') {
   return useQuery({
     queryKey: ['inbox', 'entity-pairs', status],
-    queryFn: () => listEntityPairResolutions(status),
+    queryFn: () => listEntityPairResolutions(status, 100),
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   })
 }
 
@@ -20,7 +25,12 @@ export function useFactConflictInbox(
 ) {
   return useQuery({
     queryKey: ['inbox', 'fact-conflicts', status],
-    queryFn: () => listFactResolutions(status),
+    queryFn: () => listFactResolutions(status, 100),
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   })
 }
 
@@ -87,6 +97,10 @@ export function useTrustWeights() {
   return useQuery({
     queryKey: ['trust-weights'],
     queryFn: getTrustWeights,
+    staleTime: 10 * 60_000,
+    gcTime: 60 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 }
 
@@ -98,6 +112,11 @@ export function usePendingTypes(kind?: 'entity' | 'edge' | 'source_mapping') {
   return useQuery({
     queryKey: ['inbox', 'pending-types', kind ?? 'all'],
     queryFn: () => listPendingTypes(kind),
+    staleTime: 2 * 60_000,
+    gcTime: 15 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   })
 }
 

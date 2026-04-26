@@ -1,4 +1,5 @@
 import { useParams } from 'react-router-dom'
+import ThreeColumnLayout from '@/components/layout/ThreeColumnLayout'
 import VfsTree from './VfsTree'
 import EntityDetail from './EntityDetail'
 import ActionPanel from './ActionPanel'
@@ -8,10 +9,12 @@ export default function BrowsePage() {
   const activeId = entityId ? decodeURIComponent(entityId) : null
 
   return (
-    <div className="workspace">
-      <VfsTree selectedEntityId={activeId} />
-      <EntityDetail entityId={activeId} />
-      <ActionPanel entityId={activeId} />
-    </div>
+    <ThreeColumnLayout
+      left={<VfsTree selectedEntityId={activeId} />}
+      center={<EntityDetail entityId={activeId} />}
+      right={<ActionPanel entityId={activeId} />}
+      leftWidthClass="clamp(320px, 28vw, 420px)"
+      rightWidthClass="340px"
+    />
   )
 }

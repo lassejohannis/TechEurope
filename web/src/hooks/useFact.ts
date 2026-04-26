@@ -7,5 +7,10 @@ export function useFact(factId: string | null) {
     queryKey: ['fact', factId],
     queryFn: () => getFact(factId!),
     enabled: !!factId,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   })
 }
