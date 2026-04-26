@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "be153357a664",
+  "strategy": "manual-commit",
+  "branch": "Lasse",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "server/src/server/api/admin.py",
+    "web/src/App.tsx",
+    "web/src/components/layout/AppShell.tsx",
+    "web/src/lib/api.ts",
+    "web/src/pages/connect/AgentPromptTemplate.ts",
+    "web/src/pages/connect/CodeBlock.tsx",
+    "web/src/pages/connect/ConnectPage.tsx",
+    "web/src/pages/connect/ManualTrack.tsx",
+    "web/src/pages/connect/TokenBar.tsx",
+    "web/src/pages/connect/VibeCodeTrack.tsx",
+    "web/src/pages/connect/connectors.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/be/153357a664/0/metadata.json",
+      "transcript": "/be/153357a664/0/full.jsonl",
+      "content_hash": "/be/153357a664/0/content_hash.txt",
+      "prompt": "/be/153357a664/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 3209,
+    "cache_creation_tokens": 5992776,
+    "cache_read_tokens": 936805418,
+    "output_tokens": 1253644,
+    "api_call_count": 2067
+  }
+}
