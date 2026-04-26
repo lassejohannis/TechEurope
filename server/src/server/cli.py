@@ -292,6 +292,7 @@ def _persist_relationship_fact(
                 "object_literal": None,
                 "confidence": confidence,
                 "source_id": source_id,
+                "derived_from": [source_id] if source_id else [],
                 "extraction_method": "rule",
             }
         ).execute()
@@ -325,6 +326,13 @@ def _persist_fact(
     if object_id is None and object_literal is None:
         return False
 
+    # facts_no_self_loop check constraint: subject_id != object_id when both
+    # are entity ids. Pioneer occasionally emits self-referential extractions
+    # (e.g. has_contact_person where person mentioned in body is also sender).
+    # Drop these silently — they carry no information.
+    if object_id is not None and subject_id == object_id:
+        return False
+
     try:
         db.table("facts").insert(
             {
@@ -335,6 +343,7 @@ def _persist_fact(
                 "object_literal": object_literal,
                 "confidence": pf.confidence,
                 "source_id": source_id,
+                "derived_from": [source_id] if source_id else [],
                 "extraction_method": pf.extraction_method,
                 "qualifiers": {"derivation": pf.derivation} if pf.derivation else None,
             }
@@ -348,6 +357,10 @@ def _persist_fact(
         # the same person/company appears in many source records. Treat as a
         # silent dedup and continue.
         if "no_temporal_overlap" in str(exc) or "23P01" in str(exc):
+            return False
+        # facts_no_self_loop check constraint — defensive in case the pre-check
+        # above missed an aliased subject/object pair (e.g. via canonical ids).
+        if "facts_no_self_loop" in str(exc) or "23514" in str(exc):
             return False
         raise
 
@@ -419,6 +432,18 @@ def cmd_resolve(
             stats["skipped_no_mapping"] += 1
             continue
         candidates, pending_facts = apply_mapping(rec, cfg)
+        # LLM free-text mining (Pioneer-first / Gemini-fallback) is opt-in
+        # because it spends LLM budget. When enabled, the engine helper
+        # mines `free_text_paths` defined in the mapping config (e.g. email
+        # body, document content) for additional relationship facts.
+        if llm_extract and (paths := (cfg or {}).get("free_text_paths")):
+            try:
+                from server.ontology.engine import _llm_free_text_facts
+                pending_facts.extend(_llm_free_text_facts(rec, paths, cfg))
+            except Exception as exc:
+                logger_msg = f"  free_text mining failed: {exc}"
+                if verbose:
+                    typer.echo(logger_msg)
         if not candidates and not pending_facts:
             continue
         stats["candidates"] += len(candidates)
@@ -1305,6 +1330,7 @@ def cmd_link_reports_to(
                     "object_id": employee_id,
                     "confidence": 0.99,
                     "source_id": fact["id"],
+                    "derived_from": [fact["id"]],
                     "extraction_method": "rule",
                     "qualifiers": {"derivation": "rule:reports_to_emp_id_resolve"},
                 }

@@ -36,6 +36,7 @@ def _build_entity(entity_row: dict, facts: list[dict], trust_row: dict | None) -
             object_literal=f.get("object_literal"),
             confidence=float(f.get("confidence", 0)),
             derivation=f.get("derivation", "unknown"),
+            extraction_method=f.get("extraction_method"),
             valid_from=f["valid_from"],
             valid_to=f.get("valid_to"),
             recorded_at=f["recorded_at"],
