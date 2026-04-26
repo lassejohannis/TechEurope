@@ -1,8 +1,5 @@
 # Pioneer (Fastino — GLiNER2)
 
-**Side-Prize**: 700 €.
-**Pflicht-Partner**: counts toward the required-3.
-
 ## What we use it for
 
 Pioneer is a fine-tuned GLiNER2 model — a small, fast NER + relation-extraction model that fills the gap between deterministic-string-matching and full-LLM reasoning. We slot it into our resolution cascade as **Tier 3.5**, the disambiguation zone.
@@ -51,7 +48,7 @@ The post-filter is the second-half of our Pioneer integration: GLiNER2 sometimes
 - `server/src/server/resolver/cascade.py:309` — `extract_and_match` Tier-3.5 hook (roadmap stub, deliberately returns `None` today; cascade.py wraps it in try/except).
 - `server/tests/test_ws3_pioneer.py:75` — 25 parametrized tests covering real names, observed false-positives, length boundaries, and the multi-word-common-noun pattern.
 
-## Side-Prize criteria (self-assessed)
+## Evaluation criteria (self-assessed)
 
 | Kriterium | Status | Evidence |
 |---|---|---|
@@ -59,7 +56,7 @@ The post-filter is the second-half of our Pioneer integration: GLiNER2 sometimes
 | Demonstrable improvement over LLM-only baseline | ✅ | Search-quality test: post-Pioneer + filter, "Inazuma" top-1 became `document:Inazuma code of ethics` instead of pseudo-`person:"Inazuma.co employees"` |
 | Fine-tune story / synthetic data prep | ⚠️ partial | Synthetic-data generation lived in `docs/ws3-pioneer-finetune.md` (planning); model deployed via Pioneer hosted endpoint |
 | Failure-mode handling (NER false positives) | ✅ | Per-source label whitelist + 6-rule post-filter (`_is_pseudo_entity`) + cleanup CLI |
-| Side-prize-eligible cleanup tooling | ✅ | `uv run server cleanup-pseudo-entities --no-dry-run` is idempotent |
+| Cleanup tooling | ✅ | `uv run server cleanup-pseudo-entities --no-dry-run` is idempotent |
 
 ## Honesty notes
 

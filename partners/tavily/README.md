@@ -1,8 +1,5 @@
 # Tavily
 
-**Pflicht-Partner**: counts toward the required-3.
-**Side-Prize**: via sponsor relationship (no public side-prize amount listed).
-
 ## What we use it for
 
 Tavily is our **entity-enrichment** layer. The Core engine ingests private enterprise data — but real-world entities (customers, vendors, regulators) often need *public* context to be useful: HQ city, industry classification, founding year, recent news.
@@ -44,7 +41,7 @@ The enrichment trigger is **operator-driven** — there's no auto-fire on every 
 - **Why a connector vs an ad-hoc script?** Reuse. By making web-search a `BaseConnector`, the resulting records flow through the same idempotency rails (`content_hash`), the same mapping engine (Tavily-results need a JSONata mapping like any other source), and the same resolver — Pioneer extracts org/person/location facts from the snippet text just like it does from email bodies.
 - **Why `--seed` fallback?** Hackathon demos need to be deterministic. With `--seed data/seed_web_search_demo.json` the demo runs without internet — useful when the venue WiFi dies.
 
-## Side-Prize criteria (self-assessed)
+## Evaluation criteria (self-assessed)
 
 | Kriterium | Status | Evidence |
 |---|---|---|

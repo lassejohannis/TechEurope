@@ -6,7 +6,7 @@
 
 A two-layer platform that turns fragmented enterprise data (email, CRM, HR, policy PDFs, chat, tickets) into a structured, bi-temporal, provenance-first **context base** that AI agents can query — without runtime reconstruction, without hallucinated joins, without losing the audit trail.
 
-[Demo video (Loom)](#demo) · [Architecture](#architecture) · [Why this design](#why) · [Quickstart](#quickstart) · [Partners](./partners/)
+[Demo video (Loom)](https://www.loom.com/share/86df369f9a74441ca0441c108bac57eb) · [Architecture](#architecture) · [Why this design](#why) · [Quickstart](#quickstart) · **[Partner deep-dives →](./partners/)**
 
 </div>
 
@@ -43,7 +43,21 @@ The thesis: **context isn't built at prompt time. It's curated.**
 - ✅ **Built newly at the hackathon** — boilerplate from `/templates`, all product code committed in 48h.
 - ✅ **3+ partner technologies** (Aikido excluded per rules): **Gemini · Pioneer · Tavily** — each one lives in production-path code, not just a `requirements.txt` entry. See [`partners/`](./partners/) for deep-dives.
 - ✅ **Public GitHub repo** with setup, API documentation, technical docs.
-- ✅ **2-min demo video** (linked at top).
+- ✅ **2-min demo video** — [watch on Loom](https://www.loom.com/share/86df369f9a74441ca0441c108bac57eb).
+
+---
+
+## 👋 For our partners
+
+Each partner technology has a dedicated README written for *you* — code paths, architectural decisions, demo snippets, and honest notes on what's live vs. roadmap. You can evaluate our use of your tech without reading the rest of this repo:
+
+- 🧠 **[Gemini](./partners/gemini/)** — embeddings, autonomous mapping inference, structured extraction (130+ refs)
+- 🎯 **[Pioneer / Fastino](./partners/pioneer/)** — Tier-3.5 of the resolution cascade · free-text fact mining
+- 🌐 **[Tavily](./partners/tavily/)** — public-web entity enrichment connector
+- 🛡️ **[Aikido](./partners/aikido/)** — SCA · SAST · secrets · IaC scanning
+- 🛠️ **[Entire](./partners/entire/)** — multi-agent code review, session history, checkpoint recovery during the sprint
+
+→ **Index: [`partners/README.md`](./partners/)**
 
 ---
 

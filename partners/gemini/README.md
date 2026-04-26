@@ -1,7 +1,6 @@
 # Gemini (Google DeepMind)
 
-**Pflicht-Partner**: counts toward the required-3.
-**Side-Prize**: none directly, but Gemini powers more code paths than any other partner.
+Gemini powers more code paths in this project than any other partner: embeddings, autonomous mapping inference, and structured extraction.
 
 ## What we use it for
 
