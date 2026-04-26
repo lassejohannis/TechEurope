@@ -10,7 +10,7 @@ import {
 } from '@/lib/mocks/acme'
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? ''
-const USE_MOCK = true  // flip to false when Context Layer API is live
+const USE_MOCK = false
 
 export class ApiError extends Error {
   readonly status: number

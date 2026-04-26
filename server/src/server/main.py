@@ -29,6 +29,7 @@ from server.api.traverse import router as traverse_router
 from server.api.vfs import router as vfs_router
 from server.api.webhooks import router as webhooks_router
 from server.api.webhooks_outbound import router as webhooks_outbound_router
+from server.routes import csm as csm_routes
 from server.auth import get_principal
 from server.config import settings
 from server.sync.neo4j_projection import Neo4jProjection, SyncConfig
@@ -160,6 +161,7 @@ app.include_router(webhooks_router, prefix="/api", dependencies=_auth_dep)  # in
 app.include_router(webhooks_outbound_router, prefix="/api", dependencies=_auth_dep)  # outbound /admin/webhooks
 app.include_router(changes_router, dependencies=_auth_dep)  # already has /api/changes prefix
 app.include_router(resolutions_router, dependencies=_auth_dep)  # /api/resolutions + /api/fact-resolutions + /api/trust-weights
+app.include_router(csm_routes.router, dependencies=_auth_dep)  # CSM-App minimal Query API
 
 # WS-5: live Aura demo endpoints under /query/cypher (no auth — demo-only)
 app.include_router(cypher_demo_router)
