@@ -231,7 +231,6 @@ def _persist_entity(
 
     row: dict[str, object] = {
         "id": eid,
-        "entity_type": canonical_entity_type,
         "canonical_name": candidate.canonical_name,
         "aliases": aliases,
         "attrs": attrs,
@@ -246,6 +245,11 @@ def _persist_entity(
         # DB-side ontology guards can reject unknown/unapproved entity types.
         if "not approved" in str(exc):
             return None
+        # entity_type is a generated column in some DB versions — strip and retry
+        if "generated column" in str(exc).lower() or "428C9" in str(exc):
+            row.pop("entity_type", None)
+            db.table("entities").upsert(row, on_conflict="id").execute()
+            return eid
         raise
     return eid
 
