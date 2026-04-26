@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "f7de2b9c654f",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "csm-app/src/lib/api.ts",
+    "csm-app/src/lib/mocks/acme.ts",
+    "csm-app/src/pages/accounts/AccountsPage.tsx",
+    "csm-app/vite.config.js",
+    "server/src/server/routes/csm.py"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f7/de2b9c654f/0/metadata.json",
+      "transcript": "/f7/de2b9c654f/0/full.jsonl",
+      "content_hash": "/f7/de2b9c654f/0/content_hash.txt",
+      "prompt": "/f7/de2b9c654f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 7,
+    "cache_creation_tokens": 12481,
+    "cache_read_tokens": 91079,
+    "output_tokens": 1073,
+    "api_call_count": 5
+  }
+}

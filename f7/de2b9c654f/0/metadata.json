@@ -1,0 +1,60 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "f7de2b9c654f",
+  "session_id": "515aaa9c-09ce-4ba6-a82a-d6404c59a17e",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-26T10:59:22.171621Z",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "csm-app/src/lib/api.ts",
+    "csm-app/src/lib/mocks/acme.ts",
+    "csm-app/src/pages/accounts/AccountsPage.tsx",
+    "csm-app/vite.config.js",
+    "server/src/server/routes/csm.py"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-4-6",
+  "turn_id": "11f2168bf1d7",
+  "token_usage": {
+    "input_tokens": 7,
+    "cache_creation_tokens": 12481,
+    "cache_read_tokens": 91079,
+    "output_tokens": 1073,
+    "api_call_count": 5
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-26T10:59:22.168778Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 1194,
+    "total_committed": 0,
+    "total_lines_changed": 1194,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 267,
+      "user_lines_removed": 1194,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "csm-app/src/lib/api.ts": 4,
+        "csm-app/src/pages/accounts/AccountsPage.tsx": 17,
+        "csm-app/vite.config.js": 12,
+        "server/src/server/routes/csm.py": 228,
+        "web/.claude/settings.local.json": 6
+      },
+      "user_removed_per_file": {
+        "csm-app/src/lib/api.ts": 74,
+        "csm-app/src/lib/mocks/acme.ts": 1107,
+        "csm-app/src/pages/accounts/AccountsPage.tsx": 1,
+        "server/src/server/routes/csm.py": 12
+      }
+    }
+  ]
+}
