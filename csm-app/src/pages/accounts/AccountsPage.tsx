@@ -7,7 +7,8 @@ import type { AccountCard } from '@/types'
 
 function formatArr(n: number): string {
   if (n >= 1_000_000) return `€${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `€${Math.round(n / 1_000)}k`
+  if (n >= 100_000) return `€${Math.round(n / 1_000)}k`
+  if (n >= 1_000) return `€${(n / 1_000).toFixed(1)}k`
   return `€${n}`
 }
 
@@ -15,6 +16,13 @@ function getArr(account: AccountCard): number {
   const fact = account.facts.find((f) => f.predicate === 'annual_recurring_revenue_eur')
   if (fact && typeof fact.object === 'number') return fact.object
   const attr = account.entity.attributes['arr_eur']
+  return typeof attr === 'number' ? attr : 0
+}
+
+function getArrAtRisk(account: AccountCard): number {
+  const fact = account.facts.find((f) => f.predicate === 'arr_at_risk_eur')
+  if (fact && typeof fact.object === 'number') return fact.object
+  const attr = account.entity.attributes['arr_at_risk_eur']
   return typeof attr === 'number' ? attr : 0
 }
 
@@ -53,6 +61,7 @@ export default function AccountsPage() {
     a.entity.canonical_name.toLowerCase().includes(query.toLowerCase())
   )
   const totalArr = filtered.reduce((sum, account) => sum + getArr(account), 0)
+  const totalArrAtRisk = filtered.reduce((sum, account) => sum + getArrAtRisk(account), 0)
   const atRisk = filtered.filter((a) => riskBadge(a) === 'At Risk').length
   const renewalsIn90d = filtered.filter((a) => {
     const days = renewalDaysLeft(a)
@@ -89,6 +98,10 @@ export default function AccountsPage() {
           <div className="metric-value">{formatArr(totalArr)}</div>
         </div>
         <div className="metric-card">
+          <div className="metric-label">ARR at Risk</div>
+          <div className="metric-value">{formatArr(totalArrAtRisk)}</div>
+        </div>
+        <div className="metric-card">
           <div className="metric-label">At Risk</div>
           <div className="metric-value">{atRisk}</div>
         </div>
@@ -113,6 +126,7 @@ export default function AccountsPage() {
               <tr>
                 <th>Account</th>
                 <th className="col-right">ARR</th>
+                <th className="col-right">ARR at Risk</th>
                 <th className="col-center">Health</th>
                 <th>Renewal</th>
                 <th>Status</th>
@@ -121,6 +135,7 @@ export default function AccountsPage() {
             <tbody>
               {filtered.map((account) => {
                 const arr = getArr(account)
+                const arrAtRisk = getArrAtRisk(account)
                 const tier = getSubscriptionTier(account)
                 const segment = segmentLabel(tier)
                 const renewalDate = getRenewalDate(account)
@@ -139,6 +154,7 @@ export default function AccountsPage() {
                       <span className="segment-chip">{segment}</span>
                     </td>
                     <td className="col-right accounts-arr">{formatArr(arr)}</td>
+                    <td className="col-right accounts-arr">{formatArr(arrAtRisk)}</td>
                     <td className="col-center">
                       <span className={`health-score-badge ${account.health.tier}`}>
                         {account.health.score}

@@ -1,16 +1,6 @@
 import type { AccountCard, AccountInsight, CardSummary, DailyBriefing, EmailDraft, EscalationBriefing } from '@/types'
-import {
-  MOCK_ACCOUNT_CARDS,
-  MOCK_ACCOUNT_INSIGHTS,
-  MOCK_BRIEFING,
-  MOCK_CARD_SUMMARIES,
-  MOCK_ESCALATION_BRIEFINGS,
-  MOCK_RECOVERY_EMAILS,
-  MOCK_STAKEHOLDER_INTRO_EMAILS,
-} from '@/lib/mocks/acme'
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? ''
-const USE_MOCK = false
 
 export class ApiError extends Error {
   readonly status: number
@@ -19,14 +9,6 @@ export class ApiError extends Error {
     this.name = 'ApiError'
     this.status = status
   }
-}
-
-function isServerError(err: unknown): err is ApiError {
-  return err instanceof ApiError && err.status >= 500
-}
-
-function isNotFound(err: unknown): err is ApiError {
-  return err instanceof ApiError && err.status === 404
 }
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -42,47 +24,20 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 // Real endpoint: GET /api/accounts/:id
 
 export async function getAccountCard(accountId: string): Promise<AccountCard> {
-  if (USE_MOCK) {
-    const card = MOCK_ACCOUNT_CARDS[accountId]
-    if (!card) throw new ApiError(404, `No mock data for account ${accountId}`)
-    return Promise.resolve(card)
-  }
-  try {
-    return await apiFetch<AccountCard>(`/api/accounts/${encodeURIComponent(accountId)}`)
-  } catch (err) {
-    if (isServerError(err) || isNotFound(err)) {
-      const card = MOCK_ACCOUNT_CARDS[accountId]
-      if (card) return card
-    }
-    throw err
-  }
+  return apiFetch<AccountCard>(`/api/accounts/${encodeURIComponent(accountId)}`)
 }
 
 // Real endpoint: GET /api/accounts
 
 export async function listAccounts(): Promise<AccountCard[]> {
-  if (USE_MOCK) {
-    return Promise.resolve(Object.values(MOCK_ACCOUNT_CARDS))
-  }
-  try {
-    return await apiFetch<AccountCard[]>('/api/accounts')
-  } catch (err) {
-    if (isServerError(err)) return Object.values(MOCK_ACCOUNT_CARDS)
-    throw err
-  }
+  return apiFetch<AccountCard[]>('/api/accounts')
 }
 
 // ── Daily briefing ────────────────────────────────────────────────────────────
 // Real endpoint: GET /api/briefing/daily
 
 export async function getDailyBriefing(): Promise<DailyBriefing> {
-  if (USE_MOCK) return Promise.resolve(MOCK_BRIEFING)
-  try {
-    return await apiFetch<DailyBriefing>('/api/briefing/daily')
-  } catch (err) {
-    if (isServerError(err)) return MOCK_BRIEFING
-    throw err
-  }
+  return apiFetch<DailyBriefing>('/api/briefing/daily')
 }
 
 // ── Card summaries ────────────────────────────────────────────────────────────
@@ -90,7 +45,6 @@ export async function getDailyBriefing(): Promise<DailyBriefing> {
 // Demo: returns Gemini-generated summaries cached in mock file
 
 export async function getCardSummaries(): Promise<Record<string, CardSummary>> {
-  if (USE_MOCK) return Promise.resolve(MOCK_CARD_SUMMARIES)
   return apiFetch<Record<string, CardSummary>>('/api/briefing/summaries')
 }
 
@@ -99,11 +53,6 @@ export async function getCardSummaries(): Promise<Record<string, CardSummary>> {
 // Demo: returns cached draft from mock file (variation cycles through 2 options)
 
 export async function generateRecoveryEmail(accountId: string, variation: number): Promise<EmailDraft> {
-  if (USE_MOCK) {
-    const drafts = MOCK_RECOVERY_EMAILS[accountId]
-    if (!drafts || drafts.length === 0) throw new ApiError(404, `No recovery email mock for ${accountId}`)
-    return Promise.resolve(drafts[variation % drafts.length])
-  }
   return apiFetch<EmailDraft>('/api/generate/recovery-email', {
     method: 'POST',
     body: JSON.stringify({ account_id: accountId, variation }),
@@ -114,12 +63,6 @@ export async function generateRecoveryEmail(accountId: string, variation: number
 // Demo: returns cached draft from mock file
 
 export async function generateStakeholderIntroEmail(accountId: string, contactId: string): Promise<EmailDraft> {
-  if (USE_MOCK) {
-    const drafts = MOCK_STAKEHOLDER_INTRO_EMAILS[accountId]
-    if (!drafts || drafts.length === 0) throw new ApiError(404, `No stakeholder intro mock for ${accountId}`)
-    const draft = drafts.find((d) => d.contact_id === contactId) ?? drafts[0]
-    return Promise.resolve(draft)
-  }
   return apiFetch<EmailDraft>('/api/generate/stakeholder-intro', {
     method: 'POST',
     body: JSON.stringify({ account_id: accountId, contact_id: contactId }),
@@ -130,11 +73,6 @@ export async function generateStakeholderIntroEmail(accountId: string, contactId
 // Demo: returns cached briefing from mock file
 
 export async function generateEscalationBriefing(accountId: string): Promise<EscalationBriefing> {
-  if (USE_MOCK) {
-    const briefing = MOCK_ESCALATION_BRIEFINGS[accountId]
-    if (!briefing) throw new ApiError(404, `No escalation briefing mock for ${accountId}`)
-    return Promise.resolve(briefing)
-  }
   return apiFetch<EscalationBriefing>('/api/generate/escalation-briefing', {
     method: 'POST',
     body: JSON.stringify({ account_id: accountId }),
@@ -145,13 +83,5 @@ export async function generateEscalationBriefing(accountId: string): Promise<Esc
 // Demo: returns pre-computed insights derived from facts/tickets/comms per account
 
 export async function getAccountInsights(accountId: string): Promise<AccountInsight[]> {
-  if (USE_MOCK) {
-    return Promise.resolve(MOCK_ACCOUNT_INSIGHTS[accountId] ?? [])
-  }
-  try {
-    return await apiFetch<AccountInsight[]>(`/api/accounts/${encodeURIComponent(accountId)}/insights`)
-  } catch (err) {
-    if (isServerError(err) || isNotFound(err)) return MOCK_ACCOUNT_INSIGHTS[accountId] ?? []
-    throw err
-  }
+  return apiFetch<AccountInsight[]>(`/api/accounts/${encodeURIComponent(accountId)}/insights`)
 }
