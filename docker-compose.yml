@@ -18,7 +18,8 @@ services:
       API_HOST: 0.0.0.0
       API_PORT: 8000
       # CORS in production — must include the public domain.
-      API_CORS_ORIGINS: "https://chickentendr.club,https://www.chickentendr.club"
+      # JSON array because pydantic-settings parses list[str] fields as JSON.
+      API_CORS_ORIGINS: '["https://chickentendr.club","https://www.chickentendr.club"]'
     expose:
       - "8000"
     healthcheck:
