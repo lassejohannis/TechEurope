@@ -33,7 +33,6 @@ from server.models import (
 from server.vfs_paths import (
     glob_to_ilike,
     pluralize_entity_type,
-    segment_from_type,
     type_from_segment,
 )
 
@@ -132,9 +131,13 @@ def _entity_to_vfs_node(e: dict, path: str) -> VfsNode:
     fallback_path = path
     if not fallback_path:
         seg = pluralize_entity_type(str(e.get("entity_type", "entity")))
-        fallback_path = f"/{seg}/{e.get('id')}"
+        # Strip the type prefix from the entity id (e.g. "person:jane-doe" → "jane-doe")
+        # so the fallback path doesn't double-include the type ("/persons/person:jane-doe").
+        eid = str(e.get("id", ""))
+        slug = eid.split(":", 1)[1] if ":" in eid else eid
+        fallback_path = f"/{seg}/{slug}"
     return VfsNode(
-        path=attrs.get("vfs_path", fallback_path),
+        path=attrs.get("vfs_path") or fallback_path,
         type=e["entity_type"],
         entity_id=str(e["id"]),
         content={
@@ -201,15 +204,11 @@ def vfs_read(
     entity_type = _COLLECTION_ALIASES.get(type_key, type_from_segment(type_key))
 
     if len(segments) == 1:
-        # List all entities of this type
+        # List all entities of this type. Pass empty fallback so the helper
+        # uses attrs.vfs_path when set, otherwise builds the canonical
+        # `/{seg}/{slug}` (with the type prefix stripped from the id).
         res = _list_active_entities(db, entity_type=entity_type, limit=500, glob=glob)
-        nodes = [
-            _entity_to_vfs_node(
-                e,
-                f"/{segment_from_type(str(e['entity_type']))}/{e['id']}",
-            )
-            for e in (res.data or [])
-        ]
+        nodes = [_entity_to_vfs_node(e, "") for e in (res.data or [])]
         return VfsListResponse(path=f"/{path}", children=nodes, total=len(nodes))
 
     slug = segments[1]

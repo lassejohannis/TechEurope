@@ -60,6 +60,7 @@ def _build_entity_response(entity_row: dict, trust_row: dict | None, facts: list
             object_literal=f.get("object_literal"),
             confidence=float(f.get("confidence", 0)),
             derivation=f.get("derivation", "unknown"),
+            extraction_method=f.get("extraction_method"),
             valid_from=f["valid_from"],
             valid_to=f.get("valid_to"),
             recorded_at=f["recorded_at"],
@@ -73,9 +74,9 @@ def _build_entity_response(entity_row: dict, trust_row: dict | None, facts: list
         canonical_name=entity_row["canonical_name"],
         aliases=entity_row.get("aliases") or [],
         attrs=entity_row.get("attrs") or {},
-        trust_score=float(trust_row["trust_score"]) if trust_row else 0.0,
-        fact_count=int(trust_row["fact_count"]) if trust_row else 0,
-        source_diversity=int(trust_row["source_diversity"]) if trust_row else 0,
+        trust_score=float((trust_row or {}).get("trust_score") or 0.0),
+        fact_count=int((trust_row or {}).get("fact_count") or 0),
+        source_diversity=int((trust_row or {}).get("source_diversity") or 0),
         facts=fact_responses,
     )
 
