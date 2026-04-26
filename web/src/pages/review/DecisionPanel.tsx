@@ -1,12 +1,13 @@
 import { CheckCheck, Merge, XCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import {
   useDecideEntityPair,
   useDecideFactConflict,
-  useEntityPairInbox,
-  useFactConflictInbox,
+  useEntityPairInboxInfinite,
+  useFactConflictInboxInfinite,
 } from '@/hooks/useConflicts'
 
 interface Props {
@@ -16,10 +17,13 @@ interface Props {
 
 export default function DecisionPanel({ conflictId, selectedClaimIndex }: Props) {
   const navigate = useNavigate()
-  const facts = useFactConflictInbox('pending')
-  const pairs = useEntityPairInbox('pending')
+  const facts = useFactConflictInboxInfinite('pending', 100)
+  const pairs = useEntityPairInboxInfinite('pending', 100)
+  const factItems = useMemo(() => facts.data?.pages.flatMap((p) => p.items) ?? [], [facts.data?.pages])
+  const pairItems = useMemo(() => pairs.data?.pages.flatMap((p) => p.items) ?? [], [pairs.data?.pages])
   const decideFact = useDecideFactConflict()
   const decidePair = useDecideEntityPair()
+  const [bulkPending, setBulkPending] = useState(false)
 
   if (!conflictId) {
     return (
@@ -41,7 +45,7 @@ export default function DecisionPanel({ conflictId, selectedClaimIndex }: Props)
   }
 
   const handlePickFact = () => {
-    const item = facts.data?.items.find((i) => i.id === rawId)
+    const item = factItems.find((i) => i.id === rawId)
     const chosen = selectedClaimIndex !== null ? item?.facts[selectedClaimIndex] : null
     if (!chosen) return
     decideFact.mutate(
@@ -65,7 +69,7 @@ export default function DecisionPanel({ conflictId, selectedClaimIndex }: Props)
   }
 
   const handlePickPair = () => {
-    const item = pairs.data?.items.find((i) => i.id === rawId)
+    const item = pairItems.find((i) => i.id === rawId)
     const chosen = selectedClaimIndex === 0 ? item?.entity_1?.id : item?.entity_2?.id
     if (!chosen) return
     decidePair.mutate(
@@ -75,7 +79,7 @@ export default function DecisionPanel({ conflictId, selectedClaimIndex }: Props)
   }
 
   const handleMergePair = () => {
-    const item = pairs.data?.items.find((i) => i.id === rawId)
+    const item = pairItems.find((i) => i.id === rawId)
     const chosen = selectedClaimIndex === 0 ? item?.entity_1?.id : item?.entity_2?.id
     if (!chosen) return
     decidePair.mutate(
@@ -92,6 +96,48 @@ export default function DecisionPanel({ conflictId, selectedClaimIndex }: Props)
   }
 
   const pending = decideFact.isPending || decidePair.isPending
+  const currentFactItem = isFactConflict ? factItems.find((i) => i.id === rawId) : null
+  const similarLoaded = useMemo(() => {
+    if (!currentFactItem) return []
+    const first = currentFactItem.facts[0]
+    if (!first) return []
+    return factItems.filter((i) => {
+      const f = i.facts[0]
+      return f && f.subject_id === first.subject_id && f.predicate === first.predicate
+    })
+  }, [currentFactItem, factItems])
+
+  const resolveAllSimilar = async (decision: 'pick_one' | 'both_with_qualifier' | 'reject_all') => {
+    if (!currentFactItem || similarLoaded.length < 2) return
+    setBulkPending(true)
+    try {
+      for (const item of similarLoaded) {
+        if (decision === 'pick_one') {
+          const fallbackBest = [...item.facts].sort(
+            (a, b) => (b.verification_score ?? b.confidence) - (a.verification_score ?? a.confidence),
+          )[0]
+          const chosenFromIndex =
+            selectedClaimIndex !== null && selectedClaimIndex < item.facts.length
+              ? item.facts[selectedClaimIndex]
+              : fallbackBest
+          if (!chosenFromIndex) continue
+          await decideFact.mutateAsync({
+            resolutionId: item.id,
+            decision: 'pick_one',
+            chosenFactId: chosenFromIndex.id,
+          })
+          continue
+        }
+        await decideFact.mutateAsync({
+          resolutionId: item.id,
+          decision,
+        })
+      }
+      navigate('/review')
+    } finally {
+      setBulkPending(false)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4 p-4">
@@ -142,6 +188,43 @@ export default function DecisionPanel({ conflictId, selectedClaimIndex }: Props)
         <p className="text-xs text-destructive">
           Decision failed. Try again or check the API logs.
         </p>
+      )}
+
+      {isFactConflict && similarLoaded.length > 1 && (
+        <div className="rounded-md border bg-muted/30 p-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Bulk for similar conflicts
+          </p>
+          <p className="mb-2 text-xs text-muted-foreground">
+            {similarLoaded.length} ähnliche Konflikte (gleiches Subject + Predicate) sind geladen.
+          </p>
+          <div className="flex flex-col gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={bulkPending || pending}
+              onClick={() => void resolveAllSimilar('pick_one')}
+            >
+              Pick one for all loaded
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={bulkPending || pending}
+              onClick={() => void resolveAllSimilar('both_with_qualifier')}
+            >
+              Mark both true for all loaded
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={bulkPending || pending}
+              onClick={() => void resolveAllSimilar('reject_all')}
+            >
+              Reject all loaded
+            </Button>
+          </div>
+        </div>
       )}
 
       <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">

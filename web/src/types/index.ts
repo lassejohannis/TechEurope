@@ -100,6 +100,38 @@ export interface ProvenanceResponse {
   trust_weight: number
 }
 
+export interface EntitySourceEntry {
+  source_id: string
+  source_type: string
+  event_type: string
+  timestamp: string | null
+  metadata: Record<string, unknown>
+  fact_count: number
+}
+
+export interface EntityEditEntry {
+  id: number | string
+  kind: string
+  fact_id: string | null
+  old_value: unknown | null
+  new_value: unknown | null
+  triggered_by: string | null
+  at: string
+}
+
+export interface EntityProvenanceResponse {
+  entity_id: string
+  entity_type: string
+  canonical_name: string
+  sources: EntitySourceEntry[]
+  edits: EntityEditEntry[]
+  conflicts: {
+    disputed_facts: number
+    pending_fact_resolutions: number
+    pending_entity_resolutions: number
+  }
+}
+
 // Matches what GET /api/entities/{id} returns
 export interface EntityCard {
   id: string

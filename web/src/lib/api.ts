@@ -7,6 +7,7 @@ import type {
   ChangeEvent,
   ProposeResult,
   FactProposal,
+  EntityProvenanceResponse,
 } from '@/types'
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? ''
@@ -45,6 +46,11 @@ export function searchMemory(params: SearchParams): Promise<SearchResponse> {
 export function getEntity(entityId: string, asOf?: string): Promise<EntityCard> {
   const qs = asOf ? `?as_of=${encodeURIComponent(asOf)}` : ''
   return apiFetch<EntityCard>(`/api/entities/${encodeURIComponent(entityId)}${qs}`)
+}
+
+// GET /api/entities/{id}/provenance
+export function getEntityProvenance(entityId: string): Promise<EntityProvenanceResponse> {
+  return apiFetch<EntityProvenanceResponse>(`/api/entities/${encodeURIComponent(entityId)}/provenance`)
 }
 
 // GET /api/facts/{id}/provenance
@@ -108,6 +114,35 @@ export function resolveConflict(
   })
 }
 
+// POST /api/entities/{id}/edit
+export function editEntity(
+  entityId: string,
+  body: { canonical_name?: string; attrs?: Record<string, unknown>; reason?: string },
+): Promise<{ entity_id: string; updated: boolean; updated_fields?: string[]; audit_record?: string }> {
+  return apiFetch(`/api/entities/${encodeURIComponent(entityId)}/edit`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+// POST /api/entities/{id}/link-entity
+export function linkEntity(
+  entityId: string,
+  body: {
+    predicate: string
+    target_entity_type: string
+    target_canonical_name: string
+    target_attrs?: Record<string, unknown>
+    confidence?: number
+    reason?: string
+  },
+): Promise<{ fact_id: string; target_entity_id: string; source_record_id: string; status: string }> {
+  return apiFetch(`/api/entities/${encodeURIComponent(entityId)}/link-entity`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
 // ── Conflict Inbox ──────────────────────────────────────────────────────────
 
 export interface EntityPairInboxItem {
@@ -152,25 +187,31 @@ export interface FactConflictInboxItem {
 export interface InboxResponse<T> {
   items: T[]
   total: number
+  limit?: number | null
+  offset?: number | null
 }
 
 export function listEntityPairResolutions(
   status: 'pending' | 'merged' | 'rejected' = 'pending',
   limit?: number,
+  offset?: number,
 ): Promise<InboxResponse<EntityPairInboxItem>> {
   const params = new URLSearchParams()
   params.set('status', status)
   if (typeof limit === 'number') params.set('limit', String(limit))
+  if (typeof offset === 'number') params.set('offset', String(offset))
   return apiFetch(`/api/resolutions?${params.toString()}`)
 }
 
 export function listFactResolutions(
   status: 'pending' | 'auto_resolved' | 'human_resolved' | 'rejected' = 'pending',
   limit?: number,
+  offset?: number,
 ): Promise<InboxResponse<FactConflictInboxItem>> {
   const params = new URLSearchParams()
   params.set('status', status)
   if (typeof limit === 'number') params.set('limit', String(limit))
+  if (typeof offset === 'number') params.set('offset', String(offset))
   return apiFetch(`/api/fact-resolutions?${params.toString()}`)
 }
 
@@ -263,6 +304,14 @@ export function editFact(
   return apiFetch<ProposeResult>(`/api/facts/${encodeURIComponent(factId)}/edit`, {
     method: 'POST',
     body: JSON.stringify(body),
+  })
+}
+
+// POST /api/facts/{id}/delete — invalidate a fact
+export function deleteFact(factId: string, reason?: string): Promise<void> {
+  return apiFetch<void>(`/api/facts/${encodeURIComponent(factId)}/delete`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
   })
 }
 

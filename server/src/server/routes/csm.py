@@ -106,21 +106,79 @@ def _map_fact(f: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _missing_column(exc: Exception, column: str) -> bool:
+    text = str(exc).lower()
+    return column.lower() in text and (
+        "column" in text
+        or "schema cache" in text
+        or "pgrst" in text
+    )
+
+
+def _list_active_accounts_for_type(db: Any, entity_type: str, limit: int = 200) -> list[dict[str, Any]]:
+    select_variants = (
+        "id, entity_type, canonical_name, attrs, status",
+        "id, entity_type, canonical_name, attributes, status",
+    )
+    last_exc: Exception | None = None
+
+    for select_cols in select_variants:
+        base = (
+            db.table("entities")
+            .select(select_cols)
+            .eq("entity_type", entity_type)
+            .limit(limit)
+        )
+        try:
+            res = base.is_("deleted_at", "null").execute()
+        except Exception as exc:
+            if _missing_column(exc, "deleted_at"):
+                try:
+                    res = base.neq("status", "archived").execute()
+                except Exception as exc2:
+                    last_exc = exc2
+                    continue
+            else:
+                last_exc = exc
+                continue
+        return res.data or []
+
+    if last_exc:
+        raise last_exc
+    return []
+
+
 # ── Accounts ──────────────────────────────────────────────────────────────────
 
 def _fact_counts_bulk(db: Any, ids: list[str]) -> dict[str, int]:
     """Fetch fact counts for a list of entity IDs in bulk via entity_trust view."""
     counts: dict[str, int] = {}
-    for i in range(0, len(ids), 100):
-        chunk = ids[i : i + 100]
-        res = (
-            db.table("entity_trust")
-            .select("id, fact_count")
-            .in_("id", chunk)
-            .execute()
-        )
-        for row in res.data or []:
-            counts[row["id"]] = int(row.get("fact_count") or 0)
+    try:
+        for i in range(0, len(ids), 100):
+            chunk = ids[i : i + 100]
+            res = (
+                db.table("entity_trust")
+                .select("id, fact_count")
+                .in_("id", chunk)
+                .execute()
+            )
+            for row in res.data or []:
+                counts[row["id"]] = int(row.get("fact_count") or 0)
+        return counts
+    except Exception:
+        # Fallback for older DB states where entity_trust view or fact_count is missing.
+        for entity_id in ids:
+            try:
+                cres = (
+                    db.table("facts")
+                    .select("id", count="exact", head=True)
+                    .eq("subject_id", entity_id)
+                    .is_("valid_to", "null")
+                    .execute()
+                )
+                counts[entity_id] = int(cres.count or 0)
+            except Exception:
+                counts[entity_id] = 0
     return counts
 
 
@@ -171,15 +229,7 @@ def list_accounts() -> list[dict[str, Any]]:
     db = get_supabase()
     rows: list[dict[str, Any]] = []
     for entity_type in _ACCOUNT_TYPES:
-        res = (
-            db.table("entities")
-            .select("id, entity_type, canonical_name, attrs, status")
-            .eq("entity_type", entity_type)
-            .is_("deleted_at", "null")
-            .limit(200)
-            .execute()
-        )
-        rows.extend(res.data or [])
+        rows.extend(_list_active_accounts_for_type(db, entity_type, limit=200))
 
     ids = [r["id"] for r in rows]
     fact_counts = _fact_counts_bulk(db, ids)
@@ -305,15 +355,7 @@ def daily_briefing() -> dict[str, Any]:
     # Load all accounts
     rows: list[dict[str, Any]] = []
     for entity_type in _ACCOUNT_TYPES:
-        res = (
-            db.table("entities")
-            .select("id, entity_type, canonical_name, attrs")
-            .eq("entity_type", entity_type)
-            .is_("deleted_at", "null")
-            .limit(200)
-            .execute()
-        )
-        rows.extend(res.data or [])
+        rows.extend(_list_active_accounts_for_type(db, entity_type, limit=200))
 
     ids = [r["id"] for r in rows]
     fact_counts = _fact_counts_bulk(db, ids)

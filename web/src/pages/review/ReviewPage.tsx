@@ -18,11 +18,11 @@ export default function ReviewPage() {
 
   if (view === 'pending_types') {
     return (
-      <div className="flex h-full flex-col">
+      <div className="flex h-full min-h-0 flex-col">
         <div className="flex items-center gap-1 border-b px-3 py-2">
           <ViewToggle view={view} onChange={setView} />
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           <PendingTypesInbox />
         </div>
       </div>
@@ -30,11 +30,11 @@ export default function ReviewPage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-1 border-b px-3 py-2">
         <ViewToggle view={view} onChange={setView} />
       </div>
-      <div className="flex-1">
+      <div className="min-h-0 flex-1">
         <ThreeColumnLayout
           left={<ConflictInbox selectedId={activeId} />}
           center={
@@ -45,8 +45,8 @@ export default function ReviewPage() {
             />
           }
           right={
-            <div className="flex h-full flex-col">
-              <div className="flex-1 overflow-y-auto">
+            <div className="flex h-full min-h-0 flex-col">
+              <div className="min-h-0 flex-1 overflow-y-auto">
                 <DecisionPanel
                   conflictId={activeId}
                   selectedClaimIndex={selectedClaimIndex}

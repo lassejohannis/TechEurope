@@ -11,7 +11,7 @@ export default function TopBar() {
 
   return (
     <header className="topbar">
-      <NavLink to="/tasks" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+      <NavLink to="/accounts" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
         <div className="brand-mark">Q</div>
         <span className="brand-name">Qontext</span>
         <span className="brand-sub">CSM</span>

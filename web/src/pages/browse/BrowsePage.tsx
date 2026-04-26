@@ -41,6 +41,54 @@ const NAME_STOP_WORDS = new Set([
   'where', 'is', 'show', 'me', 'der', 'die', 'das', 'den', 'in', 'zu',
   'the', 'a', 'an', 'and', 'oder', 'und',
 ])
+const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
+
+function normalizeEmail(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^mailto:/i, '')
+    .replace(/[)>.,;:!?]+$/g, '')
+    .toLowerCase()
+}
+
+function extractEmailFromQuery(query: string): string | null {
+  const match = query.match(EMAIL_PATTERN)
+  if (!match?.[0]) return null
+  return normalizeEmail(match[0])
+}
+
+function textContainsEmail(value: unknown, email: string): boolean {
+  if (value == null) return false
+  if (typeof value === 'string') return normalizeEmail(value) === email
+  if (typeof value === 'number' || typeof value === 'boolean') return false
+  if (Array.isArray(value)) return value.some((v) => textContainsEmail(v, email))
+  if (typeof value === 'object') return Object.values(value as Record<string, unknown>).some((v) => textContainsEmail(v, email))
+  return false
+}
+
+function entityMatchesEmail(result: SearchResultItem, email: string): boolean {
+  const entity = result.entity
+  if (normalizeEmail(entity.canonical_name) === email) return true
+  if (entity.aliases.some((alias) => normalizeEmail(alias) === email)) return true
+  if (textContainsEmail(entity.attrs, email)) return true
+
+  return entity.facts.some((fact) => {
+    const predicate = String(fact.predicate ?? '').toLowerCase()
+    if (!predicate.includes('email')) return false
+    const literal = typeof fact.object_literal === 'string' ? normalizeEmail(fact.object_literal) : null
+    const objectId = typeof fact.object_id === 'string' ? normalizeEmail(fact.object_id) : null
+    return literal === email || objectId === email
+  })
+}
+
+function findEmailMatch(query: string, results: SearchResultItem[]): SearchResultItem | null {
+  const email = extractEmailFromQuery(query)
+  if (!email) return null
+
+  return results.find((r) => String(r.entity.entity_type).toLowerCase() === 'person' && entityMatchesEmail(r, email))
+    ?? results.find((r) => entityMatchesEmail(r, email))
+    ?? null
+}
 
 function findNameMatch(query: string, results: SearchResultItem[]): SearchResultItem | null {
   const tokens = query.toLowerCase()
@@ -113,7 +161,17 @@ function BrowseChat() {
     if (!showMessages) setChatHeight(240)
 
     try {
-      const res = await searchMemory({ query, k: needsWider ? 120 : 40 })
+      const res = await searchMemory({ query, k: needsWider ? 50 : 40 })
+
+      const emailHit = findEmailMatch(query, res.results)
+      if (emailHit) {
+        navigate(`/browse/${encodeURIComponent(emailHit.entity.id)}`)
+        setMessages(prev => [...prev, {
+          id: `a-${Date.now()}`, role: 'assistant',
+          content: `→ E-Mail „${extractEmailFromQuery(query)}" gefunden bei „${emailHit.entity.canonical_name}" — direkt geöffnet.`,
+        }])
+        return
+      }
 
       // ── Name-match: find entity whose canonical_name matches all query tokens ──
       const nameHit = findNameMatch(query, res.results)
@@ -152,17 +210,9 @@ function BrowseChat() {
 
   return (
     <div style={{
-      position: 'absolute',
-      left: 16,
-      right: 16,
-      bottom: 8,
-      height: chatHeight,
-      maxHeight: 'calc(100% - 16px)',
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'visible',
-      zIndex: 20,
-      pointerEvents: 'none',
+      flexShrink: 0, height: chatHeight,
+      display: 'flex', flexDirection: 'column',
+      borderTop: '1px solid #e5e5e5', background: '#fff', overflow: 'hidden',
     }}>
 
       {/* ── Drag handle ── */}
@@ -171,24 +221,14 @@ function BrowseChat() {
         style={{
           height: 16, flexShrink: 0, display: 'flex', alignItems: 'center',
           justifyContent: 'center', cursor: 'ns-resize', userSelect: 'none',
-          pointerEvents: 'auto',
         }}
       >
-        <div style={{ width: 36, height: 4, borderRadius: 999, background: 'rgba(10,10,10,0.16)' }} />
+        <div style={{ width: 32, height: 3, borderRadius: 2, background: '#e0e0e0' }} />
       </div>
 
       {/* ── Message history ── */}
       {showMessages && (
-        <div style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '10px 0 6px',
-          marginBottom: 8,
-          borderRadius: 18,
-          background: 'transparent',
-          boxShadow: 'none',
-          pointerEvents: 'auto',
-        }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 0' }}>
           {messages.map(msg => (
             <div key={msg.id}
               style={{ marginBottom: 8, display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
@@ -241,13 +281,11 @@ function BrowseChat() {
       )}
 
       {/* ── Input bar ── */}
-      <div style={{ padding: '4px 0 8px', flexShrink: 0 }}>
+      <div style={{ padding: '6px 14px 10px', flexShrink: 0 }}>
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8,
-          background: 'rgba(255,255,255,0.92)', border: '1px solid rgba(229,229,229,0.9)',
+          background: '#f7f7f7', border: '1px solid #e5e5e5',
           borderRadius: 22, padding: '7px 8px 7px 14px',
-          boxShadow: '0 4px 14px rgba(0,0,0,0.10)',
-          pointerEvents: 'auto',
         }}>
           {extraMessages > 0 && (
             <button
@@ -304,7 +342,7 @@ export default function BrowsePage() {
     <div style={{ display: 'flex', height: '100%', width: '100%', overflow: 'hidden' }}>
 
       {/* ── Center: folder/file browser + chat ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, position: 'relative' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
         <VfsTree selectedEntityId={activeId} />
         <BrowseChat />
       </div>
