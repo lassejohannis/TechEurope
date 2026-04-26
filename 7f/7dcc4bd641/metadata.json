@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "7f7dcc4bd641",
+  "strategy": "manual-commit",
+  "branch": "Lasse",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "server/src/server/config.py",
+    "server/src/server/extractors/pioneer.py",
+    "server/src/server/ontology/engine.py"
+  ],
+  "sessions": [
+    {
+      "metadata": "/7f/7dcc4bd641/0/metadata.json",
+      "transcript": "/7f/7dcc4bd641/0/full.jsonl",
+      "content_hash": "/7f/7dcc4bd641/0/content_hash.txt",
+      "prompt": "/7f/7dcc4bd641/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1905,
+    "cache_creation_tokens": 3659169,
+    "cache_read_tokens": 574242390,
+    "output_tokens": 826077,
+    "api_call_count": 1331
+  }
+}
