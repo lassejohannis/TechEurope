@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "ba6d80e3f8b8",
+  "strategy": "manual-commit",
+  "branch": "Paul",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "server/src/server/api/admin.py",
+    "server/src/server/api/entities.py",
+    "server/src/server/api/facts.py",
+    "server/src/server/api/resolutions.py",
+    "server/src/server/api/search.py",
+    "web/src/components/layout/AppShell.tsx",
+    "web/src/components/layout/ThreeColumnLayout.tsx",
+    "web/src/hooks/useConflicts.ts",
+    "web/src/lib/api.ts",
+    "web/src/pages/browse/ActionPanel.tsx",
+    "web/src/pages/browse/BrowsePage.tsx",
+    "web/src/pages/browse/VfsTree.tsx",
+    "web/src/pages/review/ConflictDetail.tsx",
+    "web/src/pages/review/ConflictInbox.tsx",
+    "web/src/pages/review/DecisionPanel.tsx",
+    "web/src/pages/review/ReviewPage.tsx",
+    "web/src/pages/search/SearchPage.tsx",
+    "web/src/pages/workflow/WorkflowPage.tsx",
+    "web/src/types/index.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ba/6d80e3f8b8/0/metadata.json",
+      "transcript": "/ba/6d80e3f8b8/0/full.jsonl",
+      "content_hash": "/ba/6d80e3f8b8/0/content_hash.txt",
+      "prompt": "/ba/6d80e3f8b8/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 531212,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 10538368,
+    "output_tokens": 40613,
+    "api_call_count": 80
+  }
+}

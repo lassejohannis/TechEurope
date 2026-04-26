@@ -1,0 +1,121 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "ba6d80e3f8b8",
+  "session_id": "019dc7e9-6947-7951-ac59-cbfcc6e12f66",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-26T06:42:58.759543Z",
+  "branch": "Paul",
+  "checkpoints_count": 8,
+  "files_touched": [
+    "server/src/server/api/admin.py",
+    "server/src/server/api/entities.py",
+    "server/src/server/api/facts.py",
+    "server/src/server/api/resolutions.py",
+    "server/src/server/api/search.py",
+    "web/src/components/layout/AppShell.tsx",
+    "web/src/components/layout/ThreeColumnLayout.tsx",
+    "web/src/hooks/useConflicts.ts",
+    "web/src/lib/api.ts",
+    "web/src/pages/browse/ActionPanel.tsx",
+    "web/src/pages/browse/BrowsePage.tsx",
+    "web/src/pages/browse/VfsTree.tsx",
+    "web/src/pages/review/ConflictDetail.tsx",
+    "web/src/pages/review/ConflictInbox.tsx",
+    "web/src/pages/review/DecisionPanel.tsx",
+    "web/src/pages/review/ReviewPage.tsx",
+    "web/src/pages/search/SearchPage.tsx",
+    "web/src/pages/workflow/WorkflowPage.tsx",
+    "web/src/types/index.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.3-codex",
+  "turn_id": "0284ad6e169e",
+  "checkpoint_transcript_start": 268,
+  "transcript_lines_at_start": 268,
+  "token_usage": {
+    "input_tokens": 531212,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 10538368,
+    "output_tokens": 40613,
+    "api_call_count": 80
+  },
+  "session_metrics": {
+    "turn_count": 16
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-26T06:42:58.718941Z",
+    "agent_lines": 2328,
+    "agent_removed": 263,
+    "human_added": 675,
+    "human_modified": 27,
+    "human_removed": 0,
+    "total_committed": 3030,
+    "total_lines_changed": 3465,
+    "agent_percentage": 74.77633477633478,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 7,
+      "user_lines_removed": 27,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "web/src/pages/browse/BrowsePage.tsx": 7
+      },
+      "user_removed_per_file": {
+        "web/src/pages/browse/BrowsePage.tsx": 27
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 9,
+      "agent_lines_removed": 29
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 23,
+      "agent_lines_removed": 31
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 899,
+      "agent_lines_removed": 99
+    },
+    {
+      "checkpoint_number": 5,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 899,
+      "agent_lines_removed": 99
+    },
+    {
+      "checkpoint_number": 6,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1218,
+      "agent_lines_removed": 232
+    },
+    {
+      "checkpoint_number": 7,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1361,
+      "agent_lines_removed": 264
+    },
+    {
+      "checkpoint_number": 8,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 1348,
+      "agent_lines_removed": 264
+    }
+  ]
+}
