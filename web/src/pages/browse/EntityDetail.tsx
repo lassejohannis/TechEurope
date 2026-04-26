@@ -11,6 +11,26 @@ interface Props {
   entityId: string | null
 }
 
+const UUIDISH_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function isUuidish(value: string): boolean {
+  return UUIDISH_PATTERN.test(value.trim())
+}
+
+function readString(value: unknown): string | null {
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (value && typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    for (const key of ['canonical_name', 'name', 'title', 'label', 'value', 'subject']) {
+      const nested = obj[key]
+      if (typeof nested === 'string' && nested.trim()) return nested.trim()
+    }
+  }
+  return null
+}
+
 function LoadingSkeleton() {
   return (
     <div className="flex flex-col gap-4 p-4">
@@ -61,8 +81,26 @@ export default function EntityDetail({ entityId }: Props) {
     )
   }
 
-  const liveFacts = data.facts.filter((f) => f.status === 'live' || f.status === 'disputed')
+  const liveFacts = data.facts.filter(
+    (f) => f.status === 'live' || f.status === 'active' || f.status === 'disputed',
+  )
   const disputedCount = data.facts.filter((f) => f.status === 'disputed').length
+  const subjectFromAttrs = readString(data.attrs?.subject)
+  const subjectFromFacts =
+    data.facts
+      .filter((f) => {
+        const predicate = String(f.predicate ?? '')
+          .toLowerCase()
+          .replace(/[_\s-]+/g, '')
+        return predicate === 'subject' || predicate === 'hassubject'
+      })
+      .map((f) => readString(f.object_literal) ?? readString(f.object_id))
+      .find(Boolean) ?? null
+  const displayName =
+    String(data.entity_type).toLowerCase() === 'communication' && isUuidish(data.canonical_name)
+      ? (subjectFromAttrs ?? subjectFromFacts ?? data.canonical_name)
+      : data.canonical_name
+  const visibleAliases = data.aliases.filter((alias) => alias && alias !== displayName)
   const sentimentFact = liveFacts.find((f) => f.predicate === 'sentiment')
   const sentimentLabel: string | undefined = ((): string | undefined => {
     const lit = (sentimentFact as any)?.object_literal
@@ -85,14 +123,14 @@ export default function EntityDetail({ entityId }: Props) {
             <div className="flex flex-col gap-1.5">
               <EntityTypeBadge type={data.entity_type} />
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-lg font-semibold leading-tight">{data.canonical_name}</h2>
+                <h2 className="text-lg font-semibold leading-tight">{displayName}</h2>
                 {data.entity_type === 'communication' && (
                   <SentimentBadge label={sentimentLabel} confidence={sentimentConfidence} />
                 )}
               </div>
-              {data.aliases.length > 0 && (
+              {visibleAliases.length > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Also known as: {data.aliases.join(', ')}
+                  Also known as: {visibleAliases.join(', ')}
                 </p>
               )}
             </div>

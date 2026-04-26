@@ -22,6 +22,7 @@ class ReingestRequest(BaseModel):
 
 
 class PendingTypeDecision(BaseModel):
+    kind: str = Field(..., pattern="^(entity|edge|source_mapping)$")
     decision: str = Field(..., pattern="^(approved|rejected)$")
     note: str | None = None
 
@@ -568,14 +569,13 @@ def list_pending_types(
 @router.post("/pending-types/{pending_id}/decide", status_code=200)
 def decide_pending_type(
     pending_id: str,
-    decision: PendingTypeDecision,
-    kind: str = Body(..., embed=True),  # "entity" | "edge" | "source_mapping"
+    body: PendingTypeDecision,
     db=Depends(get_db),
     principal: Principal = Depends(require_scope("admin")),
 ) -> dict[str, Any]:
     """Approve/reject a pending row. `kind` selects which table to update."""
-    if kind not in ("entity", "edge", "source_mapping"):
-        raise HTTPException(status_code=400, detail="kind must be entity|edge|source_mapping")
+    kind = body.kind
+    decision = body
 
     table = {
         "entity": "entity_type_config",

@@ -296,6 +296,33 @@ export function decidePendingType(
   })
 }
 
+export function refreshBrowseTree(body?: {
+  limit?: number
+  infer_mappings?: boolean
+  auto_approve_mappings?: boolean
+  llm_extract?: boolean
+}): Promise<{
+  processed_records: number
+  entities_created: number
+  entities_merged: number
+  entities_inboxed: number
+  facts_created: number
+  relationship_hints: number
+  record_errors?: number
+  mappings_inferred?: number
+  mappings_auto_approved?: number
+}> {
+  return apiFetch('/api/admin/refresh-browse-tree', {
+    method: 'POST',
+    body: JSON.stringify({
+      limit: body?.limit ?? 250,
+      infer_mappings: body?.infer_mappings ?? true,
+      auto_approve_mappings: body?.auto_approve_mappings ?? true,
+      llm_extract: body?.llm_extract ?? false,
+    }),
+  })
+}
+
 // POST /api/facts/{id}/edit — supersede a fact with a new value (bi-temporal)
 export function editFact(
   factId: string,

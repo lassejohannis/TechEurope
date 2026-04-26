@@ -1,16 +1,8 @@
 from __future__ import annotations
 
-import pytest
-
 from server.resolver.extract import extract_candidates
 
 
-@pytest.mark.xfail(
-    reason="Drift: extractor evolved to emit two communication entities per email "
-    "(Thread + Subject), so participant_in count is now 4 instead of 2. "
-    "Test left as documentation of the architecture change.",
-    strict=False,
-)
 def test_email_extract_builds_communication_and_participant_edges():
     source_record = {
         "id": "email:test-1",
@@ -30,7 +22,7 @@ def test_email_extract_builds_communication_and_participant_edges():
     entities, facts = extract_candidates(source_record)
 
     names = {(e.entity_type, e.canonical_name) for e in entities}
-    assert ("communication", "Thread THR_1") in names
+    assert ("communication", "Quarterly Review") in names
 
     participant_facts = [f for f in facts if f.predicate == "participant_in"]
     assert len(participant_facts) == 2
@@ -38,7 +30,7 @@ def test_email_extract_builds_communication_and_participant_edges():
 
     mention_facts = [f for f in facts if f.predicate == "mentions"]
     assert mention_facts, "email body mention should generate a mentions fact"
-    assert mention_facts[0].subject_key == ("communication", "Thread THR_1")
+    assert mention_facts[0].subject_key == ("communication", "Quarterly Review")
     assert mention_facts[0].derivation == "llm:email_body_extract"
 
 

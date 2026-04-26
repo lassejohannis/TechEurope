@@ -14,7 +14,7 @@ from server.db import get_supabase
 router = APIRouter(prefix="/api", tags=["csm-app"])
 
 # Entity types treated as "accounts" in the CSM app
-_ACCOUNT_TYPES = ("organization", "company", "customer", "client")
+_ACCOUNT_TYPES = ("organization",)
 
 
 def _health_from_trust(trust_score: float) -> dict[str, Any]:
@@ -123,7 +123,7 @@ def _parse_sentiment(object_literal: Any) -> dict[str, Any] | None:
 
 
 def _fetch_communications(db: Any, account_id: str, limit: int = 20) -> list[dict[str, Any]]:
-    # 1) persons working at account
+    # Step 1: find persons linked to this account via works_at (person → org)
     works = (
         db.table("facts")
         .select("subject_id")
@@ -136,17 +136,18 @@ def _fetch_communications(db: Any, account_id: str, limit: int = 20) -> list[dic
     if not person_ids:
         return []
 
-    # 2) communications those persons participated in
-    parts = (
+    # Step 2: find communications where those persons are sender, recipient, or authored_by
+    # Predicates: sender(comm→person), recipient(comm→person), authored_by(comm→person)
+    comm_facts = (
         db.table("facts")
-        .select("object_id")
-        .eq("predicate", "participant_in")
+        .select("subject_id")
+        .in_("predicate", ["sender", "recipient", "authored_by"])
         .is_("valid_to", "null")
-        .in_("subject_id", person_ids[:500])
-        .limit(limit * 3)
+        .in_("object_id", person_ids[:500])
+        .limit(limit * 5)
         .execute()
     )
-    comm_ids = list({str(r["object_id"]) for r in (parts.data or []) if r.get("object_id")})[:limit]
+    comm_ids = list({str(r["subject_id"]) for r in (comm_facts.data or []) if r.get("subject_id")})[:limit]
     if not comm_ids:
         return []
 
@@ -155,6 +156,7 @@ def _fetch_communications(db: Any, account_id: str, limit: int = 20) -> list[dic
         db.table("entities")
         .select("id, attrs, canonical_name")
         .eq("entity_type", "communication")
+        .is_("deleted_at", "null")
         .in_("id", comm_ids)
         .execute()
     )
@@ -371,15 +373,18 @@ def get_account_card(account_id: str) -> dict[str, Any]:
     )
     facts = [_map_fact(f) for f in (facts_res.data or [])]
 
-    # key contacts: persons linked via facts
-    contact_ids = [
-        f["object"] for f in facts
-        if f["object_type"] == "entity" and f["predicate"] in (
-            "contact_person", "primary_contact", "managed_by",
-            "has_contact_person", "has_primary_contact",
-        )
-    ]
+    # key contacts: persons who work_at this account (person → org via works_at)
     key_contacts = []
+    wf_res = (
+        db.table("facts")
+        .select("subject_id")
+        .eq("predicate", "works_at")
+        .eq("object_id", account_id)
+        .is_("valid_to", "null")
+        .limit(10)
+        .execute()
+    )
+    contact_ids = [r["subject_id"] for r in (wf_res.data or []) if r.get("subject_id")]
     if contact_ids:
         c_res = db.table("entities").select("*").in_("id", contact_ids[:10]).execute()
         for c in c_res.data or []:
@@ -482,13 +487,17 @@ def daily_briefing() -> dict[str, Any]:
             action = "Schedule QBR"
             cta = "none"
 
-        arr_eur = int(attrs.get("arr_eur") or 0)
+        # Parse monthly_revenue from client attrs (stored as "$2,357,113")
+        import re as _re
+        raw_rev = attrs.get("monthly_revenue") or attrs.get("arr_eur") or ""
+        rev_digits = _re.sub(r"[^\d]", "", str(raw_rev))
+        arr_eur = int(rev_digits) if rev_digits else 0
         if arr_eur >= 1_000_000:
-            revenue_str = f"€{arr_eur // 1_000_000}M ARR"
+            revenue_str = f"${arr_eur // 1_000_000}M/mo"
         elif arr_eur >= 1_000:
-            revenue_str = f"€{arr_eur // 1_000}k ARR"
+            revenue_str = f"${arr_eur // 1_000}k/mo"
         elif arr_eur > 0:
-            revenue_str = f"€{arr_eur} ARR"
+            revenue_str = f"${arr_eur}/mo"
         else:
             revenue_str = "—"
         btype = (attrs.get("business_type") or "").lower()

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import uuid
 import logging
+import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -45,9 +46,36 @@ _COLLECTION_ALIASES: dict[str, str] = {
     "contacts": "person",
 }
 
+_UUIDISH_PATTERN = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
+
 
 def _titleize_slug(slug: str) -> str:
     return slug.replace("-", " ").replace("_", " ").title()
+
+
+def _is_uuidish(value: str) -> bool:
+    return bool(_UUIDISH_PATTERN.fullmatch(value.strip()))
+
+
+def _as_non_empty_string(value: object) -> str | None:
+    if isinstance(value, str):
+        v = value.strip()
+        return v or None
+    if isinstance(value, (int, float, bool)):
+        return str(value)
+    if isinstance(value, dict):
+        for key in ("subject", "canonical_name", "name", "title", "label", "value"):
+            nested = value.get(key)
+            if isinstance(nested, str) and nested.strip():
+                return nested.strip()
+    return None
+
+
+def _normalize_predicate(value: object) -> str:
+    return re.sub(r"[_\s-]+", "", str(value or "").lower())
 
 
 def _missing_column(exc: Exception, column: str) -> bool:
@@ -141,6 +169,77 @@ def _get_active_entity_for_patch(db, *, slug: str, entity_type: str):
             return (
                 _name_base().neq("status", "archived").limit(1).execute()
             )
+
+
+def _enrich_communication_subjects(db, rows: list[dict]) -> None:
+    """Attach readable `attrs.subject` for communication rows with UUID names.
+
+    Uses one batched facts query to avoid N+1 /api/entities roundtrips from frontend.
+    """
+    if not rows:
+        return
+    target_ids = []
+    for row in rows:
+        if str(row.get("entity_type") or "").lower() != "communication":
+            continue
+        name = str(row.get("canonical_name") or "").strip()
+        attrs = row.get("attrs") if isinstance(row.get("attrs"), dict) else {}
+        existing_subject = _as_non_empty_string(attrs.get("subject")) if isinstance(attrs, dict) else None
+        if name and _is_uuidish(name) and (not existing_subject or _is_uuidish(existing_subject)):
+            rid = str(row.get("id") or "").strip()
+            if rid:
+                target_ids.append(rid)
+    if not target_ids:
+        return
+
+    subject_by_entity: dict[str, str] = {}
+    batch_size = 120
+    for i in range(0, len(target_ids), batch_size):
+        batch = target_ids[i : i + batch_size]
+        if not batch:
+            continue
+        try:
+            facts_q = (
+                db.table("facts")
+                .select("subject_id, predicate, object_literal, object_id, valid_to")
+                .in_("subject_id", batch)
+            )
+            try:
+                facts_res = facts_q.is_("valid_to", "null").execute()
+            except Exception as exc:
+                if not _missing_column(exc, "valid_to"):
+                    raise
+                # Older schema without temporal validity columns.
+                facts_res = facts_q.execute()
+        except Exception:
+            # Enrichment should never break folder listing.
+            logger.exception("vfs communication subject enrichment failed for batch")
+            continue
+
+        for fact in facts_res.data or []:
+            pred = _normalize_predicate(fact.get("predicate"))
+            if pred not in {"subject", "hassubject"}:
+                continue
+            val = _as_non_empty_string(fact.get("object_literal"))
+            if not val:
+                val = _as_non_empty_string(fact.get("object_id"))
+            if not val or _is_uuidish(val):
+                continue
+            sid = str(fact.get("subject_id") or "").strip()
+            if sid and sid not in subject_by_entity:
+                subject_by_entity[sid] = val
+
+    for row in rows:
+        rid = str(row.get("id") or "").strip()
+        if not rid:
+            continue
+        subject = subject_by_entity.get(rid)
+        if not subject:
+            continue
+        attrs = row.get("attrs") if isinstance(row.get("attrs"), dict) else {}
+        merged = dict(attrs or {})
+        merged["subject"] = subject
+        row["attrs"] = merged
 
 # ---------------------------------------------------------------------------
 # Path helpers
@@ -276,12 +375,18 @@ def vfs_read(
     if len(segments) == 1:
         # List all entities of this type
         res = _list_active_entities(db, entity_type=entity_type, limit=500, glob=glob)
+        rows = list(res.data or [])
+        if str(entity_type).lower() == "communication":
+            try:
+                _enrich_communication_subjects(db, rows)
+            except Exception:
+                logger.exception("vfs communication enrichment failed; returning raw rows")
         nodes = [
             _entity_to_vfs_node(
                 e,
                 f"/{segment_from_type(str(e['entity_type']))}/{e['id']}",
             )
-            for e in (res.data or [])
+            for e in rows
         ]
 
         # Lightweight augmentation: for communication lists, attach sentiment label if present.

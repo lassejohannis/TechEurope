@@ -16,10 +16,8 @@ install:
 	cd server && uv sync
 
 dev:
-	@echo "Starting web (5173) and server (8000) — Ctrl-C stops both."
-	@( cd server && uv run server ) & SERVER_PID=$$! ; \
-	  ( cd web && npm run dev ) ; \
-	  kill $$SERVER_PID 2>/dev/null || true
+	@echo "Starting via ./dev.sh (kills occupied ports first)."
+	@./dev.sh
 
 web:
 	cd web && npm run dev
