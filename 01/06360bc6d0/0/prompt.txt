@@ -1,0 +1,17 @@
+bitte ziehe mir die neuste Version von main auf Paul. Die aktuellen Änderungen kannst du vernachlässigen
+
+---
+
+okay nun gehe zu dem letzten commit von mir auf main. Bzw. auf den letzten merge von mir auf main
+
+---
+
+Nein dann noch davor. Mein Problem ist, das Context Layer interface sieht komplett anders aus als auf meinem letzten commit/ merge. Finde den Zeitpunkt bei dem es das letzte mal korrekt ausgesehen hat
+
+---
+
+okay ja wie viel commits zurück war das auf main? Also was ist alles in der zwischenzeit passiert?
+
+---
+
+Okay dann nehme das Frontend von dem Zeitpunkt aber die Logik von meinem letzten Commit/ Merge. Und verbinde das mit dem alten Frontend. Also das sowas wie die cache und die dynamische erstellung der entities wieder drin sind. Aber mit dem alten Interface

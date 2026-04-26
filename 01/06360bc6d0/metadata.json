@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "0106360bc6d0",
+  "strategy": "manual-commit",
+  "branch": "Paul",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "web/src/components/layout/AppShell.tsx",
+    "web/src/components/layout/TopNav.tsx",
+    "web/src/components/qontext/badges.tsx",
+    "web/src/components/qontext/icon.tsx",
+    "web/src/index.css",
+    "web/src/lib/inazuma-mock.ts",
+    "web/src/pages/review/DecisionPanel.tsx",
+    "web/src/pages/review/ReviewPage.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/01/06360bc6d0/0/metadata.json",
+      "transcript": "/01/06360bc6d0/0/full.jsonl",
+      "content_hash": "/01/06360bc6d0/0/content_hash.txt",
+      "prompt": "/01/06360bc6d0/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 75760,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 812416,
+    "output_tokens": 11390,
+    "api_call_count": 40
+  }
+}

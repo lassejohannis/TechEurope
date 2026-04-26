@@ -1,0 +1,53 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "0106360bc6d0",
+  "session_id": "019dc7d0-7dab-7ea3-8401-0c240dc1ada0",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-26T03:34:30.97812Z",
+  "branch": "Paul",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "web/src/components/layout/AppShell.tsx",
+    "web/src/components/layout/TopNav.tsx",
+    "web/src/components/qontext/badges.tsx",
+    "web/src/components/qontext/icon.tsx",
+    "web/src/index.css",
+    "web/src/lib/inazuma-mock.ts",
+    "web/src/pages/review/DecisionPanel.tsx",
+    "web/src/pages/review/ReviewPage.tsx"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.3-codex",
+  "turn_id": "f84abba96ffa",
+  "token_usage": {
+    "input_tokens": 75760,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 812416,
+    "output_tokens": 11390,
+    "api_call_count": 40
+  },
+  "session_metrics": {
+    "turn_count": 5
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-26T03:34:30.966533Z",
+    "agent_lines": 365,
+    "agent_removed": 1953,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 365,
+    "total_lines_changed": 2318,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
