@@ -1,154 +1,170 @@
-import Icon from '@/components/qontext/icon'
-import { ConfBadge, SourceBadge } from '@/components/qontext/badges'
-import { INAZUMA, type MockConflict, type MockClaim } from '@/lib/inazuma-mock'
+import { GitMerge } from 'lucide-react'
+
+import { Skeleton } from '@/components/ui/skeleton'
+import { Badge } from '@/components/ui/badge'
+import { useEntityPairInbox, useFactConflictInbox } from '@/hooks/useConflicts'
 
 interface Props {
   conflictId: string | null
+  selectedClaimIndex: number | null
+  onSelectClaim: (index: number) => void
 }
 
-function ClaimCard({ claim, preferred }: { claim: MockClaim; preferred: boolean }) {
-  const sources = INAZUMA.sources
+function LoadingSkeleton() {
   return (
-    <div className={`claim${preferred ? ' preferred' : ''}`}>
-      <div className="claim-head">
-        <div className="claim-letter-tile">{claim.letter}</div>
-        <div className="claim-head-text">
-          <div className="claim-source-label">{claim.sourceLabel}</div>
-          <div className="claim-source-name">{claim.sourceName}</div>
-        </div>
-        {preferred && <span className="chip accent" style={{ fontSize: 10 }}>AI suggests</span>}
-      </div>
-      <div className="claim-value">
-        {claim.value}{claim.unit && <span className="unit">{claim.unit}</span>}
-      </div>
-      <blockquote className="claim-quote" dangerouslySetInnerHTML={{ __html: claim.quote }} />
-      <dl className="claim-meta">
-        {Object.entries(claim.meta).map(([k, v]) => (
-          <span key={k} style={{ display: 'contents' }}>
-            <dt>{k}</dt>
-            <dd>{v}</dd>
-          </span>
-        ))}
-      </dl>
-      <div style={{ display: 'flex', gap: 8, marginTop: 'auto', paddingTop: 8, borderTop: '1px solid var(--border-hair)' }}>
-        {sources[claim.srcId] && <SourceBadge src={sources[claim.srcId]} />}
-        <span className="spacer" />
-        <button className="action-btn" style={{ padding: '4px 8px', width: 'auto', background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: 11 }}>
-          <Icon name="eye" size={12} /> Open source
-        </button>
+    <div className="flex flex-col gap-4 p-4">
+      <Skeleton className="h-4 w-40" />
+      <div className="grid grid-cols-1 gap-3">
+        <Skeleton className="h-32" />
+        <Skeleton className="h-32" />
       </div>
     </div>
   )
 }
 
-export default function ConflictDetail({ conflictId }: Props) {
+function formatObject(fact: { object_id: string | null; object_literal: unknown }): string {
+  if (fact.object_id) return fact.object_id
+  if (fact.object_literal && typeof fact.object_literal === 'object') {
+    return JSON.stringify(fact.object_literal)
+  }
+  return String(fact.object_literal ?? '—')
+}
+
+export default function ConflictDetail({ conflictId, selectedClaimIndex, onSelectClaim }: Props) {
+  const facts = useFactConflictInbox('pending')
+  const pairs = useEntityPairInbox('pending')
+
   if (!conflictId) {
     return (
-      <div className="col col-center" style={{ alignItems: 'center', justifyContent: 'center' }}>
-        <div className="empty">
-          <div className="empty-card">
-            <div className="empty-icon"><Icon name="inbox" size={26} /></div>
-            <div className="empty-title">Select a conflict</div>
-            <div className="empty-text">Pick a pending item from the inbox on the left to review the competing claims and evidence.</div>
-          </div>
-        </div>
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+        <GitMerge className="size-8 text-muted-foreground/40" />
+        <p className="text-sm text-muted-foreground">
+          Select a conflict from the inbox to see the competing facts and their evidence.
+        </p>
       </div>
     )
   }
 
-  const conflict: MockConflict | undefined = INAZUMA.conflicts.find((c) => c.id === conflictId)
-  if (!conflict?.claimA || !conflict.claimB) {
+  if (facts.isPending || pairs.isPending) return <LoadingSkeleton />
+
+  // ID prefix tells us which inbox we're looking at
+  const isPair = conflictId.startsWith('pair:')
+  const isFactConflict = conflictId.startsWith('fact:')
+  const rawId = conflictId.replace(/^(pair|fact):/, '')
+
+  if (isPair) {
+    const item = pairs.data?.items.find((i) => i.id === rawId)
+    if (!item) {
+      return (
+        <div className="p-4 text-sm text-muted-foreground">Pair not found.</div>
+      )
+    }
     return (
-      <div className="col col-center">
-        <div className="panel-body">
-          <div className="conflict-detail">
-            <div className="conflict-head">
-              <div className="conflict-tags">
-                <span className="chip outline mono">{conflict?.pred ?? conflictId}</span>
-                <ConfBadge level="conflict" label="Pending review" />
-              </div>
-              <div className="conflict-question">Conflict: {conflict?.subject ?? conflictId}</div>
-              <div className="conflict-sub">Detailed evidence will appear here once two competing claims are loaded.</div>
-            </div>
-          </div>
+      <div className="flex flex-col gap-4 p-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Possible duplicate entities
+          </p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Two entities likely refer to the same real-world thing.
+          </p>
         </div>
+        <div className="grid grid-cols-1 gap-3">
+          {[item.entity_1, item.entity_2].map((e, i) => {
+            if (!e) return null
+            const isSelected = selectedClaimIndex === i
+            return (
+              <button
+                key={e.id}
+                onClick={() => onSelectClaim(i)}
+                className={`rounded-lg border p-3 text-left transition-colors ${
+                  isSelected ? 'border-primary bg-muted/40' : 'hover:bg-muted/30'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">{e.canonical_name}</p>
+                  <Badge variant="secondary" className="text-xs">{e.entity_type}</Badge>
+                </div>
+                <p className="mt-1 font-mono text-xs text-muted-foreground break-all">{e.id}</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Score: {String(item.resolution_signals?.score ?? '—')}
+                </p>
+              </button>
+            )
+          })}
+        </div>
+        <p className="font-mono text-xs text-muted-foreground break-all">
+          resolution: {item.id}
+        </p>
+      </div>
+    )
+  }
+
+  if (isFactConflict) {
+    const item = facts.data?.items.find((i) => i.id === rawId)
+    if (!item) {
+      return (
+        <div className="p-4 text-sm text-muted-foreground">Conflict not found.</div>
+      )
+    }
+    return (
+      <div className="flex flex-col gap-4 p-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Competing claims
+          </p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Predicate:{' '}
+            <span className="font-medium capitalize">
+              {item.facts[0]?.predicate.replace(/_/g, ' ') ?? '—'}
+            </span>
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-3">
+          {item.facts.map((f, i) => {
+            const isSelected = selectedClaimIndex === i
+            return (
+              <button
+                key={f.id}
+                onClick={() => onSelectClaim(i)}
+                className={`rounded-lg border p-3 text-left transition-colors ${
+                  isSelected ? 'border-primary bg-muted/40' : 'hover:bg-muted/30'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium">Claim {String.fromCharCode(65 + i)}</p>
+                  <Badge
+                    variant="outline"
+                    className="text-xs"
+                    title={`Extraction confidence ${(100 * (f.extraction_confidence ?? f.confidence)).toFixed(0)}%`}
+                  >
+                    score {(100 * (f.verification_score ?? f.confidence)).toFixed(0)}%
+                  </Badge>
+                </div>
+                <p className="mt-2 text-sm">→ {formatObject(f)}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant="secondary" className="text-xs">
+                    {f.source?.source_type ?? 'unknown source'}
+                  </Badge>
+                  <span>{new Date(f.recorded_at).toLocaleDateString()}</span>
+                </div>
+                <p className="mt-1 font-mono text-[10px] text-muted-foreground break-all">{f.id}</p>
+              </button>
+            )
+          })}
+        </div>
+        {item.rationale && (
+          <p className="rounded-md border border-muted bg-muted/30 p-2 text-xs italic text-muted-foreground">
+            {item.rationale}
+          </p>
+        )}
       </div>
     )
   }
 
   return (
-    <div className="col col-center">
-      <div className="panel-body">
-        <div className="conflict-detail">
-          <div className="conflict-head">
-            <div className="conflict-tags">
-              <span className="chip outline" style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>{conflict.entity}</span>
-              <span className="chip outline" style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>predicate: {conflict.pred}</span>
-              <ConfBadge level="conflict" label="Pending review" />
-              <span className="chip" style={{ marginLeft: 'auto', color: 'var(--text-tertiary)' }}>
-                <Icon name="history" size={11} /> Disputed since {conflict.since}
-              </span>
-            </div>
-            <div className="conflict-question">What is ACME GmbH's renewal date for 2026?</div>
-            <div className="conflict-sub">
-              Two sources disagree. Resolution writes back as a <span className="mono">human_resolution</span> source record so future re-runs respect the decision.
-              <span style={{ display: 'block', marginTop: 6, color: 'var(--conf-low)' }}>
-                <Icon name="alert" size={11} style={{ verticalAlign: '-1px' }} /> Stake: {conflict.stake}
-              </span>
-            </div>
-          </div>
-
-          <div className="claim-grid">
-            <ClaimCard claim={conflict.claimA} preferred={conflict.preferred === 'A'} />
-            <div className="vs"><span>VS</span></div>
-            <ClaimCard claim={conflict.claimB} preferred={conflict.preferred === 'B'} />
-          </div>
-
-          {/* AI rationale */}
-          <div style={{ marginTop: 20, padding: 16, background: 'var(--surface-panel)', border: '1px solid var(--border-hair)', borderRadius: 10 }}>
-            <div className="row" style={{ marginBottom: 10 }}>
-              <span style={{ width: 22, height: 22, background: 'var(--brand)', color: 'var(--q-accent)', borderRadius: 5, display: 'grid', placeItems: 'center', fontWeight: 900, fontSize: 10 }}>Q</span>
-              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-tertiary)' }}>AI rationale</span>
-              <span className="spacer" />
-              <span className="conf-badge med">0.78 confidence</span>
-            </div>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              The <strong>email from j.barros@acme-gmbh.de</strong> (Source B) is dated <strong>4 days after</strong> the CRM record's last update and is authored by ACME's primary contact, who has authority on contract terms. The phrasing ("confirming our internal alignment") suggests this is a final decision, not a draft. Suggest accepting <strong>Source B (2026-08-31)</strong> and adding a qualifier <span className="mono">{`{reason: "fiscal_close_alignment"}`}</span>. CRM record will be flagged for sync.
-            </div>
-          </div>
-
-          {/* Downstream impact */}
-          <div style={{ marginTop: 20 }}>
-            <div className="panel-eyebrow" style={{ marginBottom: 10 }}>Downstream impact</div>
-            <div className="sources-list">
-              <div className="source-row">
-                <span className="src-icon-wrap"><Icon name="target" size={16} className="muted" /></span>
-                <div className="source-info">
-                  <div className="source-title">Project: ACME Renewal 2026</div>
-                  <div className="source-meta">trajectory/projects/acme-renewal-2026.md · target_date will be re-derived</div>
-                </div>
-                <div className="source-derived">2 facts</div>
-              </div>
-              <div className="source-row">
-                <span className="src-icon-wrap"><Icon name="briefcase" size={16} className="muted" /></span>
-                <div className="source-info">
-                  <div className="source-title">Customer: ACME GmbH</div>
-                  <div className="source-meta">static/customers/acme-gmbh.md · renewal_date fact</div>
-                </div>
-                <div className="source-derived">1 fact</div>
-              </div>
-              <div className="source-row">
-                <span className="src-icon-wrap"><Icon name="ticket" size={16} className="muted" /></span>
-                <div className="source-info">
-                  <div className="source-title">Sales pipeline forecast</div>
-                  <div className="source-meta">downstream view consumed by Revenue Intelligence app</div>
-                </div>
-                <div className="source-derived">view</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="p-4 text-sm text-muted-foreground">
+      Unknown conflict id: {conflictId}
     </div>
   )
 }

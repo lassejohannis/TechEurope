@@ -229,12 +229,9 @@ def _persist_entity(
     # resolve must not re-call Gemini for entities that already have one.
     embedding = None if has_embedding else _build_tier_a_embedding(candidate)
 
-    # `entities.entity_type` is a generated column (`GENERATED ALWAYS AS type`);
-    # the writable canonical column is `type`. Older code wrote `entity_type`
-    # directly which now raises 428C9 from Postgres.
     row: dict[str, object] = {
         "id": eid,
-        "type": canonical_entity_type,
+        "entity_type": canonical_entity_type,
         "canonical_name": candidate.canonical_name,
         "aliases": aliases,
         "attrs": attrs,
@@ -249,28 +246,27 @@ def _persist_entity(
         # DB-side ontology guards can reject unknown/unapproved entity types.
         if "not approved" in str(exc):
             return None
-        # entity_type is a generated column in some DB versions — strip and retry
-        if "generated column" in str(exc).lower() or "428C9" in str(exc):
-            row.pop("entity_type", None)
-            db.table("entities").upsert(row, on_conflict="id").execute()
-            return eid
         raise
     return eid
 
 
 def _build_tier_a_embedding(candidate) -> list[float] | None:
-    """Build Tier-A embedding text via the cascade's config-or-module driver.
-
-    Generic for unknown entity_types (reads `entity_type_config.config.search_attrs`
-    when no Python module exists), bespoke for the legacy 5 types.
-    """
+    """Use the per-type build_search_text helper + embed_text to mint Tier A."""
     from server.db import embed_text
-    from server.resolver.cascade import _build_search_text
+    from server.resolver.cascade import _get_type_module
 
-    text = _build_search_text(
-        candidate.entity_type, candidate.canonical_name, candidate.attrs or {}
-    )
-    return embed_text(text)
+    type_mod = _get_type_module(candidate.entity_type)
+    if type_mod is not None and hasattr(type_mod, "build_search_text"):
+        text = type_mod.build_search_text(candidate.canonical_name, candidate.attrs)
+    else:
+        text = candidate.canonical_name
+    try:
+        return embed_text(text)
+    except Exception as exc:
+        # Embedding must never block resolver writes in local/dev envs where
+        # GEMINI_API_KEY is missing or temporarily invalid.
+        typer.echo(f"Embedding unavailable: {exc}")
+        return None
 
 
 def _persist_relationship_fact(
@@ -292,7 +288,6 @@ def _persist_relationship_fact(
                 "object_literal": None,
                 "confidence": confidence,
                 "source_id": source_id,
-                "derived_from": [source_id] if source_id else [],
                 "extraction_method": "rule",
             }
         ).execute()
@@ -326,28 +321,19 @@ def _persist_fact(
     if object_id is None and object_literal is None:
         return False
 
-    # facts_no_self_loop check constraint: subject_id != object_id when both
-    # are entity ids. Pioneer occasionally emits self-referential extractions
-    # (e.g. has_contact_person where person mentioned in body is also sender).
-    # Drop these silently — they carry no information.
-    if object_id is not None and subject_id == object_id:
-        return False
-
     try:
-        db.table("facts").insert(
-            {
-                "id": str(uuid.uuid4()),
-                "subject_id": subject_id,
-                "predicate": pf.predicate,
-                "object_id": object_id,
-                "object_literal": object_literal,
-                "confidence": pf.confidence,
-                "source_id": source_id,
-                "derived_from": [source_id] if source_id else [],
-                "extraction_method": pf.extraction_method,
-                "qualifiers": {"derivation": pf.derivation} if pf.derivation else None,
-            }
-        ).execute()
+        payload = {
+            "id": str(uuid.uuid4()),
+            "subject_id": subject_id,
+            "predicate": pf.predicate,
+            "object_id": object_id,
+            "object_literal": object_literal,
+            "confidence": pf.confidence,
+            "source_id": source_id,
+            # Optional metadata columns differ across DB revisions; keep core
+            # fields stable so resolver can operate against older schemas.
+        }
+        db.table("facts").insert(payload).execute()
         return True
     except Exception as exc:
         if "not approved" in str(exc):
@@ -357,10 +343,6 @@ def _persist_fact(
         # the same person/company appears in many source records. Treat as a
         # silent dedup and continue.
         if "no_temporal_overlap" in str(exc) or "23P01" in str(exc):
-            return False
-        # facts_no_self_loop check constraint — defensive in case the pre-check
-        # above missed an aliased subject/object pair (e.g. via canonical ids).
-        if "facts_no_self_loop" in str(exc) or "23514" in str(exc):
             return False
         raise
 
@@ -378,8 +360,9 @@ def cmd_resolve(
     Idempotent: deterministic entity IDs (`{type}:{slug}`) mean re-running on
     the same records is safe.
     """
-    from server.ontology.engine import apply_mapping
     from server.resolver.cascade import resolve as cascade_resolve
+    from server.resolver.extract import extract_candidates
+    from server.ontology.engine import apply_mapping
 
     db = get_supabase()
     q = db.table("source_records").select("id, source_type, payload")
@@ -409,7 +392,6 @@ def cmd_resolve(
             else:
                 mapping_cache[stype] = None
         return mapping_cache[stype]
-
     stats = {
         "records": 0,
         "candidates": 0,
@@ -427,23 +409,14 @@ def cmd_resolve(
             typer.echo("gemini cooldown active — stopping early")
             break
         stats["records"] += 1
+
         cfg = _mapping_for(rec.get("source_type") or "")
         if cfg is None:
-            stats["skipped_no_mapping"] += 1
-            continue
-        candidates, pending_facts = apply_mapping(rec, cfg)
-        # LLM free-text mining (Pioneer-first / Gemini-fallback) is opt-in
-        # because it spends LLM budget. When enabled, the engine helper
-        # mines `free_text_paths` defined in the mapping config (e.g. email
-        # body, document content) for additional relationship facts.
-        if llm_extract and (paths := (cfg or {}).get("free_text_paths")):
-            try:
-                from server.ontology.engine import _llm_free_text_facts
-                pending_facts.extend(_llm_free_text_facts(rec, paths, cfg))
-            except Exception as exc:
-                logger_msg = f"  free_text mining failed: {exc}"
-                if verbose:
-                    typer.echo(logger_msg)
+            # Backward-compatible fallback: keep resolver functional for
+            # source_types that don't have an approved source_type_mapping yet.
+            candidates, pending_facts = extract_candidates(rec, llm_extract=llm_extract)
+        else:
+            candidates, pending_facts = apply_mapping(rec, cfg)
         if not candidates and not pending_facts:
             continue
         stats["candidates"] += len(candidates)
@@ -539,8 +512,8 @@ def cmd_reprocess(
     on them, and inserts fresh facts. Idempotent: deterministic entity IDs
     mean repeated runs are safe.
     """
-    from server.ontology.engine import apply_mapping
     from server.resolver.cascade import resolve as cascade_resolve
+    from server.resolver.extract import extract_candidates
 
     db = get_supabase()
 
@@ -575,33 +548,10 @@ def cmd_reprocess(
             "status", "needs_refresh"
         ).execute()
 
-    # Cache mapping configs once per source_type — re-derivation runs over many
-    # records of (typically) a small set of source_types.
-    mapping_cache: dict[str, dict | None] = {}
-
-    def _mapping_for(stype: str) -> dict | None:
-        if stype not in mapping_cache:
-            r = (
-                db.table("source_type_mapping")
-                .select("config, status")
-                .eq("source_type", stype)
-                .limit(1)
-                .execute()
-            )
-            row = (r.data or [None])[0]
-            mapping_cache[stype] = (
-                row.get("config") if row and row.get("status") == "approved" else None
-            )
-        return mapping_cache[stype]
-
-    stats = {"records": 0, "facts": 0, "skipped_no_mapping": 0}
+    stats = {"records": 0, "facts": 0}
     for rec in records:
         stats["records"] += 1
-        cfg = _mapping_for(rec.get("source_type") or "")
-        if cfg is None:
-            stats["skipped_no_mapping"] += 1
-            continue
-        candidates, pending_facts = apply_mapping(rec, cfg)
+        candidates, pending_facts = extract_candidates(rec)
         name_to_id: dict[tuple[str, str], str] = {}
         for cand in candidates:
             result = cascade_resolve(cand, db)
@@ -634,7 +584,7 @@ def cmd_backfill_embeddings(
     """
     from server.db import embed_text
     from server.gemini_budget import get_budget
-    from server.resolver.cascade import _build_search_text
+    from server.resolver.cascade import _get_type_module
 
     if tier not in ("A", "B"):
         raise typer.BadParameter("tier must be 'A' or 'B'")
@@ -658,9 +608,11 @@ def cmd_backfill_embeddings(
             typer.echo("gemini cooldown active — stopping early")
             break
         if tier == "A":
-            text = _build_search_text(
-                row["entity_type"], row["canonical_name"], row.get("attrs") or {}
-            )
+            type_mod = _get_type_module(row["entity_type"])
+            if type_mod is not None and hasattr(type_mod, "build_search_text"):
+                text = type_mod.build_search_text(row["canonical_name"], row.get("attrs") or {})
+            else:
+                text = row["canonical_name"]
         else:
             from server.resolver.embed import build_inference_text
             text = build_inference_text(row["id"], db)
@@ -695,7 +647,7 @@ def cmd_reembed(
     """
     from server.db import embed_text
     from server.gemini_budget import get_budget
-    from server.resolver.cascade import _build_search_text
+    from server.resolver.cascade import _get_type_module
     from server.resolver.embed import build_inference_text
 
     if tier not in ("A", "B"):
@@ -744,9 +696,11 @@ def cmd_reembed(
         if tier == "B":
             text = build_inference_text(row["id"], db)
         else:
-            text = _build_search_text(
-                row["entity_type"], row["canonical_name"], row.get("attrs") or {}
-            )
+            type_mod = _get_type_module(row["entity_type"])
+            if type_mod is not None and hasattr(type_mod, "build_search_text"):
+                text = type_mod.build_search_text(row["canonical_name"], row.get("attrs") or {})
+            else:
+                text = row["canonical_name"]
 
         vec = embed_text(text)
         if vec is None:
@@ -813,7 +767,6 @@ def cmd_token_revoke(token_id: str) -> None:
     else:
         typer.echo(f"no such token: {token_id}", err=True)
         raise typer.Exit(code=1)
-
 
 @cli.command("infer-source-mappings")
 def cmd_infer_source_mappings(
@@ -910,33 +863,11 @@ def cmd_infer_source_mappings(
         # `facts[].predicate` without declaring it. Walk the config instead
         # so the resolver can never hit a "type X not approved" trigger.
         if auto_approve:
-            # Walk the mapping: collect every referenced type/predicate plus
-            # the cascade-relevant hints (hard_id_fields, search_attrs) so the
-            # resolver's per-type Tier 1 + Tier-A logic stays type-agnostic.
             referenced_entity_types: set[str] = set()
             referenced_edges: set[str] = set()
-            type_hints: dict[str, dict[str, list[str]]] = {}
-
-            def _add_type_hints(etype: str, *,
-                                hard_ids: list[str] | None = None,
-                                search_attrs: list[str] | None = None) -> None:
-                cur = type_hints.setdefault(etype, {"hard_id_fields": [], "search_attrs": []})
-                for f in hard_ids or []:
-                    if f and f not in cur["hard_id_fields"]:
-                        cur["hard_id_fields"].append(f)
-                for f in search_attrs or []:
-                    if f and f not in cur["search_attrs"]:
-                        cur["search_attrs"].append(f)
-
             for spec in proposal.entities or []:
-                if not spec.type:
-                    continue
-                referenced_entity_types.add(spec.type)
-                _add_type_hints(
-                    spec.type,
-                    hard_ids=list((spec.hard_ids or {}).keys()),
-                    search_attrs=list((spec.extra_attrs or {}).keys()),
-                )
+                if spec.type:
+                    referenced_entity_types.add(spec.type)
             for spec in proposal.facts or []:
                 if spec.subject_type:
                     referenced_entity_types.add(spec.subject_type)
@@ -951,59 +882,13 @@ def cmd_infer_source_mappings(
                 if self_declared:
                     referenced_edges.add(self_declared)
 
-            def _approve_entity_types(ids: set[str]) -> None:
+            def _approve(table: str, ids: set[str]) -> None:
                 if not ids:
                     return
+                # Don't override explicitly rejected rows — only flip pending /
+                # missing into approved.
                 existing = (
-                    db.table("entity_type_config")
-                    .select("id, approval_status, config")
-                    .in_("id", list(ids))
-                    .execute()
-                )
-                existing_map = {r["id"]: r for r in (existing.data or [])}
-                for tid in ids:
-                    row = existing_map.get(tid) or {}
-                    if row.get("approval_status") == "rejected":
-                        continue
-                    # Merge new hints into any existing config so re-running the
-                    # CLI doesn't blow away earlier search_attrs.
-                    base_cfg = row.get("config") if isinstance(row.get("config"), dict) else {}
-                    hints = type_hints.get(tid, {})
-                    merged_hard = list(dict.fromkeys(
-                        list(base_cfg.get("hard_id_fields") or [])
-                        + list(hints.get("hard_id_fields") or [])
-                    ))
-                    merged_search = list(dict.fromkeys(
-                        list(base_cfg.get("search_attrs") or [])
-                        + list(hints.get("search_attrs") or [])
-                    ))
-                    new_cfg = {
-                        **base_cfg,
-                        "description": base_cfg.get(
-                            "description",
-                            f"Auto-approved by infer-source-mappings for {stype}",
-                        ),
-                        "auto_proposed": True,
-                    }
-                    if merged_hard:
-                        new_cfg["hard_id_fields"] = merged_hard
-                    if merged_search:
-                        new_cfg["search_attrs"] = merged_search
-                    db.table("entity_type_config").upsert(
-                        {
-                            "id": tid,
-                            "config": new_cfg,
-                            "approval_status": "approved",
-                            "auto_proposed": True,
-                        },
-                        on_conflict="id",
-                    ).execute()
-
-            def _approve_edges(ids: set[str]) -> None:
-                if not ids:
-                    return
-                existing = (
-                    db.table("edge_type_config")
+                    db.table(table)
                     .select("id, approval_status")
                     .in_("id", list(ids))
                     .execute()
@@ -1016,7 +901,7 @@ def cmd_infer_source_mappings(
                 for tid in ids:
                     if tid in rejected:
                         continue
-                    db.table("edge_type_config").upsert(
+                    db.table(table).upsert(
                         {
                             "id": tid,
                             "config": {
@@ -1029,17 +914,8 @@ def cmd_infer_source_mappings(
                         on_conflict="id",
                     ).execute()
 
-            _approve_entity_types(referenced_entity_types)
-            _approve_edges(referenced_edges)
-
-            # Bust the cascade's lru_cache so newly-written hints take effect
-            # on the next resolve in this same process.
-            try:
-                from server.resolver.cascade import _load_entity_type_config
-
-                _load_entity_type_config.cache_clear()
-            except Exception:
-                pass
+            _approve("entity_type_config", referenced_entity_types)
+            _approve("edge_type_config", referenced_edges)
 
         status = persist_proposal(
             proposal,
@@ -1051,209 +927,6 @@ def cmd_infer_source_mappings(
         typer.echo(f"    → {status}")
 
     typer.echo("done.")
-
-
-@cli.command("enrich-entity")
-def cmd_enrich_entity(
-    entity_id: str = typer.Argument(..., help="Entity to enrich, e.g. organization:acme-corp"),
-    query: str | None = typer.Option(None, "--query", "-q",
-                                     help="Override search query (default: derived from canonical_name)"),
-    max_results: int = typer.Option(8, help="Max Tavily hits to ingest"),
-    auto_resolve: bool = typer.Option(
-        True,
-        help="After ingest, auto-bootstrap web_search mapping (if missing) and run resolve.",
-    ),
-    seed: Path | None = typer.Option(
-        None,
-        "--seed",
-        help="Path to a pre-recorded Tavily results JSON. Lets the demo run "
-             "without a TAVILY_API_KEY (e.g. data/seed_web_search_demo.json).",
-    ),
-) -> None:
-    """Pull external web facts for an existing entity into the Memory.
-
-    The Tavily-fetched hits land as `source_records` of `source_type='web_search'`,
-    each tagged with `triggered_by_entity_id`. They flow through the same
-    JSONata-engine pipeline as Email/CRM/HR records, so the Generality
-    promise — *zero new code per data shape* — holds end-to-end.
-    """
-    from server.connectors.tavily import TavilySearchConnector
-    from server.ontology.engine import apply_mapping
-    from server.resolver.cascade import resolve as cascade_resolve
-
-    db = get_supabase()
-
-    entity_res = (
-        db.table("entities")
-        .select("id, canonical_name, entity_type")
-        .eq("id", entity_id)
-        .limit(1)
-        .execute()
-    )
-    if not entity_res.data:
-        raise typer.BadParameter(f"entity {entity_id} not found")
-    entity = entity_res.data[0]
-
-    derived_query = query or f"{entity['canonical_name']} 2026 news leadership"
-    typer.echo(f"[tavily] entity={entity_id} query={derived_query!r}")
-
-    inst = TavilySearchConnector()
-    written = inst.ingest_query(
-        query=derived_query,
-        supabase=db,
-        triggered_by_entity_id=entity_id,
-        max_results=max_results,
-        seed_path=seed,
-    )
-    typer.echo(f"[tavily] ingested: {written} new hits")
-    if written == 0:
-        typer.echo("[tavily] nothing new — entity already enriched with this query")
-        return
-
-    if not auto_resolve:
-        typer.echo("[tavily] --no-auto-resolve set, stopping after ingest")
-        return
-
-    # Bootstrap mapping for `web_search` if no approved one exists yet.
-    mapping_q = (
-        db.table("source_type_mapping")
-        .select("status")
-        .eq("source_type", "web_search")
-        .limit(1)
-        .execute()
-    )
-    has_mapping = bool(mapping_q.data) and mapping_q.data[0].get("status") == "approved"
-    if not has_mapping:
-        typer.echo("[tavily] no approved mapping for web_search — inferring now")
-        from server.ontology.propose import (
-            infer_source_mapping,
-            persist_proposal,
-            validate_proposal,
-        )
-
-        sample_q = (
-            db.table("source_records")
-            .select("id, source_type, payload")
-            .eq("source_type", "web_search")
-            .limit(8)
-            .execute()
-        )
-        records = sample_q.data or []
-        if len(records) < 2:
-            typer.echo("[tavily] not enough records to infer a mapping; aborting auto-resolve")
-            return
-        sample = records[:5]
-        holdout = records[5:8] or sample[-1:]
-        proposal = infer_source_mapping("web_search", sample, db)
-        if proposal is None:
-            typer.echo("[tavily] inference returned None (likely Gemini cap/cooldown)")
-            return
-        stats = validate_proposal(proposal, holdout)
-        typer.echo(
-            f"[tavily] mapping validation: ents={stats['entities_total']} "
-            f"facts={stats['facts_total']} "
-            f"entity_rate={stats['entity_rate']:.2f}"
-        )
-        # Auto-approve every type/predicate the mapping references — same
-        # logic as `cmd_infer_source_mappings` but inlined for the demo flow.
-        referenced_e: set[str] = set()
-        referenced_p: set[str] = set()
-        for spec in proposal.entities or []:
-            if spec.type:
-                referenced_e.add(spec.type)
-        for spec in proposal.facts or []:
-            if spec.subject_type:
-                referenced_e.add(spec.subject_type)
-            if spec.object_type:
-                referenced_e.add(spec.object_type)
-            if spec.predicate:
-                referenced_p.add(spec.predicate)
-        for tid in referenced_e:
-            db.table("entity_type_config").upsert(
-                {
-                    "id": tid,
-                    "config": {"description": "Auto-approved by enrich-entity",
-                               "auto_proposed": True},
-                    "approval_status": "approved",
-                    "auto_proposed": True,
-                },
-                on_conflict="id",
-            ).execute()
-        for tid in referenced_p:
-            db.table("edge_type_config").upsert(
-                {
-                    "id": tid,
-                    "config": {"description": "Auto-approved by enrich-entity",
-                               "auto_proposed": True},
-                    "approval_status": "approved",
-                    "auto_proposed": True,
-                },
-                on_conflict="id",
-            ).execute()
-        persist_proposal(
-            proposal,
-            db,
-            sample_ids=[r["id"] for r in sample],
-            validation_stats=stats,
-            auto_approve=True,
-        )
-        typer.echo("[tavily] mapping persisted as approved")
-
-        # Bust the cascade's cache so newly-approved types take effect.
-        try:
-            from server.resolver.cascade import _load_entity_type_config
-            _load_entity_type_config.cache_clear()
-        except Exception:
-            pass
-
-    # Resolve the new web_search records.
-    typer.echo("[tavily] resolving new hits…")
-    cfg_q = (
-        db.table("source_type_mapping")
-        .select("config")
-        .eq("source_type", "web_search")
-        .limit(1)
-        .execute()
-    )
-    cfg = (cfg_q.data or [{}])[0].get("config") or {}
-
-    new_records = (
-        db.table("source_records")
-        .select("id, source_type, payload")
-        .eq("source_type", "web_search")
-        .order("ingested_at", desc=True)
-        .limit(written)
-        .execute()
-        .data
-        or []
-    )
-
-    stats = {"records": 0, "candidates": 0, "entities": 0, "facts": 0}
-    for rec in new_records:
-        stats["records"] += 1
-        candidates, pending_facts = apply_mapping(rec, cfg)
-        stats["candidates"] += len(candidates)
-        name_to_id: dict[tuple[str, str], str] = {}
-        for cand in candidates:
-            result = cascade_resolve(cand, db)
-            same_type_match = (
-                result.matched_id
-                if result.tier in ("hard_id", "alias", "embedding", "pioneer")
-                else None
-            )
-            eid = _persist_entity(db, cand, same_type_match)
-            if eid:
-                name_to_id[(cand.entity_type, cand.canonical_name)] = eid
-                stats["entities"] += 1
-        for pf in pending_facts:
-            if _persist_fact(db, pf, name_to_id, rec["id"]):
-                stats["facts"] += 1
-
-    typer.echo("[tavily] done:")
-    for k, v in stats.items():
-        typer.echo(f"  {k}: {v}")
-
-
 @cli.command("mcp-stdio")
 def cmd_mcp_stdio() -> None:
     """Run the MCP server over stdio (for Claude Desktop / mcp-cli)."""
@@ -1330,9 +1003,8 @@ def cmd_link_reports_to(
                     "object_id": employee_id,
                     "confidence": 0.99,
                     "source_id": fact["id"],
-                    "derived_from": [fact["id"]],
                     "extraction_method": "rule",
-                    "qualifiers": {"derivation": "rule:reports_to_emp_id_resolve"},
+                    "derivation": "rule:reports_to_emp_id_resolve",
                 }
             ).execute()
             linked += 1

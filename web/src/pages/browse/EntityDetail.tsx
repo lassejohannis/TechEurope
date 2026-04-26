@@ -1,79 +1,112 @@
-import Icon from '@/components/qontext/icon'
+import { Network } from 'lucide-react'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
+import { EntityTypeBadge } from '@/components/entity/EntityTypeBadge'
+import { FactRow } from '@/components/entity/FactRow'
 import { useEntity } from '@/hooks/useEntity'
 
-interface Props { entityId: string | null }
+interface Props {
+  entityId: string | null
+}
+
+function LoadingSkeleton() {
+  return (
+    <div className="flex flex-col gap-4 p-4">
+      <div className="flex items-center gap-2">
+        <Skeleton className="h-5 w-16" />
+        <Skeleton className="h-6 w-48" />
+      </div>
+      <Skeleton className="h-px w-full" />
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="flex items-center justify-between">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-5 w-12" />
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export default function EntityDetail({ entityId }: Props) {
+  const { data, isLoading, isError } = useEntity(entityId)
+
   if (!entityId) {
     return (
-      <div className="col col-center" style={{ alignItems: 'center', justifyContent: 'center' }}>
-        <div className="empty">
-          <div className="empty-card">
-            <div className="empty-icon"><Icon name="compass" size={26} /></div>
-            <div className="empty-title">Select an entity</div>
-            <div className="empty-text">Select an entity from the tree on the left to inspect its facts and provenance.</div>
-          </div>
-        </div>
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+        <Network className="size-8 text-muted-foreground/40" />
+        <p className="text-sm text-muted-foreground">
+          Select an entity from the tree on the left to inspect its facts, provenance, and related
+          entities.
+        </p>
       </div>
     )
   }
 
-  const { data, isLoading, isError } = useEntity(entityId)
-  if (isLoading) return <div className="col"><div className="panel-body">Loading…</div></div>
-  if (isError || !data) return <div className="col"><div className="panel-body">Failed to load entity.</div></div>
+  if (isLoading) return <LoadingSkeleton />
 
-  const e = data
+  if (isError || !data) {
+    return (
+      <div className="flex flex-col gap-4 p-4">
+        <p className="text-sm text-muted-foreground">
+          Backend not yet available. This panel will show full entity details once the API is live.
+        </p>
+        <Card>
+          <CardContent className="pt-4">
+            <p className="font-mono text-xs text-muted-foreground break-all">{entityId}</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const liveFacts = data.facts.filter((f) => f.status === 'live' || f.status === 'disputed')
+  const disputedCount = data.facts.filter((f) => f.status === 'disputed').length
 
   return (
-    <div className="col col-center">
-      <div className="panel-body">
-        <div className="detail">
-          <div className="detail-crumbs">
-            <a href="#">{e.entity_type}</a>
-            <span className="spacer" />
-            <span className="mono">{e.id}</span>
-          </div>
-
-          <div className="detail-head">
-            <div className="detail-avatar brand">{e.canonical_name.charAt(0).toUpperCase()}</div>
-            <div className="detail-title-block">
-              <div className="detail-eyebrow">{e.entity_type}</div>
-              <h1 className="detail-title">{e.canonical_name}</h1>
-              {e.aliases.length > 0 && (
-                <div className="detail-aliases">
-                  <em>aka</em> {e.aliases.join(', ')}
-                </div>
+    <div className="flex flex-col gap-4 p-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex flex-col gap-1.5">
+              <EntityTypeBadge type={data.entity_type} />
+              <h2 className="text-lg font-semibold leading-tight">{data.canonical_name}</h2>
+              {data.aliases.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Also known as: {data.aliases.join(', ')}
+                </p>
               )}
-              <div className="detail-meta">
-                <span className="chip">live</span>
-                <span className="chip outline">{e.fact_count} facts · diversity {e.source_diversity}</span>
-              </div>
             </div>
+            {disputedCount > 0 && (
+              <span className="shrink-0 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                {disputedCount} conflict{disputedCount > 1 ? 's' : ''}
+              </span>
+            )}
           </div>
+        </CardHeader>
 
-          {/* Properties */}
-          <div className="detail-section">
-            <div className="detail-section-head">
-              <span className="detail-section-title">Properties</span>
-              <span className="detail-section-count">{e.facts.length}</span>
-              <span className="spacer" />
-            </div>
-            <div className="facts">
-              {e.facts.map((f) => (
-                <div className="fact-row" key={f.id}>
-                  <div className="fact-key">{f.predicate.replace(/_/g, ' ')}</div>
-                  <div className={`fact-val${f.status === 'disputed' ? ' disputed' : ''}`}>
-                    <span className="val-text" style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>
-                      {f.object_literal != null ? String(f.object_literal) : (f.object_id ?? '—')}
-                    </span>
-                    <span className="chip outline" style={{ marginLeft: 8 }}>{(f.confidence ?? 0).toFixed(2)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+        <CardContent className="flex flex-col gap-0">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Facts
+          </p>
+          {liveFacts.length === 0 ? (
+            <p className="py-4 text-sm text-muted-foreground">
+              This entity has no live facts yet.
+            </p>
+          ) : (
+            liveFacts.map((fact, i) => (
+              <div key={fact.id}>
+                <FactRow fact={fact} />
+                {i < liveFacts.length - 1 && <Separator />}
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <p className="text-xs text-muted-foreground">
+        Path: <span className="font-mono">{String(data.attrs?.vfs_path ?? `/entities/${data.id}`)}</span>
+      </p>
     </div>
   )
 }

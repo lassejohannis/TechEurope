@@ -38,6 +38,8 @@ Workflow von vorne bis hinten. Stumpf. Details im `team-briefing-technical.md`.
 - Embedding-Similarity-Reject (Distanz < 0.4 = zu ähnlich)
 - Auto-Approve-Threshold (confidence ≥ 0.95 + similarity < 0.3 + ≥3 records)
 - Integration in `extract.py` (Tier 2 + 3 Cascade)
+- Bei jedem Re-Ingest/Reload neue Datensätze automatisch durch Ontologie- und Resolver-Pipeline laufen lassen (keine manuellen Zwischenschritte)
+- Wenn durch neue Daten neue Entity-Types/Entities entstehen: sofort persistieren und UI-Refresh triggern, damit sie direkt im linken Browse-Tree sichtbar sind
 - Endpoints `/api/admin/pending-types` + decide
 - Frontend Inbox um 2 Tabs erweitern (entity-types, edge-types)
 - Synonym-Detection-Pass (async)
