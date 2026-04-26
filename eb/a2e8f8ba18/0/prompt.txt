@@ -1195,3 +1195,118 @@ kannst du main nachziehen auf meine version
 ---
 
 Die Adresse ist chickentendr.club
+
+---
+
+welche befehle muss ich auf dem server eingeben
+
+---
+
+git checkout main
+Cloning into 'TechEurope'...
+remote: Enumerating objects: 4445, done.
+remote: Counting objects: 100% (233/233), done.
+remote: Compressing objects: 100% (168/168), done.
+remote: Total 4445 (delta 70), reused 157 (delta 42), pack-reused 4212 (from 2)
+Receiving objects: 100% (4445/4445), 59.98 MiB | 12.56 MiB/s, done.
+Resolving deltas: 100% (1623/1623), done.
+Already on 'main'
+Your branch is up to date with 'origin/main'.
+root@Tendr:/opt/TechEurope# cp deploy/.env.production.example .env                                                                                                  
+  nano .env  
+cp: cannot stat 'deploy/.env.production.example': No such file or directory
+root@Tendr:/opt/TechEurope# docker compose up -d --build                                                      
+
+  Das erste Build dauert 4-7 min:                                                                                                         
+  - Python deps (uv + docling + pdfplumber) ~3-5 min
+  - Node deps + Vite build ~1-2 min                                                                                                       
+  - Caddy provisioniert TLS-Cert (~30 sek nach DNS-Check)       
+no configuration file provided: not found
+Command 'Das' not found, did you mean:
+  command 'cas' from deb amule-utils (1:2.3.3-3build1)
+  command 'as' from deb binutils (2.42-4ubuntu2.10)
+  command 'kas' from deb kas (4.0-1)
+Try: apt install <deb name>
+-bash: syntax error near unexpected token `('
+-: command not found
+-bash: syntax error near unexpected token `('
+root@Tendr:/opt/TechEurope#
+
+---
+
+Total reclaimed space: 37.26GB
+Total reclaimed space: 0B
+root@Tendr:~# ls /opt /srv /home/*/                   # typische Pfade                                                                                
+  sudo rm -rf /pfad/zum/alten/projekt 
+/home/linuxuser/:
+
+/opt:
+containerd  hackmuc  vultr
+
+/srv:
+root@Tendr:~# info
+root@Tendr:~# which docker || curl -fsSL https://get.docker.com | sh                                                                                  
+  docker --version                                                                                                                        
+  docker compose version
+/usr/bin/docker
+Docker version 29.4.0, build 9d7ad9f
+Docker Compose version v5.1.1
+root@Tendr:~# cd /opt
+  git clone https://github.com/lassejohannis/TechEurope.git
+  cd TechEurope                                                                                                                           
+  git checkout main
+Cloning into 'TechEurope'...
+remote: Enumerating objects: 4445, done.
+remote: Counting objects: 100% (233/233), done.
+remote: Compressing objects: 100% (168/168), done.
+remote: Total 4445 (delta 70), reused 157 (delta 42), pack-reused 4212 (from 2)
+Receiving objects: 100% (4445/4445), 59.98 MiB | 12.56 MiB/s, done.
+Resolving deltas: 100% (1623/1623), done.
+Already on 'main'
+Your branch is up to date with 'origin/main'.
+root@Tendr:/opt/TechEurope# cp deploy/.env.production.example .env                                                                                                  
+  nano .env  
+cp: cannot stat 'deploy/.env.production.example': No such file or directory
+root@Tendr:/opt/TechEurope# docker compose up -d --build                                                      
+
+  Das erste Build dauert 4-7 min:                                                                                                         
+  - Python deps (uv + docling + pdfplumber) ~3-5 min
+  - Node deps + Vite build ~1-2 min                                                                                                       
+  - Caddy provisioniert TLS-Cert (~30 sek nach DNS-Check)       
+no configuration file provided: not found
+Command 'Das' not found, did you mean:
+  command 'cas' from deb amule-utils (1:2.3.3-3build1)
+  command 'as' from deb binutils (2.42-4ubuntu2.10)
+  command 'kas' from deb kas (4.0-1)
+Try: apt install <deb name>
+-bash: syntax error near unexpected token `('
+-: command not found
+-bash: syntax error near unexpected token `('
+root@Tendr:/opt/TechEurope#  docker compose up -d --build
+no configuration file provided: not found
+root@Tendr:/opt/TechEurope# ^C
+root@Tendr:/opt/TechEurope#  docker compose up -d --build
+no configuration file provided: not found
+root@Tendr:/opt/TechEurope#
+
+---
+
+root@Tendr:/opt/TechEurope/TechEurope# docker compose up -d --build 
+WARN[0000] The "SUPABASE_URL" variable is not set. Defaulting to a blank string. 
+WARN[0000] The "SUPABASE_PUBLISHABLE_KEY" variable is not set. Defaulting to a blank string. 
+env file /opt/TechEurope/TechEurope/.env not found: stat /opt/TechEurope/TechEurope/.env: no such file or directory
+root@Tendr:/opt/TechEurope/TechEurope# 
+
+
+Müssen noch frontend env setzen oder
+
+---
+
+root@Tendr:/opt/TechEurope/TechEurope# docker compose up -d --build 
+WARN[0000] The "SUPABASE_URL" variable is not set. Defaulting to a blank string. 
+WARN[0000] The "SUPABASE_PUBLISHABLE_KEY" variable is not set. Defaulting to a blank string. 
+env file /opt/TechEurope/TechEurope/.env not found: stat /opt/TechEurope/TechEurope/.env: no such file or directory
+root@Tendr:/opt/TechEurope/TechEurope# cp deploy/.env.production.example .env                                            
+  nano .env  
+cp: cannot stat 'deploy/.env.production.example': No such file or directory
+root@Tendr:/opt/TechEurope/TechEurope#
