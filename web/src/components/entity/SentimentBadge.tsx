@@ -1,5 +1,3 @@
-import React from 'react'
-
 export function SentimentBadge({ label, confidence }: { label?: string | null; confidence?: number | null }) {
   if (!label) return null
   const norm = String(label).toLowerCase()

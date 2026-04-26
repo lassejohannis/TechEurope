@@ -175,7 +175,7 @@ function ConnectorRow({
 
 function ConnectorDetail({
   connector,
-  token,
+  token: _token,
   substitute,
 }: {
   connector: Connector
