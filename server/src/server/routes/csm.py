@@ -132,6 +132,86 @@ def _executive_summary(tier: str) -> dict[str, Any]:
     return {"status_label": "Healthy", "why": "Good fact coverage across sources.", "impact": "Low risk", "next_action": "Schedule QBR", "cta_type": "none"}
 
 
+def _executive_summary_rich(ent: dict[str, Any], tier: str, attrs: dict[str, Any]) -> dict[str, Any]:
+    """Builds a context-aware executive summary using real account attributes."""
+    from datetime import datetime, timezone
+
+    name = ent.get("canonical_name") or ent["id"]
+    product = attrs.get("current_product") or ""
+    industry = attrs.get("industry") or ""
+    arr_eur = int(attrs.get("arr_eur") or 0)
+    renewal_date = attrs.get("renewal_date") or ""
+    poc_status = attrs.get("poc_status") or ""
+
+    arr_str = ""
+    if arr_eur >= 1_000_000:
+        arr_str = f"€{arr_eur // 1_000_000}M ARR"
+    elif arr_eur >= 1_000:
+        arr_str = f"€{arr_eur // 1_000}k ARR"
+
+    days_to_renewal = None
+    renewal_str = ""
+    if renewal_date:
+        try:
+            rd = datetime.fromisoformat(renewal_date.replace("Z", "+00:00"))
+            days_to_renewal = (rd - datetime.now(timezone.utc)).days
+            renewal_str = f"renewal in {days_to_renewal}d" if days_to_renewal >= 0 else "renewal overdue"
+        except Exception:
+            pass
+
+    context_parts = [p for p in [arr_str, renewal_str] if p]
+    context = " · ".join(context_parts)
+
+    if tier == "red":
+        why = f"{name} has low data confidence."
+        if product:
+            why += f" Currently on {product}."
+        if industry:
+            why += f" Industry: {industry}."
+        return {
+            "status_label": "At Risk",
+            "why": why,
+            "impact": context or "Review required",
+            "next_action": "Schedule review call",
+            "cta_type": "escalation",
+        }
+
+    if tier == "yellow":
+        why = f"Engagement gap detected for {name}."
+        if product:
+            why += f" Using {product}."
+        if poc_status == "accepted":
+            why += " PoC accepted — follow up on expansion."
+        return {
+            "status_label": "Needs Attention",
+            "why": why,
+            "impact": context or "Medium risk",
+            "next_action": "Send check-in email",
+            "cta_type": "recovery-email",
+        }
+
+    # green / healthy
+    why = f"{name} is in good standing."
+    if product:
+        why += f" Active on {product}."
+    if poc_status == "accepted":
+        why += " PoC accepted — expansion opportunity."
+    if industry:
+        why += f" Sector: {industry}."
+    cta = "none"
+    next_action = "Schedule QBR"
+    if days_to_renewal is not None and days_to_renewal <= 90:
+        next_action = f"Prepare renewal discussion ({renewal_str})"
+        cta = "recovery-email"
+    return {
+        "status_label": "Healthy",
+        "why": why,
+        "impact": context or "Low risk",
+        "next_action": next_action,
+        "cta_type": cta,
+    }
+
+
 def _attrs_to_facts(entity_id: str, attrs: dict[str, Any]) -> list[dict[str, Any]]:
     """Synthesize lightweight Fact objects from enriched entity attrs.
 
@@ -223,7 +303,16 @@ def get_account_card(account_id: str) -> dict[str, Any]:
         .is_("valid_to", "null")
         .execute()
     )
-    facts = [_map_fact(f) for f in (facts_res.data or [])]
+    raw_facts = [_map_fact(f) for f in (facts_res.data or [])]
+
+    # Merge attrs-derived synthetic facts so MeetingBrief can find renewal_date / arr / tier
+    attrs = ent.get("attrs") or ent.get("attributes") or {}
+    synthetic = _attrs_to_facts(account_id, attrs)
+    synthetic_predicates = {f["predicate"] for f in synthetic}
+    real_predicates = {f["predicate"] for f in raw_facts}
+    # only add synthetic facts that aren't already covered by real DB facts
+    extra = [f for f in synthetic if f["predicate"] not in real_predicates]
+    facts = raw_facts + extra
 
     # key contacts: persons linked via facts
     contact_ids = [
@@ -239,17 +328,43 @@ def get_account_card(account_id: str) -> dict[str, Any]:
         for c in c_res.data or []:
             key_contacts.append({"entity": _map_entity(c), "role": "contact"})
 
-    health = _csm_health(account_id, len(facts))
-    summary = _executive_summary(health["tier"])
+    # recent communications: fetch communication entities linked via has_document
+    comm_entity_ids = [
+        f["object"] for f in facts
+        if f["object_type"] == "entity"
+        and f["predicate"] in ("has_document", "has_communication", "participant_in")
+        and str(f.get("object", "")).startswith("communication:")
+    ]
+    recent_communications: list[dict[str, Any]] = []
+    if comm_entity_ids:
+        comm_res = db.table("entities").select("id, canonical_name, created_at").in_(
+            "id", comm_entity_ids[:8]
+        ).execute()
+        for c in comm_res.data or []:
+            name = c.get("canonical_name") or c["id"]
+            recent_communications.append({
+                "id": c["id"],
+                "subject": name,
+                "body_preview": name,
+                "direction": "inbound",
+                "channel": "other",
+                "participants": [],
+                "sentiment": None,
+                "source_record_id": None,
+                "created_at": str(c.get("created_at") or ""),
+            })
+
+    health = _csm_health(account_id, len(raw_facts))
+    summary = _executive_summary_rich(ent, health["tier"], attrs)
 
     return {
         "entity": _map_entity(ent),
         "facts": facts,
         "key_contacts": key_contacts,
         "open_tickets": [],
-        "recent_communications": [],
+        "recent_communications": recent_communications,
         "health": health,
-        "stakeholder_change_detected": False,
+        "stakeholder_change_detected": len(key_contacts) > 0,
         "new_stakeholders": [],
         "executive_summary": summary,
     }

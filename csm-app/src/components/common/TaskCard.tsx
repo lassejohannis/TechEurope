@@ -21,9 +21,10 @@ interface TaskCardProps {
   item: BriefingItem
   onSendEmail?: () => void
   onEscalate?: () => void
+  onSelect?: () => void
 }
 
-export default function TaskCard({ item, onSendEmail, onEscalate }: TaskCardProps) {
+export default function TaskCard({ item, onSendEmail, onEscalate, onSelect }: TaskCardProps) {
   const navigate = useNavigate()
   const markHandled = useUiStore((s) => s.markHandled)
   const handledItems = useUiStore((s) => s.handledItems)
@@ -33,7 +34,11 @@ export default function TaskCard({ item, onSendEmail, onEscalate }: TaskCardProp
 
   function handleCardClick(e: React.MouseEvent) {
     if ((e.target as HTMLElement).closest('.priority-icon-btn')) return
-    navigate(`/accounts/${encodeURIComponent(item.account_id)}`)
+    if (onSelect) {
+      onSelect()
+    } else {
+      navigate(`/accounts/${encodeURIComponent(item.account_id)}`)
+    }
   }
 
   function handleMarkHandled(e: React.MouseEvent) {
@@ -56,7 +61,7 @@ export default function TaskCard({ item, onSendEmail, onEscalate }: TaskCardProp
           role="button"
           tabIndex={0}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') navigate(`/accounts/${encodeURIComponent(item.account_id)}`)
+            if (e.key === 'Enter') onSelect ? onSelect() : navigate(`/accounts/${encodeURIComponent(item.account_id)}`)
           }}
         >
           <div className={`signal-icon-wrap ${item.priority}`}>

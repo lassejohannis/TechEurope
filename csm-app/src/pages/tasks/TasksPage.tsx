@@ -2,26 +2,26 @@ import { useState } from 'react'
 import { useBriefing } from '@/hooks/useBriefing'
 import { useUiStore } from '@/store/ui'
 import TaskCard from '@/components/common/TaskCard'
+import TaskDetailSidebar from '@/components/common/TaskDetailSidebar'
 import RecoveryEmailModal from '@/components/cta/RecoveryEmailModal'
 import EscalationModal from '@/components/cta/EscalationModal'
 import type { BriefingItem } from '@/types'
 
-type FilterKey = 'all' | 'at-risk' | 'renewals' | 'low-engagement'
+type FilterKey = 'all' | 'at-risk' | 'renewals' | 'low-engagement' | 'high-impact'
 
 const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: 'all',            label: 'All' },
-  { key: 'at-risk',        label: 'At Risk' },
-  { key: 'renewals',       label: 'Renewals (next 90d)' },
-  { key: 'low-engagement', label: 'Low Engagement' },
+  { key: 'all',           label: 'All' },
+  { key: 'at-risk',       label: 'At Risk' },
+  { key: 'renewals',      label: 'Renewals (next 90d)' },
+  { key: 'low-engagement',label: 'Low Engagement' },
+  { key: 'high-impact',   label: 'High Impact' },
 ]
 
 const PRIORITY_ORDER = { red: 0, yellow: 1, green: 2 } as const
 
 function sortTasks(items: BriefingItem[]): BriefingItem[] {
   return [...items].sort((a, b) => {
-    if (b.revenue_impact_eur !== a.revenue_impact_eur) {
-      return b.revenue_impact_eur - a.revenue_impact_eur
-    }
+    if (b.revenue_impact_eur !== a.revenue_impact_eur) return b.revenue_impact_eur - a.revenue_impact_eur
     return PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
   })
 }
@@ -37,6 +37,11 @@ function applyFilter(items: BriefingItem[], filter: FilterKey): BriefingItem[] {
     })
   }
   if (filter === 'low-engagement') return items.filter((i) => i.signal_type === 'engagement_gap')
+  if (filter === 'high-impact') {
+    const sorted = sortTasks(items)
+    const threshold = sorted.length > 0 ? sorted[Math.min(4, sorted.length - 1)].revenue_impact_eur : 0
+    return sorted.filter((i) => i.revenue_impact_eur >= threshold && i.revenue_impact_eur > 0)
+  }
   return items
 }
 
@@ -47,7 +52,9 @@ function formatDate(d: Date): string {
 export default function TasksPage() {
   const { data: briefing, isLoading, error } = useBriefing()
   const handledItems = useUiStore((s) => s.handledItems)
+  const markHandled = useUiStore((s) => s.markHandled)
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all')
+  const [selectedTask, setSelectedTask] = useState<BriefingItem | null>(null)
   const [recoveryTarget, setRecoveryTarget] = useState<string | null>(null)
   const [escalationTarget, setEscalationTarget] = useState<{ id: string; name: string } | null>(null)
 
@@ -70,6 +77,15 @@ export default function TasksPage() {
   const visible = briefing.items.filter((i) => !handledItems.has(i.id))
   const filtered = applyFilter(sortTasks(visible), activeFilter)
 
+  function closeSidebar() {
+    setSelectedTask(null)
+  }
+
+  function handleMarkHandled(id: string) {
+    markHandled(id)
+    setSelectedTask(null)
+  }
+
   return (
     <div className="tasks-page">
       <div className="tasks-header">
@@ -77,16 +93,21 @@ export default function TasksPage() {
         <div className="tasks-date">{formatDate(new Date())}</div>
       </div>
 
-      <div className="filter-pills">
-        {FILTERS.map((f) => (
-          <button
-            key={f.key}
-            className={`filter-pill${activeFilter === f.key ? ' active' : ''}`}
-            onClick={() => setActiveFilter(f.key)}
-          >
-            {f.label}
-          </button>
-        ))}
+      <div className="tasks-controls">
+        <div className="filter-pills">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              className={`filter-pill${activeFilter === f.key ? ' active' : ''}`}
+              onClick={() => setActiveFilter(f.key)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div className="tasks-sort-indicator">
+          Impact ↓
+        </div>
       </div>
 
       {filtered.length === 0 ? (
@@ -107,6 +128,7 @@ export default function TasksPage() {
             <TaskCard
               key={item.id}
               item={item}
+              onSelect={() => setSelectedTask(item)}
               onSendEmail={
                 item.signal_type === 'sentiment_drop' ||
                 item.signal_type === 'renewal_risk' ||
@@ -123,6 +145,31 @@ export default function TasksPage() {
           ))}
         </div>
       )}
+
+      <TaskDetailSidebar
+        item={selectedTask}
+        onClose={closeSidebar}
+        onSendEmail={
+          selectedTask &&
+          (selectedTask.signal_type === 'sentiment_drop' ||
+            selectedTask.signal_type === 'renewal_risk' ||
+            selectedTask.signal_type === 'engagement_gap')
+            ? () => {
+                setRecoveryTarget(selectedTask.account_id)
+                closeSidebar()
+              }
+            : undefined
+        }
+        onEscalate={
+          selectedTask?.priority === 'red'
+            ? () => {
+                setEscalationTarget({ id: selectedTask.account_id, name: selectedTask.account_name })
+                closeSidebar()
+              }
+            : undefined
+        }
+        onMarkHandled={selectedTask ? () => handleMarkHandled(selectedTask.id) : undefined}
+      />
 
       {recoveryTarget !== null && (
         <RecoveryEmailModal accountId={recoveryTarget} onClose={() => setRecoveryTarget(null)} />

@@ -1,6 +1,18 @@
+import { useState, useEffect } from 'react'
 import { NavLink, useMatch } from 'react-router-dom'
-import { CheckSquare, Building2 } from 'lucide-react'
+import { CheckSquare, Building2, Moon, Sun } from 'lucide-react'
 import { useAccount } from '@/hooks/useAccount'
+
+function useDarkMode() {
+  const [dark, setDark] = useState(() => {
+    try { return localStorage.getItem('theme') === 'dark' } catch { return false }
+  })
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
+    try { localStorage.setItem('theme', dark ? 'dark' : 'light') } catch { /* noop */ }
+  }, [dark])
+  return [dark, setDark] as const
+}
 
 export default function TopBar() {
   const accountMatch = useMatch('/accounts/:accountId')
@@ -8,6 +20,7 @@ export default function TopBar() {
     ? decodeURIComponent(accountMatch.params.accountId)
     : null
   const { data: account } = useAccount(accountId)
+  const [dark, setDark] = useDarkMode()
 
   return (
     <header className="topbar">
@@ -50,6 +63,15 @@ export default function TopBar() {
         <span style={{ fontSize: 10, color: 'var(--conf-high)' }}>●</span>
         Live
       </div>
+
+      <button
+        className="theme-toggle-btn"
+        onClick={() => setDark((d) => !d)}
+        aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+        title={dark ? 'Light mode' : 'Dark mode'}
+      >
+        {dark ? <Sun size={14} /> : <Moon size={14} />}
+      </button>
 
       <div className="user-chip">AK</div>
     </header>
