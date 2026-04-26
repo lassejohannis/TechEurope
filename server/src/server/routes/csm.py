@@ -114,13 +114,23 @@ def list_accounts() -> list[dict[str, Any]]:
     for e in rows:
         trust = trust_map.get(e["id"], 0.5)
         health = _health_from_trust(trust)
+        tier = health["tier"]
+        if tier == "red":
+            summary = {"status_label": "At Risk", "why": "Low data coverage.", "impact": "High risk", "next_action": "Schedule review call", "cta_type": "escalation"}
+        elif tier == "yellow":
+            summary = {"status_label": "Needs Attention", "why": "Some data gaps.", "impact": "Medium risk", "next_action": "Send check-in email", "cta_type": "recovery-email"}
+        else:
+            summary = {"status_label": "Healthy", "why": "Good fact coverage.", "impact": "Low risk", "next_action": "Schedule QBR", "cta_type": "none"}
         items.append({
-            "id": e["id"],
-            "name": e.get("canonical_name") or e["id"],
-            "entity_type": e.get("entity_type") or "organization",
-            "health_tier": health["tier"],
-            "health_score": health["score"],
-            "attributes": e.get("attrs") or {},
+            "entity": _map_entity(e),
+            "facts": [],
+            "key_contacts": [],
+            "open_tickets": [],
+            "recent_communications": [],
+            "health": health,
+            "stakeholder_change_detected": False,
+            "new_stakeholders": [],
+            "executive_summary": summary,
         })
     return items
 
