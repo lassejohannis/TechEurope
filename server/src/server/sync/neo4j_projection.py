@@ -60,6 +60,15 @@ class Neo4jProjection:
         self._last_synced_at: str | None = None
 
     async def start(self) -> None:
+        # macOS Python doesn't ship a system trust store — point OpenSSL at
+        # certifi's bundle so Neo4j Aura's Let's Encrypt / SSL.com chain
+        # verifies. Idempotent + harmless on Linux.
+        import os as _os
+        try:
+            import certifi as _certifi
+            _os.environ.setdefault("SSL_CERT_FILE", _certifi.where())
+        except ImportError:
+            pass
         self.driver = AsyncGraphDatabase.driver(
             self.cfg.neo4j_uri,
             auth=(self.cfg.neo4j_user, self.cfg.neo4j_password),
